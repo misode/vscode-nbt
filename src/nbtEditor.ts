@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as zlib from 'zlib';
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
 
@@ -121,10 +122,38 @@ export class NbtModel {
 
     public static async create(resource: vscode.Uri): Promise<NbtModel> {
         const buffer = await vscode.workspace.fs.readFile(resource);
-        return new NbtModel(buffer);
+
+        // Detect whether the file is gzipped
+        // See: https://gist.github.com/winny-/6043044#file-mc_change_spawn-py-L50-L56
+        const gzipped = Buffer.from(buffer.slice(0, 2)).toString('hex') === '1f8b';
+        if (gzipped) {
+            return new NbtModel(await this.gunzip(buffer));
+        } else {
+            return new NbtModel(buffer);
+        }
     }
 
     private constructor(private readonly initialValue: Uint8Array) { }
+
+    static gzip(input: zlib.InputType): Promise<Buffer> {
+        const promise = new Promise<Buffer>(function(resolve, reject) {
+            zlib.gzip(input, (error: Error | null, result: Buffer) => {
+                if(!error) resolve(result);
+                else reject(error);
+            });
+        });
+        return promise;
+    }
+    
+    static gunzip(input: zlib.InputType): Promise<Buffer> {
+        const promise = new Promise<Buffer>(function(resolve, reject) {
+            zlib.gunzip(input, (error: Error | null, result: Buffer) => {
+                if(!error) resolve(result);
+                else reject(error);
+            });
+        });
+        return promise;
+    }
 
     public pushEdits(edits: readonly Edit[]): void {
         this._edits.push(...edits);

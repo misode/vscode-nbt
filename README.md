@@ -1,0 +1,1 @@
+# NBT Editor for VSCode

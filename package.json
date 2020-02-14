@@ -3,6 +3,7 @@
 	"displayName": "NBT",
 	"description": "NBT Editor for VSCode",
 	"version": "0.0.1",
+    "enableProposedApi": true,
 	"engines": {
 		"vscode": "^1.42.0"
 	},
@@ -10,7 +11,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.helloWorld"
+		"onCommand:extension.helloWorld",
+		"onWebviewEditor:nbtEditor.nbt"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -18,6 +20,17 @@
 			{
 				"command": "extension.helloWorld",
 				"title": "Hello World"
+			}
+		],
+		"webviewEditors": [
+			{
+				"viewType": "nbtEditor.nbt",
+				"displayName": "NBT Data",
+				"selector": [
+					{
+						"filenamePattern": "*.nbt"
+					}
+				]
 			}
 		]
 	},

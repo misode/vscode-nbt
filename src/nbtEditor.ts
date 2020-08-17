@@ -2,13 +2,20 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
+const {gzip, ungzip} = require('node-gzip');
+const nbt = require('nbt')
 
 interface NbtEdit {
     readonly type: string;
 }
 
 interface NbtDocumentDelegate {
-    getFileData(): Promise<Uint8Array>;
+    getFileData(): Promise<NamedNbtCompound>;
+}
+
+type NamedNbtCompound = {
+    name: string,
+    value: any
 }
 
 class NbtDocument extends Disposable implements vscode.CustomDocument {
@@ -23,16 +30,17 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
         return new NbtDocument(uri, fileData, delegate);
     }
 
-    private static async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-        if (uri.scheme === 'untitled') {
-            return new Uint8Array();
-        }
-        return vscode.workspace.fs.readFile(uri);
+    private static async readFile(uri: vscode.Uri): Promise<NamedNbtCompound> {
+        // if (uri.scheme === 'untitled') {
+        //     return new Uint8Array();
+        // }
+        const buffer = await vscode.workspace.fs.readFile(uri);
+        return nbt.parseUncompressed(buffer)
     }
 
     private readonly _uri: vscode.Uri;
 
-    private _documentData: Uint8Array;
+    private _documentData: NamedNbtCompound;
     private _edits: Array<NbtEdit> = [];
     private _savedEdits: Array<NbtEdit> = [];
 
@@ -40,7 +48,7 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
 
     private constructor(
         uri: vscode.Uri,
-        initialContent: Uint8Array,
+        initialContent: NamedNbtCompound,
         delegate: NbtDocumentDelegate
     ) {
         super();
@@ -51,14 +59,14 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
 
     public get uri() { return this._uri; }
 
-    public get documentData(): Uint8Array { return this._documentData; }
+    public get documentData(): NamedNbtCompound { return this._documentData; }
 
     private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
 
     public readonly onDidDispose = this._onDidDispose.event;
 
     private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
-        readonly content?: Uint8Array;
+        readonly content?: NamedNbtCompound;
         readonly edits: readonly NbtEdit[];
     }>());
 
@@ -103,10 +111,12 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
-        const fileData = await this._delegate.getFileData();
+        const tag = await this._delegate.getFileData();
         if (cancellation.isCancellationRequested) {
             return;
         }
+        const buffer = nbt.writeUncompressed(tag)
+        const fileData = new Uint8Array(buffer)
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }
 
@@ -179,12 +189,14 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, {
             getFileData: async () => {
                 const webviewsForDocument = Array.from(this.webviews.get(document.uri));
+                console.log("checking webview...")
                 if (!webviewsForDocument.length) {
                     throw new Error('Could not find webview to save for');
                 }
                 const panel = webviewsForDocument[0];
-                const response = await this.postMessageWithResponse<number[]>(panel, 'getFileData', {});
-                return new Uint8Array(response);
+                console.log("requesting file data...")
+                const response = await this.postMessageWithResponse<NamedNbtCompound>(panel, 'getFileData', {});
+                return response;
             }
         });
 

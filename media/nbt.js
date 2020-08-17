@@ -1,35 +1,29 @@
-// @ts-check
 
 (function () {
-	// @ts-ignore
 	const vscode = acquireVsCodeApi();
 
 	class NbtEditor {
-		constructor( /** @type {HTMLElement} */ parent) {
+		constructor(parent) {
 			this._initElements(parent);
 		}
 		
-		_initElements(/** @type {HTMLElement} */ parent) {
+		_initElements(parent) {
 			this.text = document.createElement('textarea')
 			this.text.textContent = 'Loading...'
 			parent.append(this.text)
 		}
 
 		_redraw() {
-			this.text.textContent = this.nbtData.length.toString()
+			this.text.textContent = JSON.stringify(this.nbtData, null, 2)
 		}
-
-		/**
-		 * @param {Uint8Array | undefined} data
-		 */
+		
 		async reset(data) {
 			this.nbtData = data
 			this._redraw();
 		}
 
-		/** @return {Promise<Uint8Array>} */
 		async getNbtData() {
-			return this.nbtData
+			return JSON.parse(this.text.value)
 		}
 	}
 
@@ -43,8 +37,7 @@
 					if (body.untitled) {
 						return;
 					} else {
-						const data = new Uint8Array(body.value.data);
-						await editor.reset(data);
+						await editor.reset(body.value);
 						return;
 					}
 				}
@@ -57,7 +50,7 @@
 			case 'getFileData':
 				{
 					editor.getNbtData().then(data => {
-						vscode.postMessage({ type: 'response', requestId, body: Array.from(data) });
+						vscode.postMessage({ type: 'response', requestId, body: data });
 					});
 					return;
 				}

@@ -11,19 +11,23 @@
 			this.text = document.createElement('textarea')
 			this.text.textContent = 'Loading...'
 			parent.append(this.text)
+
+			this.text.addEventListener('keydown', () => {
+				this.nbtFile.data = JSON.parse(this.text.value)
+			})
 		}
 
 		_redraw() {
-			this.text.textContent = JSON.stringify(this.nbtData, null, 2)
+			this.text.textContent = JSON.stringify(this.nbtFile.data, null, 2)
 		}
 		
 		async reset(data) {
-			this.nbtData = data
+			this.nbtFile = data
 			this._redraw();
 		}
 
 		async getNbtData() {
-			return JSON.parse(this.text.value)
+			return this.nbtFile
 		}
 	}
 

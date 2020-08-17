@@ -1,6 +1,6 @@
 {
 	"name": "vscode-nbt",
-	"displayName": "NBT",
+	"displayName": "NBT Editor",
 	"description": "NBT Editor for VSCode",
 	"version": "0.0.1",
 	"publisher": "Misode",
@@ -16,17 +16,10 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.helloWorld",
 		"onCustomEditor:nbtEditor.nbt"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
-		"commands": [
-			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
-			}
-		],
 		"customEditors": [
 			{
 				"viewType": "nbtEditor.nbt",
@@ -34,6 +27,9 @@
 				"selector": [
 					{
 						"filenamePattern": "*.nbt"
+					},
+					{
+						"filenamePattern": "*.dat"
 					}
 				],
 				"priority": "default"

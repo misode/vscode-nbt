@@ -1,257 +1,348 @@
 import * as path from 'path';
-import * as zlib from 'zlib';
 import * as vscode from 'vscode';
-import { Disposable } from './dispose';
+import { Disposable, disposeAll } from './dispose';
+import { getNonce } from './util';
 
-interface Edit {
-    readonly data: Uint8Array;
+interface NbtEdit {
+    readonly type: string;
 }
 
-export class NbtEditorProvider implements vscode.WebviewCustomEditorProvider, vscode.WebviewCustomEditorEditingDelegate<Edit> {
+interface NbtDocumentDelegate {
+    getFileData(): Promise<Uint8Array>;
+}
 
-    public static readonly viewType = 'nbtEditor.nbt';
+class NbtDocument extends Disposable implements vscode.CustomDocument {
 
-    private readonly models = new Map<string, NbtModel>();
-    private readonly editors = new Map<string, Set<NbtEditor>>();
-
-    private activeEditor?: NbtEditor;
-
-    public readonly editingDelegate?: vscode.WebviewCustomEditorEditingDelegate<Edit> = this;
-
-    public constructor(private readonly extensionPath: string) { }
-
-    public register(): vscode.Disposable {
-        return vscode.window.registerWebviewCustomEditorProvider(NbtEditorProvider.viewType, this);
+    static async create(
+        uri: vscode.Uri,
+        backupId: string | undefined,
+        delegate: NbtDocumentDelegate,
+    ): Promise<NbtDocument | PromiseLike<NbtDocument>> {
+        const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
+        const fileData = await NbtDocument.readFile(dataFile);
+        return new NbtDocument(uri, fileData, delegate);
     }
 
-    public async resolveWebviewEditor(resource: vscode.Uri, panel: vscode.WebviewPanel) {
-        const model = await this.loadOrCreateModel(resource);
-        const editor = new NbtEditor(this.extensionPath, model, resource, panel, {
-            onEdit: (edit: Edit) => {
-                model.pushEdits([edit]);
-                this._onEdit.fire({ resource, edit });
-                this.update(resource, editor);
+    private static async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+        if (uri.scheme === 'untitled') {
+            return new Uint8Array();
+        }
+        return vscode.workspace.fs.readFile(uri);
+    }
+
+    private readonly _uri: vscode.Uri;
+
+    private _documentData: Uint8Array;
+    private _edits: Array<NbtEdit> = [];
+    private _savedEdits: Array<NbtEdit> = [];
+
+    private readonly _delegate: NbtDocumentDelegate;
+
+    private constructor(
+        uri: vscode.Uri,
+        initialContent: Uint8Array,
+        delegate: NbtDocumentDelegate
+    ) {
+        super();
+        this._uri = uri;
+        this._documentData = initialContent;
+        this._delegate = delegate;
+    }
+
+    public get uri() { return this._uri; }
+
+    public get documentData(): Uint8Array { return this._documentData; }
+
+    private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
+
+    public readonly onDidDispose = this._onDidDispose.event;
+
+    private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
+        readonly content?: Uint8Array;
+        readonly edits: readonly NbtEdit[];
+    }>());
+
+    public readonly onDidChangeContent = this._onDidChangeDocument.event;
+
+    private readonly _onDidChange = this._register(new vscode.EventEmitter<{
+        readonly label: string,
+        undo(): void,
+        redo(): void,
+    }>());
+
+    public readonly onDidChange = this._onDidChange.event;
+
+    dispose(): void {
+        this._onDidDispose.fire();
+        super.dispose();
+    }
+
+    makeEdit(edit: NbtEdit) {
+        this._edits.push(edit);
+
+        this._onDidChange.fire({
+            label: 'Stroke',
+            undo: async () => {
+                this._edits.pop();
+                this._onDidChangeDocument.fire({
+                    edits: this._edits,
+                });
+            },
+            redo: async () => {
+                this._edits.push(edit);
+                this._onDidChangeDocument.fire({
+                    edits: this._edits,
+                });
             }
         });
+    }
 
-        // Clean up models when there are no editors for them.
-        editor.onDispose(() => {
-            const entry = this.editors.get(resource.toString());
-            if (!entry) {
-                return
-            }
-            entry.delete(editor);
-            if (entry.size === 0) {
-                this.editors.delete(resource.toString());
-                this.models.delete(resource.toString());
-            }
+    async save(cancellation: vscode.CancellationToken): Promise<void> {
+        await this.saveAs(this.uri, cancellation);
+        this._savedEdits = Array.from(this._edits);
+    }
+
+    async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+        const fileData = await this._delegate.getFileData();
+        if (cancellation.isCancellationRequested) {
+            return;
+        }
+        await vscode.workspace.fs.writeFile(targetResource, fileData);
+    }
+
+    async revert(_cancellation: vscode.CancellationToken): Promise<void> {
+        const diskContent = await NbtDocument.readFile(this.uri);
+        this._documentData = diskContent;
+        this._edits = this._savedEdits;
+        this._onDidChangeDocument.fire({
+            content: diskContent,
+            edits: this._edits,
         });
-
-        let editorSet = this.editors.get(resource.toString());
-        if (!editorSet) {
-            editorSet = new Set();
-            this.editors.set(resource.toString(), editorSet);
-        }
-        editorSet.add(editor);
     }
 
-    private async loadOrCreateModel(resource: vscode.Uri): Promise<NbtModel> {
-        const existing = this.models.get(resource.toString());
-        if (existing) {
-            return existing;
-        }
-        const newModel = await NbtModel.create(resource);
-        this.models.set(resource.toString(), newModel);
-        return newModel;
-    }
+    async backup(destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+        await this.saveAs(destination, cancellation);
 
-    private getModel(resource: vscode.Uri): NbtModel {
-        const entry = this.models.get(resource.toString());
-        if (!entry) {
-            throw new Error('no model');
-        }
-        return entry;
-    }
-
-    public async save(resource: vscode.Uri): Promise<void> {
-        const model = this.getModel(resource);
-
-        let pathToWrite = resource;
-        if (resource.scheme === 'untitled') {
-            pathToWrite = vscode.Uri.file(path.join(vscode.workspace.rootPath!, resource.path));
-        }
-
-        await vscode.workspace.fs.writeFile(pathToWrite, Buffer.from(model.getContent()));
-    }
-
-    public async saveAs(resource: vscode.Uri, targetResource: vscode.Uri): Promise<void> {
-        const model = this.getModel(resource);
-        await vscode.workspace.fs.writeFile(targetResource, Buffer.from(model.getContent()));
-    }
-
-    private readonly _onEdit = new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly edit: Edit }>();
-    public readonly onEdit = this._onEdit.event;
-
-    async applyEdits(resource: vscode.Uri, edits: readonly any[]): Promise<void> {
-        const model = this.getModel(resource);
-        model.pushEdits(edits);
-        this.update(resource);
-    }
-
-    async undoEdits(resource: vscode.Uri, edits: readonly any[]): Promise<void> {
-        const model = this.getModel(resource);
-        model.popEdits(edits);
-        this.update(resource);
-    }
-
-    private update(resource: vscode.Uri, trigger?: NbtEditor) {
-        const editors = this.editors.get(resource.toString());
-        if (!editors) {
-            throw new Error(`No editors found for ${resource.toString()}`);
-        }
-        for (const editor of editors) {
-            if (editor !== trigger) {
-                editor.update();
+        return {
+            id: destination.toString(),
+            delete: async () => {
+                try {
+                    await vscode.workspace.fs.delete(destination);
+                } catch { }
             }
-        }
+        };
     }
 }
 
-export class NbtModel {
-    private readonly _edits: Edit[] = [];
+export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-    public static async create(resource: vscode.Uri): Promise<NbtModel> {
-        const buffer = await vscode.workspace.fs.readFile(resource);
+    private static newNbtFileId = 1;
 
-        // Detect whether the file is gzipped
-        // See: https://gist.github.com/winny-/6043044#file-mc_change_spawn-py-L50-L56
-        const gzipped = Buffer.from(buffer.slice(0, 2)).toString('hex') === '1f8b';
-        if (gzipped) {
-            return new NbtModel(await this.gunzip(buffer));
-        } else {
-            return new NbtModel(buffer);
-        }
-    }
+    public static register(context: vscode.ExtensionContext): vscode.Disposable {
+        vscode.commands.registerCommand('nbtEditor.nbt.new', () => {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders) {
+                vscode.window.showErrorMessage("Creating new NBT files currently requires opening a workspace");
+                return;
+            }
 
-    private constructor(private readonly initialValue: Uint8Array) { }
+            const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, `new-${NbtEditorProvider.newNbtFileId++}.nbt`)
+                .with({ scheme: 'untitled' });
 
-    static gzip(input: zlib.InputType): Promise<Buffer> {
-        const promise = new Promise<Buffer>(function(resolve, reject) {
-            zlib.gzip(input, (error: Error | null, result: Buffer) => {
-                if(!error) resolve(result);
-                else reject(error);
+            vscode.commands.executeCommand('vscode.openWith', uri, NbtEditorProvider.viewType);
+        });
+
+        return vscode.window.registerCustomEditorProvider(
+            NbtEditorProvider.viewType,
+            new NbtEditorProvider(context),
+            {
+                webviewOptions: {},
+                supportsMultipleEditorsPerDocument: false,
             });
-        });
-        return promise;
-    }
-    
-    static gunzip(input: zlib.InputType): Promise<Buffer> {
-        const promise = new Promise<Buffer>(function(resolve, reject) {
-            zlib.gunzip(input, (error: Error | null, result: Buffer) => {
-                if(!error) resolve(result);
-                else reject(error);
-            });
-        });
-        return promise;
     }
 
-    public pushEdits(edits: readonly Edit[]): void {
-        this._edits.push(...edits);
-    }
+    private static readonly viewType = 'nbtEditor.nbt';
 
-    public popEdits(edits: readonly Edit[]): void {
-        for (let i = 0; i < edits.length; ++i) {
-            this._edits.pop();
-        }
-    }
-
-    public getContent() {
-        return this._edits.length ? this._edits[this._edits.length - 1].data : this.initialValue;
-    }
-}
-
-export class NbtEditor extends Disposable {
-
-    public static readonly viewType = 'nbtEditor.nbt';
-
-    private readonly _onEdit = new vscode.EventEmitter<Edit>();
-    public readonly onEdit = this._onEdit.event;
-
-    public readonly _onDispose = this._register(new vscode.EventEmitter<void>());
-    public readonly onDispose = this._onDispose.event;
+    private readonly webviews = new WebviewCollection();
 
     constructor(
-        private readonly _extensionPath: string,
-        private readonly model: NbtModel,
-        private readonly uri: vscode.Uri,
-        private readonly panel: vscode.WebviewPanel,
-        private readonly delegate: {
-            onEdit: (edit: Edit) => void
-        }
-    ) {
-        super()
+        private readonly _context: vscode.ExtensionContext
+    ) { }
 
-        panel.webview.options = {
-            enableScripts: true,
-        }
-        panel.webview.html = this.html
+    //#region CustomEditorProvider
 
-        panel.webview.onDidReceiveMessage(message => {
-            switch (message.type) {
-                case 'stroke':
-                    const edit: Edit = { data: new Uint8Array(message.value.data.data) }
-                    this.delegate.onEdit(edit)
-                    break
+    async openCustomDocument(
+        uri: vscode.Uri,
+        openContext: { backupId?: string },
+        _token: vscode.CancellationToken
+    ): Promise<NbtDocument> {
+        const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, {
+            getFileData: async () => {
+                const webviewsForDocument = Array.from(this.webviews.get(document.uri));
+                if (!webviewsForDocument.length) {
+                    throw new Error('Could not find webview to save for');
+                }
+                const panel = webviewsForDocument[0];
+                const response = await this.postMessageWithResponse<number[]>(panel, 'getFileData', {});
+                return new Uint8Array(response);
             }
-        })
-        this._register(panel.onDidDispose(() => { this.dispose() }))
+        });
 
-        this.update()
-        this.setInitialContent()
+        const listeners: vscode.Disposable[] = [];
+
+        listeners.push(document.onDidChange(e => {
+            this._onDidChangeCustomDocument.fire({ document, ...e, });
+        }));
+
+        listeners.push(document.onDidChangeContent(e => {
+            for (const webviewPanel of this.webviews.get(document.uri)) {
+                this.postMessage(webviewPanel, 'update', { edits: e.edits, content: e.content, });
+            }
+        }));
+
+        document.onDidDispose(() => disposeAll(listeners));
+
+        return document;
     }
 
-    public dispose() {
-        if (this.isDisposed) {
-            return
+    async resolveCustomEditor(
+        document: NbtDocument,
+        webviewPanel: vscode.WebviewPanel,
+        _token: vscode.CancellationToken
+    ): Promise<void> {
+        this.webviews.add(document.uri, webviewPanel);
+
+        webviewPanel.webview.options = {
+            enableScripts: true,
+        };
+        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+        webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(document, e));
+
+        webviewPanel.webview.onDidReceiveMessage(e => {
+            if (e.type === 'ready') {
+                if (document.uri.scheme === 'untitled') {
+                    this.postMessage(webviewPanel, 'init', {
+                        untitled: true
+                    });
+                } else {
+                    this.postMessage(webviewPanel, 'init', {
+                        value: document.documentData
+                    });
+                }
+            }
+        });
+    }
+
+    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>();
+    public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+
+    public saveCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+        return document.save(cancellation);
+    }
+
+    public saveCustomDocumentAs(document: NbtDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
+        return document.saveAs(destination, cancellation);
+    }
+
+    public revertCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+        return document.revert(cancellation);
+    }
+
+    public backupCustomDocument(document: NbtDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
+        return document.backup(context.destination, cancellation);
+    }
+
+    //#endregion
+
+    private getHtmlForWebview(webview: vscode.Webview): string {
+        const scriptUri = webview.asWebviewUri(vscode.Uri.file(
+            path.join(this._context.extensionPath, 'media', 'nbt.js')
+        ));
+        const styleUri = webview.asWebviewUri(vscode.Uri.file(
+            path.join(this._context.extensionPath, 'media', 'nbt.css')
+        ));
+
+        const nonce = getNonce();
+
+        return `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+
+				<!--
+				Use a content security policy to only allow loading images from https or from our extension directory,
+				and only allow scripts that have a specific nonce.
+				-->
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+				<link href="${styleUri}" rel="stylesheet" />
+
+				<title>NBT Editor</title>
+			</head>
+            <body>
+                <div class="nbt-editor"></div>
+
+				<script nonce="${nonce}" src="${scriptUri}"></script>
+			</body>
+			</html>`;
+    }
+
+    private _requestId = 1;
+    private readonly _callbacks = new Map<number, (response: any) => void>();
+
+    private postMessageWithResponse<R = unknown>(panel: vscode.WebviewPanel, type: string, body: any): Promise<R> {
+        const requestId = this._requestId++;
+        const p = new Promise<R>(resolve => this._callbacks.set(requestId, resolve));
+        panel.webview.postMessage({ type, requestId, body });
+        return p;
+    }
+
+    private postMessage(panel: vscode.WebviewPanel, type: string, body: any): void {
+        panel.webview.postMessage({ type, body });
+    }
+
+    private onMessage(document: NbtDocument, message: any) {
+        switch (message.type) {
+            case 'stroke':
+                document.makeEdit(message as NbtEdit);
+                return;
+
+            case 'response':
+                {
+                    const callback = this._callbacks.get(message.requestId);
+                    callback?.(message.body);
+                    return;
+                }
         }
-
-        this._onDispose.fire()
-        super.dispose()
     }
+}
 
-    private async setInitialContent(): Promise<void> {
-        setTimeout(() => {
-            this.panel.webview.postMessage({
-                type: 'init',
-                value: this.panel.webview.asWebviewUri(this.uri).toString()
-            });
-        }, 100);
-    }
+class WebviewCollection {
 
-    private get html() {
-        const content = this.model.getContent();
-        return /* html */`<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="X-UA-Compatible" content="ie=edge">
-            <title>Document</title>
-        </head>
-        <body>
-            <h3>NBT Editor</h3>
-            <textarea style="width: 500px; height: 300px;">${Buffer.from(content).toString('hex')}</textarea>
-        </body>
-        </html>`
-    }
+    private readonly _webviews = new Set<{
+        readonly resource: string;
+        readonly webviewPanel: vscode.WebviewPanel;
+    }>();
 
-    public async update() {
-        if (this.isDisposed) {
-            return
+    public *get(uri: vscode.Uri): Iterable<vscode.WebviewPanel> {
+        const key = uri.toString();
+        for (const entry of this._webviews) {
+            if (entry.resource === key) {
+                yield entry.webviewPanel;
+            }
         }
+    }
 
-        this.panel.webview.postMessage({
-            type: 'setValue'
-        })
+    public add(uri: vscode.Uri, webviewPanel: vscode.WebviewPanel) {
+        const entry = { resource: uri.toString(), webviewPanel };
+        this._webviews.add(entry);
+
+        webviewPanel.onDidDispose(() => {
+            this._webviews.delete(entry);
+        });
     }
 }

@@ -2,7 +2,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce, hasGzipHeader } from './util';
-import { gunzip } from 'zlib';
 const {gzip, ungzip} = require('node-gzip');
 const nbt = require('nbt')
 

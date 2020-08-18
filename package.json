@@ -4,7 +4,6 @@
 	"description": "NBT Editor for VSCode",
 	"version": "0.0.1",
 	"publisher": "Misode",
-	"enableProposedApi": true,
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/misode/vscode-nbt.git"

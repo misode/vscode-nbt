@@ -109,7 +109,7 @@
 		}
 
 		_canExpand(type) {
-			return type === 'compound' || type === 'list'
+			return type === 'compound' || type === 'list' || type === 'byteArray' || type === 'intArray' || type === 'longArray'
 		}
 
 		_drawTagHeader(path, type, data) {
@@ -117,6 +117,9 @@
 				switch(type) {
 					case 'compound': return this._drawEntries(Object.keys(data));
 					case 'list': return this._drawEntries(data.value);
+					case 'byteArray': return this._drawEntries(data);
+					case 'intArray': return this._drawEntries(data);
+					case 'longArray': return this._drawEntries(data);
 					case 'string': return this._drawString(path, data);
 					case 'byte': return this._drawNumber(path, data, 'b');
 					case 'double': return this._drawNumber(path, data, 'd');
@@ -137,6 +140,9 @@
 				switch(type) {
 					case 'compound': return this._drawCompound(path, data);
 					case 'list': return this._drawList(path, data);
+					case 'byteArray': return this._drawArray(path, data, 'byte');
+					case 'intArray': return this._drawArray(path, data, 'int');
+					case 'longArray': return this._drawArray(path, data, 'long');
 					default: return '';
 				}
 			} catch (e) {
@@ -170,19 +176,21 @@
 		}
 
 		_drawCompound(path, data) {
-			return `<div class="nbt-compound">
-				${Object.keys(data).map(k => `<div>
-					${this._drawTag(path.push(k), data[k].type, data[k].value)}
-				</div>`).join('')}
-			</div>`;
+			return Object.keys(data).map(k => `<div>
+				${this._drawTag(path.push(k), data[k].type, data[k].value)}
+			</div>`).join('')
 		}
 
 		_drawList(path, data) {
-			return `<div class="nbt-list">
-				${data.value.map((v, i) => `<div>
-					${this._drawTag(path.push(i), data.type, v)}
-				</div>`).join('')}
-			</div>`;
+			return data.value.map((v, i) => `<div>
+				${this._drawTag(path.push(i), data.type, v)}
+			</div>`).join('')
+		}
+
+		_drawArray(path, data, type) {
+			return data.map((v, i) => `<div>
+				${this._drawTag(path.push(i), type, v)}
+			</div>`).join('')
 		}
 
 		_drawString(path, data) {

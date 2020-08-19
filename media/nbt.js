@@ -96,17 +96,27 @@
 		}
 
 		_drawTag(path, type, data) {
-			return this._drawCollapse(path, type)
-				+ this._drawIcon(type)
-				+ this._drawKey(path)
-				+ this._tagTypeSwitch(path, type, data);
+			const expanded = this._canExpand(type) && this._isExpanded(path)
+			return `<div class="nbt-tag${this._canExpand(type)  ? ' collapse' : ''}">
+				${this._canExpand(type) ? this._drawCollapse(path) : ''}
+				${this._drawIcon(type)}
+				${this._drawKey(path)}
+				${this._drawTagHeader(path, type, data)}
+			</div>
+			${expanded ? `<div class="nbt-body">
+				${this._drawTagBody(path, type, data)}
+			</div>` : ''}`
 		}
 
-		_tagTypeSwitch(path, type, data) {
+		_canExpand(type) {
+			return type === 'compound' || type === 'list'
+		}
+
+		_drawTagHeader(path, type, data) {
 			try {
 				switch(type) {
-					case 'compound': return this._drawCompound(path, data);
-					case 'list': return this._drawList(path, data);
+					case 'compound': return this._drawEntries(Object.keys(data));
+					case 'list': return this._drawEntries(data.value);
 					case 'string': return this._drawString(path, data);
 					case 'byte': return this._drawNumber(path, data, 'b');
 					case 'double': return this._drawNumber(path, data, 'd');
@@ -115,6 +125,19 @@
 					case 'int': return this._drawNumber(path, data);
 					case 'long': return this._drawLong(path, data);
 					default: return `<span>${type}</span>`;
+				}
+			} catch (e) {
+				console.error(e)
+				return `<span>Error "${e.message}"</span>`
+			}
+		}
+
+		_drawTagBody(path, type, data) {
+			try {
+				switch(type) {
+					case 'compound': return this._drawCompound(path, data);
+					case 'list': return this._drawList(path, data);
+					default: return '';
 				}
 			} catch (e) {
 				console.error(e)
@@ -132,10 +155,7 @@
 			return `<span class="nbt-key">${path.last()}: </span>`
 		}
 
-		_drawCollapse(path, type) {
-			if (type !== 'compound' && type !== 'list') {
-				return '<span class="nbt-line"></span>'
-			}
+		_drawCollapse(path) {
 			const expand = this._isExpanded(path)
 			const click = this._on('click', () => {
 				if (expand) this._collapse(path);
@@ -150,10 +170,7 @@
 		}
 
 		_drawCompound(path, data) {
-			const entries = this._drawEntries(Object.keys(data));
-			if (!this._isExpanded(path)) return entries;
-			return `${entries}
-			<div class="nbt-compound">
+			return `<div class="nbt-compound">
 				${Object.keys(data).map(k => `<div>
 					${this._drawTag(path.push(k), data[k].type, data[k].value)}
 				</div>`).join('')}
@@ -161,10 +178,7 @@
 		}
 
 		_drawList(path, data) {
-			const entries = this._drawEntries(Object.keys(data.value));
-			if (!this._isExpanded(path)) return entries;
-			return `${entries}
-			<div class="nbt-list">
+			return `<div class="nbt-list">
 				${data.value.map((v, i) => `<div>
 					${this._drawTag(path.push(i), data.type, v)}
 				</div>`).join('')}

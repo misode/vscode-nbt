@@ -175,7 +175,9 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
             NbtEditorProvider.viewType,
             new NbtEditorProvider(context),
             {
-                webviewOptions: {},
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                },
                 supportsMultipleEditorsPerDocument: false,
             });
     }

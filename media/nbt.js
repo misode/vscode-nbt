@@ -37,6 +37,7 @@
 	class NbtEditor {
 		constructor(parent) {
 			this.events = {}
+			this.expanded = [""]
 			this._initElements(parent);
 		}
 		
@@ -46,17 +47,59 @@
 			parent.append(this.content);
 		}
 
-		_redraw() {
-			this.content.innerHTML = this._drawTag(new NbtPath(), 'compound', this.nbtFile.data.value);
-			Object.keys(this.events).forEach(id => {
-				const el = this.content.querySelector(`[data-id="${id}"]`);
-				if (el === undefined) return
-				this.events[id](el)
+		_onLoad(callback) {
+			const id = hexId()
+			this.events[id] = (el) => {
+				callback(el)
+			}
+			return `data-id="${id}"`
+		}
+
+		_on(event, callback) {
+			return this._onLoad((el) => {
+				el.addEventListener(event, (evt) => {
+					callback(el)
+					evt.stopPropagation()
+				})
 			})
 		}
 
+		_redraw() {
+			var t0 = performance.now()
+			this.content.innerHTML = this._drawTag(new NbtPath(), 'compound', this.nbtFile.data.value);
+			this._addEvents()
+			var t1 = performance.now()
+			console.log(`Redraw: ${t1-t0} ms`)
+		}
+
+		_addEvents() {
+			Object.keys(this.events).forEach(id => {
+				const el = this.content.querySelector(`[data-id="${id}"]`);
+				if (el !== undefined) this.events[id](el)
+			})
+			this.events = {}
+		}
+
+		_isExpanded(path) {
+			return this.expanded.includes(path.toString())
+		}
+
+		_collapse(path) {
+			const index = this.expanded.indexOf(path.toString());
+			if (index > -1) {
+				this.expanded.splice(index, 1);
+			}
+		}
+
+		_expand(path) {
+			this.expanded.push(path.toString())
+		}
+
 		_drawTag(path, type, data) {
-			return this._drawIcon(type) + this._drawKey(path) + this._tagTypeSwitch(path, type, data)
+			return this._drawCollapse(path, type)
+				+ this._drawIcon(type)
+				+ this._drawKey(path)
+				+ this._tagTypeSwitch(path, type, data);
 		}
 
 		_tagTypeSwitch(path, type, data) {
@@ -89,12 +132,27 @@
 			return `<span class="nbt-key">${path.last()}: </span>`
 		}
 
+		_drawCollapse(path, type) {
+			if (type !== 'compound' && type !== 'list') {
+				return '<span class="nbt-line"></span>'
+			}
+			const expand = this._isExpanded(path)
+			const click = this._on('click', () => {
+				if (expand) this._collapse(path);
+				else this._expand(path);
+				this._redraw();
+			})
+			return `<span class="nbt-collapse"${click}>${expand ? '-' : '+'}</span>`;
+		}
+
 		_drawEntries(entries) {
-			return `<span class="nbt-entries">${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}</span>`
+			return `<span class="nbt-entries">${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}</span>`;
 		}
 
 		_drawCompound(path, data) {
-			return `${this._drawEntries(Object.keys(data))}
+			const entries = this._drawEntries(Object.keys(data));
+			if (!this._isExpanded(path)) return entries;
+			return `${entries}
 			<div class="nbt-compound">
 				${Object.keys(data).map(k => `<div>
 					${this._drawTag(path.push(k), data[k].type, data[k].value)}
@@ -103,7 +161,9 @@
 		}
 
 		_drawList(path, data) {
-			return `${this._drawEntries(Object.keys(data.value))}
+			const entries = this._drawEntries(Object.keys(data.value));
+			if (!this._isExpanded(path)) return entries;
+			return `${entries}
 			<div class="nbt-list">
 				${data.value.map((v, i) => `<div>
 					${this._drawTag(path.push(i), data.type, v)}
@@ -112,11 +172,20 @@
 		}
 
 		_drawString(path, data) {
-			const id = hexId()
-			this.events[id] = () => {
-				console.log("HELLO :)")
-			}
-			return `<span data-id="${id}">${JSON.stringify(data)}</span>`;
+			const click = this._on('click', el => {
+				const edit = this._onLoad(input => {
+					input.focus();
+					input.setSelectionRange(data.length, data.length)
+					input.addEventListener('blur', () => {
+						this._setTag(path, input.value);
+						input.outerHTML = this._drawString(path, input.value);
+						this._addEvents();
+					})
+				})
+				el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
+				this._addEvents();
+			})
+			return `<span ${click}>${JSON.stringify(data)}</span>`;
 		}
 
 		_drawNumber(path, data, suffix) {
@@ -124,9 +193,30 @@
 		}
 
 		_drawLong(path, data) {
-			return `<span>[${data}]</span>`
+			return `<span>[${data}]</span>`;
 		}
-		
+
+		_setTag(path, value) {
+			let node = this.nbtFile.data.value;
+			let type = 'compound';
+			for (const el of path.pop().arr) {
+				if (type === 'compound') {
+					type = node[el].type;
+					node = node[el].value;
+				} else if (type === 'list') {
+					type = node.type;
+					node = node.value[el];
+				} else {
+					return node;
+				}
+			}
+			if (type === 'compound') {
+				node[path.last()].value = value;
+			} else if (type === 'list') {
+				node.value[path.last()] = value;
+			}
+		}
+
 		async reset(data) {
 			this.nbtFile = data;
 			this._redraw();

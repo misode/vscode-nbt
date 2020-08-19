@@ -1,3 +1,7 @@
+* {
+	box-sizing: content-box;
+}
+
 html, body {
 	height: 100%;
 }
@@ -23,6 +27,27 @@ html, body {
 
 .nbt-entries {
 	font-style: italic;
+}
+
+.nbt-collapse {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	margin: 2px;
+	text-align: center;
+	border: 1px #777 solid;
+	color: #777;
+	font-family: monospace;
+	font-size: 12px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.nbt-line {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin: 0 0
 }
 
 .nbt-icon {

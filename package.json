@@ -2,7 +2,7 @@
 	"name": "vscode-nbt",
 	"displayName": "NBT Editor",
 	"description": "NBT Editor for VSCode",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"publisher": "Misode",
 	"repository": {
 		"type": "git",

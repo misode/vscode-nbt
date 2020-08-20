@@ -1,5 +1,4 @@
 import * as path from 'path';
-import * as zlib from 'zlib';
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce, hasGzipHeader, isRegionFile, zlibUnzip } from './util';
@@ -94,9 +93,9 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
                 const j = offset * 4096;
                 const length = (array[j] << 24) + (array[j + 1] << 16) + (array[j + 2] << 8) + array[j + 3] 
                 const compression = array[j + 4]
-                const data = array.slice(j + 5, j + 5 + length)
+                const data = array.slice(j + 5, j + 4 + length)
 
-                chunks.push({ x, z, timestamp, compression, loaded: false });
+                chunks.push({ x, z, timestamp, compression, loaded: false, data });
             }
         }
         return chunks;
@@ -161,17 +160,10 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
         if (chunk.compression === 1) {
             data = await ungzip(data);
         } else if (chunk.compression === 2) {
-            // data = await zlibUnzip(data);
+            data = await zlibUnzip(data);
         }
 
-        // chunk.data = nbt.parseUncompressed(data);
-        chunk.data = {
-            name: '',
-            value: {
-                foo: { type: 'int', value: 1 },
-                bar: { type: 'string', value: 'baz' }
-            }
-        }
+        chunk.data = nbt.parseUncompressed(data);
         chunk.loaded = true;
         return chunk;
     }
@@ -332,9 +324,23 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                         untitled: true
                     });
                 } else {
-                    this.postMessage(webviewPanel, 'init', {
-                        value: document.documentData
-                    });
+                    if (document.documentData.anvil) {
+                        const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
+                            x: c.x,
+                            z: c.z,
+                            timestamp: c.timestamp,
+                            compression: c.compression,
+                            loaded: c.loaded,
+                            data: c.loaded ? c.data : undefined
+                        }))
+                        this.postMessage(webviewPanel, 'init', {
+                            value: { anvil: true, chunks }
+                        });
+                    } else {
+                        this.postMessage(webviewPanel, 'init', {
+                            value: document.documentData
+                        });
+                    }
                 }
             }
         });

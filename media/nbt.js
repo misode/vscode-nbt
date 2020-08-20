@@ -121,9 +121,9 @@
 				${this._drawIcon('compound')}
 				<span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
 			</div>
-			${expanded ? `
+			${expanded ? `<div class="nbt-body">
 				${this._drawCompound(path, chunk.data.value)}
-			` : ''}`
+			</div>` : ''}`
 		}
 
 		_drawTag(path, type, data) {

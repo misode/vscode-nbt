@@ -107,36 +107,35 @@
 
 		_drawChunk(path, chunk) {
 			const expanded = chunk.loaded && this._isExpanded(path);
-			const click = this._on('click', () => {
-				if (expanded) this._collapse(path);
-				else this._expand(path);
-				if (chunk.loaded) {
-					this._redraw()
-				} else {
-					vscode.postMessage({ type: 'getChunkData', index: path.last() })
-				}
-			})
 			return `<div class="nbt-tag collapse">
-				<span class="nbt-collapse"${click}>${expanded ? '-' : '+'}</span>
+				${chunk.loaded ? this._drawCollapse(path, 'compound', chunk.data.value) : this._drawChunkExpand(path)}
 				${this._drawIcon('compound')}
 				<span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
 			</div>
-			${expanded ? `<div class="nbt-body">
-				${this._drawCompound(path, chunk.data.value)}
-			</div>` : ''}`
+			<div class="nbt-body">
+				${expanded ? this._drawCompound(path, chunk.data.value) : ''}
+			</div>`
+		}
+
+		_drawChunkExpand(path) {
+			const click = this._on('click', () => {
+				this._expand(path);
+				vscode.postMessage({ type: 'getChunkData', index: path.last() })
+			})
+			return `<span class="nbt-collapse" ${click}>+</span>`;
 		}
 
 		_drawTag(path, type, data) {
 			const expanded = this._canExpand(type) && this._isExpanded(path)
 			return `<div class="nbt-tag${this._canExpand(type)  ? ' collapse' : ''}">
-				${this._canExpand(type) ? this._drawCollapse(path) : ''}
+				${this._canExpand(type) ? this._drawCollapse(path, type, data) : ''}
 				${this._drawIcon(type)}
 				${this._drawKey(path)}
 				${this._drawTagHeader(path, type, data)}
 			</div>
-			${expanded ? `<div class="nbt-body">
-				${this._drawTagBody(path, type, data)}
-			</div>` : ''}`
+			<div class="nbt-body">
+				${expanded ? this._drawTagBody(path, type, data) : ''}
+			</div>`
 		}
 
 		_canExpand(type) {
@@ -192,14 +191,21 @@
 			return `<span class="nbt-key">${path.last()}: </span>`
 		}
 
-		_drawCollapse(path) {
-			const expand = this._isExpanded(path)
-			const click = this._on('click', () => {
-				if (expand) this._collapse(path);
-				else this._expand(path);
-				this._redraw();
+		_drawCollapse(path, type, data) {
+			const click = this._on('click', (el) => {
+				const body = el.parentElement.nextElementSibling;
+				if (this._isExpanded(path)) {
+					this._collapse(path);
+					body.innerHTML = '';
+					el.textContent = '+';
+				} else {
+					this._expand(path);
+					body.innerHTML = this._drawTagBody(path, type, data)
+					this._addEvents();
+					el.textContent = '-';
+				}
 			})
-			return `<span class="nbt-collapse"${click}>${expand ? '-' : '+'}</span>`;
+			return `<span class="nbt-collapse" ${click}>${this._isExpanded(path) ? '-' : '+'}</span>`;
 		}
 
 		_drawEntries(entries) {

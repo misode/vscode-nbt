@@ -1,12 +1,15 @@
 import * as path from 'path';
+import * as zlib from 'zlib';
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
-import { getNonce, hasGzipHeader } from './util';
+import { getNonce, hasGzipHeader, isRegionFile, zlibUnzip } from './util';
 const {gzip, ungzip} = require('node-gzip');
 const nbt = require('nbt')
 
 interface NbtEdit {
-    readonly type: string;
+    readonly type: string
+    readonly path: (string | number)[]
+    readonly value: any
 }
 
 interface NbtDocumentDelegate {
@@ -14,11 +17,25 @@ interface NbtDocumentDelegate {
 }
 
 type NbtFile = {
+    anvil: false,
     gzipped: boolean,
-    data: {
-        name: string,
-        value: any
-    }
+    data: NamedNbtCompound
+} | {
+    anvil: true,
+    chunks: NbtChunk[]
+}
+
+type NbtChunk = {
+    x: number,
+    z: number,
+    timestamp: Uint8Array,
+    compression: number,
+    // data: Uint8Array
+}
+
+type NamedNbtCompound = {
+    name: string,
+    value: any
 }
 
 class NbtDocument extends Disposable implements vscode.CustomDocument {
@@ -36,15 +53,52 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
         if (uri.scheme === 'untitled') {
             return {
+                anvil: false,
                 gzipped: false,
                 data: { name: '', value: {} }
             }
         }
-        const array = await vscode.workspace.fs.readFile(uri);
+
+        let array = await vscode.workspace.fs.readFile(uri);
+
+        if (isRegionFile(uri)) {
+            const chunks = this.readRegionHeader(array)
+            return { anvil: true, chunks }
+        }
+
         const gzipped = hasGzipHeader(array)
-        const buffer = gzipped ? await ungzip(array) : array
-        const data = nbt.parseUncompressed(buffer)
-        return { gzipped, data }
+        if (gzipped) {
+            array = await ungzip(array)
+        }
+
+        const data = nbt.parseUncompressed(array)
+        return {
+            anvil: false,
+            gzipped,
+            data
+        }
+    }
+
+    private static readRegionHeader(array: Uint8Array): NbtChunk[] {
+        const chunks: NbtChunk[] = [];
+        for (let x = 0; x < 32; x += 1) {
+            for (let z = 0; z < 32; z += 1) {
+                const i = 4 * ((x & 31) + (z & 31) * 32);
+                const sectors = array[i + 3];
+                if (sectors === 0) continue;
+
+                const offset = (array[i] << 16) + (array[i + 1] << 8) + array[i + 2];
+                const timestamp = array.slice(i + 4096, i + 4100);
+
+                const j = offset * 4096;
+                const length = (array[j] << 24) + (array[j + 1] << 16) + (array[j + 2] << 8) + array[j + 3] 
+                const compression = array[j + 4]
+                const data = array.slice(j + 5, j + 4 + length)
+
+                chunks.push({ x, z, timestamp, compression });
+            }
+        }
+        return chunks;
     }
 
     private readonly _uri: vscode.Uri;
@@ -124,9 +178,12 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
         if (cancellation.isCancellationRequested) {
             return;
         }
-        // const buffer = nbt.writeUncompressed(nbtFile.data)
-        // const fileData = new Uint8Array(nbtFile.gzipped ? await gzip(buffer) : buffer)
-        // await vscode.workspace.fs.writeFile(targetResource, fileData);
+        if (nbtFile.anvil) {
+            return
+        }
+        const buffer = nbt.writeUncompressed(nbtFile.data)
+        const fileData = new Uint8Array(nbtFile.gzipped ? await gzip(buffer) : buffer)
+        await vscode.workspace.fs.writeFile(targetResource, fileData);
     }
 
     async revert(_cancellation: vscode.CancellationToken): Promise<void> {

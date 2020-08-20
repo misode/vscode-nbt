@@ -29,6 +29,9 @@
 					},
 					{
 						"filenamePattern": "*.dat"
+					},
+					{
+						"filenamePattern": "*.mca"
 					}
 				],
 				"priority": "default"

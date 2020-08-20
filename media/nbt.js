@@ -240,7 +240,19 @@
 		}
 
 		async reset(data) {
-			this.nbtFile = data;
+			if (data.anvil) {
+				console.log(data);
+				this.nbtFile = {anvil: false, gzipped: false, data: {name: '', value: {}}}
+				data.chunks.forEach(c => {
+					this.nbtFile.data.value[`Chunk [${c.x}, ${c.z}]`] = {
+						type: 'compound',
+						value: {}
+					}
+				})
+			} else {
+				this.nbtFile = data;
+			}
+			console.log(this.nbtFile)
 			this._redraw();
 		}
 

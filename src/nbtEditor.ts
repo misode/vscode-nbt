@@ -30,7 +30,8 @@ type NbtChunk = {
     z: number,
     timestamp: Uint8Array,
     compression: number,
-    // data: Uint8Array
+    loaded: boolean
+    data?: Uint8Array | NamedNbtCompound
 }
 
 type NamedNbtCompound = {
@@ -93,9 +94,9 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
                 const j = offset * 4096;
                 const length = (array[j] << 24) + (array[j + 1] << 16) + (array[j + 2] << 8) + array[j + 3] 
                 const compression = array[j + 4]
-                const data = array.slice(j + 5, j + 4 + length)
+                const data = array.slice(j + 5, j + 5 + length)
 
-                chunks.push({ x, z, timestamp, compression });
+                chunks.push({ x, z, timestamp, compression, loaded: false });
             }
         }
         return chunks;
@@ -146,6 +147,33 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     dispose(): void {
         this._onDidDispose.fire();
         super.dispose();
+    }
+
+    async getChunkData(index: number): Promise<NbtChunk> {
+        if (!this._documentData.anvil) {
+            throw {};
+        }
+
+        const chunk = this._documentData.chunks[index];
+        if (chunk.loaded) return chunk;
+
+        let data = chunk.data as Uint8Array;
+        if (chunk.compression === 1) {
+            data = await ungzip(data);
+        } else if (chunk.compression === 2) {
+            // data = await zlibUnzip(data);
+        }
+
+        // chunk.data = nbt.parseUncompressed(data);
+        chunk.data = {
+            name: '',
+            value: {
+                foo: { type: 'int', value: 1 },
+                bar: { type: 'string', value: 'baz' }
+            }
+        }
+        chunk.loaded = true;
+        return chunk;
     }
 
     makeEdit(edit: NbtEdit) {
@@ -388,6 +416,13 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
             case 'stroke':
                 document.makeEdit(message as NbtEdit);
                 return;
+
+            case 'getChunkData':
+                document.getChunkData(message.index as number).then(data => {
+                    for (const webviewPanel of this.webviews.get(document.uri)) {
+                        this.postMessage(webviewPanel, 'chunk', data);
+                    }
+                });
 
             case 'response':
                 {

@@ -66,7 +66,11 @@
 
 		_redraw() {
 			var t0 = performance.now()
-			this.content.innerHTML = this._drawTag(new NbtPath(), 'compound', this.nbtFile.data.value);
+			if (this.nbtFile.anvil) {
+				this.content.innerHTML = this._drawAnvil(new NbtPath(), this.nbtFile.chunks);
+			} else {
+				this.content.innerHTML = this._drawTag(new NbtPath(), 'compound', this.nbtFile.data.value);
+			}
 			this._addEvents()
 			var t1 = performance.now()
 			console.log(`Redraw: ${t1-t0} ms`)
@@ -93,6 +97,33 @@
 
 		_expand(path) {
 			this.expanded.push(path.toString())
+		}
+
+		_drawAnvil(path, chunks) {
+			return chunks.map((c, i) => `<div>
+				${this._drawChunk(path.push(i), c)}
+			</div>`).join('')
+		}
+
+		_drawChunk(path, chunk) {
+			const expanded = chunk.loaded && this._isExpanded(path);
+			const click = this._on('click', () => {
+				if (expanded) this._collapse(path);
+				else this._expand(path);
+				if (chunk.loaded) {
+					this._redraw()
+				} else {
+					vscode.postMessage({ type: 'getChunkData', index: path.last() })
+				}
+			})
+			return `<div class="nbt-tag collapse">
+				<span class="nbt-collapse"${click}>${expanded ? '-' : '+'}</span>
+				${this._drawIcon('compound')}
+				<span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
+			</div>
+			${expanded ? `
+				${this._drawCompound(path, chunk.data.value)}
+			` : ''}`
 		}
 
 		_drawTag(path, type, data) {
@@ -239,20 +270,14 @@
 			}
 		}
 
+		async loadChunk(chunk) {
+			const index = this.nbtFile.chunks.findIndex(c => c.x === chunk.x && c.z === chunk.z)
+			this.nbtFile.chunks[index] = chunk
+			this._redraw();
+		}
+
 		async reset(data) {
-			if (data.anvil) {
-				console.log(data);
-				this.nbtFile = {anvil: false, gzipped: false, data: {name: '', value: {}}}
-				data.chunks.forEach(c => {
-					this.nbtFile.data.value[`Chunk [${c.x}, ${c.z}]`] = {
-						type: 'compound',
-						value: {}
-					}
-				})
-			} else {
-				this.nbtFile = data;
-			}
-			console.log(this.nbtFile)
+			this.nbtFile = data;
 			this._redraw();
 		}
 
@@ -271,14 +296,19 @@
 					if (body.untitled) {
 						return;
 					} else {
-						await editor.reset(body.value);
+						editor.reset(body.value);
 						return;
 					}
 				}
 			case 'update':
 				{
 					const data = body.content ? new Uint8Array(body.content.data) : undefined;
-					await editor.reset(data)
+					editor.reset(data)
+					return;
+				}
+			case 'chunk':
+				{
+					editor.loadChunk(body);
 					return;
 				}
 			case 'getFileData':

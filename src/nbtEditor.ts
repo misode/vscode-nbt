@@ -124,9 +124,9 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
         if (cancellation.isCancellationRequested) {
             return;
         }
-        const buffer = nbt.writeUncompressed(nbtFile.data)
-        const fileData = new Uint8Array(nbtFile.gzipped ? await gzip(buffer) : buffer)
-        await vscode.workspace.fs.writeFile(targetResource, fileData);
+        // const buffer = nbt.writeUncompressed(nbtFile.data)
+        // const fileData = new Uint8Array(nbtFile.gzipped ? await gzip(buffer) : buffer)
+        // await vscode.workspace.fs.writeFile(targetResource, fileData);
     }
 
     async revert(_cancellation: vscode.CancellationToken): Promise<void> {

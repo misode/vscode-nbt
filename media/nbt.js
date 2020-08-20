@@ -194,20 +194,20 @@
 		}
 
 		_drawString(path, data) {
-			const click = this._on('click', el => {
-				const edit = this._onLoad(input => {
-					input.focus();
-					input.setSelectionRange(data.length, data.length)
-					input.addEventListener('blur', () => {
-						this._setTag(path, input.value);
-						input.outerHTML = this._drawString(path, input.value);
-						this._addEvents();
-					})
-				})
-				el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
-				this._addEvents();
-			})
-			return `<span ${click}>${JSON.stringify(data)}</span>`;
+			// const click = this._on('click', el => {
+			// 	const edit = this._onLoad(input => {
+			// 		input.focus();
+			// 		input.setSelectionRange(data.length, data.length)
+			// 		input.addEventListener('blur', () => {
+			// 			this._setTag(path, input.value);
+			// 			input.outerHTML = this._drawString(path, input.value);
+			// 			this._addEvents();
+			// 		})
+			// 	})
+			// 	el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
+			// 	this._addEvents();
+			// })
+			return `<span>${JSON.stringify(data)}</span>`;
 		}
 
 		_drawNumber(path, data, suffix) {

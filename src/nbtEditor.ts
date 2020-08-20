@@ -5,12 +5,6 @@ import { getNonce, hasGzipHeader, isRegionFile, zlibUnzip } from './util';
 const {gzip, ungzip} = require('node-gzip');
 const nbt = require('nbt')
 
-interface NbtEdit {
-    readonly type: string
-    readonly path: (string | number)[]
-    readonly value: any
-}
-
 interface NbtDocumentDelegate {
     getFileData(): Promise<NbtFile>;
 }
@@ -51,14 +45,6 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
-        if (uri.scheme === 'untitled') {
-            return {
-                anvil: false,
-                gzipped: false,
-                data: { name: '', value: {} }
-            }
-        }
-
         let array = await vscode.workspace.fs.readFile(uri);
 
         if (isRegionFile(uri)) {
@@ -104,8 +90,6 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     private readonly _uri: vscode.Uri;
 
     private _documentData: NbtFile;
-    private _edits: Array<NbtEdit> = [];
-    private _savedEdits: Array<NbtEdit> = [];
 
     private readonly _delegate: NbtDocumentDelegate;
 
@@ -125,22 +109,14 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     public get documentData(): NbtFile { return this._documentData; }
 
     private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
-
     public readonly onDidDispose = this._onDidDispose.event;
 
     private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
-        readonly content?: NbtFile;
-        readonly edits: readonly NbtEdit[];
+        content: NbtFile
     }>());
-
     public readonly onDidChangeContent = this._onDidChangeDocument.event;
 
-    private readonly _onDidChange = this._register(new vscode.EventEmitter<{
-        readonly label: string,
-        undo(): void,
-        redo(): void,
-    }>());
-
+    private readonly _onDidChange = this._register(new vscode.EventEmitter());
     public readonly onDidChange = this._onDidChange.event;
 
     dispose(): void {
@@ -168,29 +144,14 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
         return chunk;
     }
 
-    makeEdit(edit: NbtEdit) {
-        this._edits.push(edit);
-
+    markDirty() {
         this._onDidChange.fire({
-            label: 'Stroke',
-            undo: async () => {
-                this._edits.pop();
-                this._onDidChangeDocument.fire({
-                    edits: this._edits,
-                });
-            },
-            redo: async () => {
-                this._edits.push(edit);
-                this._onDidChangeDocument.fire({
-                    edits: this._edits,
-                });
-            }
+            label: 'edit'
         });
     }
 
     async save(cancellation: vscode.CancellationToken): Promise<void> {
         await this.saveAs(this.uri, cancellation);
-        this._savedEdits = Array.from(this._edits);
     }
 
     async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
@@ -199,6 +160,7 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
             return;
         }
         if (nbtFile.anvil) {
+            vscode.window.showWarningMessage('Saving region files is not supported.')
             return
         }
         const buffer = nbt.writeUncompressed(nbtFile.data)
@@ -209,16 +171,13 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
     async revert(_cancellation: vscode.CancellationToken): Promise<void> {
         const diskContent = await NbtDocument.readFile(this.uri);
         this._documentData = diskContent;
-        this._edits = this._savedEdits;
         this._onDidChangeDocument.fire({
-            content: diskContent,
-            edits: this._edits,
+            content: diskContent
         });
     }
 
     async backup(destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         await this.saveAs(destination, cancellation);
-
         return {
             id: destination.toString(),
             delete: async () => {
@@ -232,24 +191,9 @@ class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-    private static newNbtFileId = 1;
-
     public static register(context: vscode.ExtensionContext): vscode.Disposable {
-        vscode.commands.registerCommand('nbtEditor.nbt.new', () => {
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders) {
-                vscode.window.showErrorMessage("Creating new NBT files currently requires opening a workspace");
-                return;
-            }
-
-            const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, `new-${NbtEditorProvider.newNbtFileId++}.nbt`)
-                .with({ scheme: 'untitled' });
-
-            vscode.commands.executeCommand('vscode.openWith', uri, NbtEditorProvider.viewType);
-        });
-
         return vscode.window.registerCustomEditorProvider(
-            NbtEditorProvider.viewType,
+            'nbtEditor.nbt',
             new NbtEditorProvider(context),
             {
                 webviewOptions: {
@@ -258,8 +202,6 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 supportsMultipleEditorsPerDocument: false,
             });
     }
-
-    private static readonly viewType = 'nbtEditor.nbt';
 
     private readonly webviews = new WebviewCollection();
 
@@ -289,12 +231,12 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         const listeners: vscode.Disposable[] = [];
 
         listeners.push(document.onDidChange(e => {
-            this._onDidChangeCustomDocument.fire({ document, ...e, });
+            this._onDidChangeCustomDocument.fire({ document });
         }));
 
         listeners.push(document.onDidChangeContent(e => {
             for (const webviewPanel of this.webviews.get(document.uri)) {
-                this.postMessage(webviewPanel, 'update', { edits: e.edits, content: e.content, });
+                this.postMessage(webviewPanel, 'update', { content: e.content, });
             }
         }));
 
@@ -315,38 +257,10 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         };
         webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
-        webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(document, e));
-
-        webviewPanel.webview.onDidReceiveMessage(e => {
-            if (e.type === 'ready') {
-                if (document.uri.scheme === 'untitled') {
-                    this.postMessage(webviewPanel, 'init', {
-                        untitled: true
-                    });
-                } else {
-                    if (document.documentData.anvil) {
-                        const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
-                            x: c.x,
-                            z: c.z,
-                            timestamp: c.timestamp,
-                            compression: c.compression,
-                            loaded: c.loaded,
-                            data: c.loaded ? c.data : undefined
-                        }))
-                        this.postMessage(webviewPanel, 'init', {
-                            value: { anvil: true, chunks }
-                        });
-                    } else {
-                        this.postMessage(webviewPanel, 'init', {
-                            value: document.documentData
-                        });
-                    }
-                }
-            }
-        });
+        webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel));
     }
 
-    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>();
+    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent <NbtDocument>>();
     public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
 
     public saveCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
@@ -403,39 +317,62 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 			</html>`;
     }
 
-    private _requestId = 1;
-    private readonly _callbacks = new Map<number, (response: any) => void>();
+	private _requestId = 1;
+	private readonly _callbacks = new Map<number, (response: any) => void>();
 
-    private postMessageWithResponse<R = unknown>(panel: vscode.WebviewPanel, type: string, body: any): Promise<R> {
-        const requestId = this._requestId++;
-        const p = new Promise<R>(resolve => this._callbacks.set(requestId, resolve));
-        panel.webview.postMessage({ type, requestId, body });
-        return p;
+	private postMessageWithResponse<R = unknown>(panel: vscode.WebviewPanel, type: string, body: any): Promise<R> {
+		const requestId = this._requestId++;
+		const p = new Promise<R>(resolve => this._callbacks.set(requestId, resolve));
+		panel.webview.postMessage({ type, requestId, body });
+		return p;
     }
 
     private postMessage(panel: vscode.WebviewPanel, type: string, body: any): void {
         panel.webview.postMessage({ type, body });
     }
 
-    private onMessage(document: NbtDocument, message: any) {
+    private broadcastMessage(document: NbtDocument, type: string, body: any): void {
+        for (const webviewPanel of this.webviews.get(document.uri)) {
+            this.postMessage(webviewPanel, type, body);
+        }
+    }
+
+    private onMessage(message: any, document: NbtDocument, panel: vscode.WebviewPanel) {
         switch (message.type) {
-            case 'stroke':
-                document.makeEdit(message as NbtEdit);
+            case 'ready':
+                if (document.documentData.anvil) {
+                    const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
+                        x: c.x,
+                        z: c.z,
+                        timestamp: c.timestamp,
+                        compression: c.compression,
+                        loaded: c.loaded,
+                        data: c.loaded ? c.data : undefined
+                    }))
+                    this.postMessage(panel, 'init', {
+                        content: { anvil: true, chunks }
+                    });
+                } else {
+                    this.postMessage(panel, 'init', {
+                        content: document.documentData
+                    });
+                }
+                return;
+
+            case 'dirty':
+                document.markDirty();
                 return;
 
             case 'getChunkData':
                 document.getChunkData(message.index as number).then(data => {
-                    for (const webviewPanel of this.webviews.get(document.uri)) {
-                        this.postMessage(webviewPanel, 'chunk', data);
-                    }
+                    this.broadcastMessage(document, 'chunk', data);
                 });
+                return;
 
             case 'response':
-                {
-                    const callback = this._callbacks.get(message.requestId);
-                    callback?.(message.body);
-                    return;
-                }
+                const callback = this._callbacks.get(message.requestId);
+                callback?.(message.body);
+                return;
         }
     }
 }

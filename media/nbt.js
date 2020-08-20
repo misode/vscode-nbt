@@ -213,7 +213,7 @@
 		}
 
 		_drawCompound(path, data) {
-			return Object.keys(data).map(k => `<div>
+			return Object.keys(data).sort().map(k => `<div>
 				${this._drawTag(path.push(k), data[k].type, data[k].value)}
 			</div>`).join('')
 		}
@@ -231,20 +231,19 @@
 		}
 
 		_drawString(path, data) {
-			// const click = this._on('click', el => {
-			// 	const edit = this._onLoad(input => {
-			// 		input.focus();
-			// 		input.setSelectionRange(data.length, data.length)
-			// 		input.addEventListener('blur', () => {
-			// 			this._setTag(path, input.value);
-			// 			input.outerHTML = this._drawString(path, input.value);
-			// 			this._addEvents();
-			// 		})
-			// 	})
-			// 	el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
-			// 	this._addEvents();
-			// })
-			return `<span>${JSON.stringify(data)}</span>`;
+			const click = this._on('click', el => {
+				const edit = this._onLoad(input => {
+					input.focus();
+					input.setSelectionRange(data.length, data.length)
+					input.addEventListener('blur', () => {
+						this._setTag(path, input.value);
+						this._redraw();
+					})
+				})
+				el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
+				this._addEvents();
+			})
+			return `<span ${click}>${JSON.stringify(data)}</span>`;
 		}
 
 		_drawNumber(path, data, suffix) {
@@ -274,11 +273,12 @@
 			} else if (type === 'list') {
 				node.value[path.last()] = value;
 			}
+			vscode.postMessage({ type: 'dirty' });
 		}
 
 		async loadChunk(chunk) {
-			const index = this.nbtFile.chunks.findIndex(c => c.x === chunk.x && c.z === chunk.z)
-			this.nbtFile.chunks[index] = chunk
+			const index = this.nbtFile.chunks.findIndex(c => c.x === chunk.x && c.z === chunk.z);
+			this.nbtFile.chunks[index] = chunk;
 			this._redraw();
 		}
 
@@ -287,7 +287,7 @@
 			this._redraw();
 		}
 
-		async getNbtData() {
+		async getData() {
 			return this.nbtFile;
 		}
 	}
@@ -298,32 +298,22 @@
 		const { type, body, requestId } = e.data;
 		switch (type) {
 			case 'init':
-				{
-					if (body.untitled) {
-						return;
-					} else {
-						editor.reset(body.value);
-						return;
-					}
-				}
-			case 'update':
-				{
-					const data = body.content ? new Uint8Array(body.content.data) : undefined;
-					editor.reset(data)
-					return;
-				}
+				editor.reset(body.content);
+				return;
+
 			case 'chunk':
-				{
-					editor.loadChunk(body);
-					return;
-				}
+				editor.loadChunk(body);
+				return;
+
+			case 'update':
+				editor.reset(body.content);
+				return;
+
 			case 'getFileData':
-				{
-					editor.getNbtData().then(data => {
-						vscode.postMessage({ type: 'response', requestId, body: data });
-					});
-					return;
-				}
+				editor.getData().then(data => {
+					vscode.postMessage({ type: 'response', requestId, body: data });
+				});
+				return;
 		}
 	});
 

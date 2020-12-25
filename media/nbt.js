@@ -147,15 +147,15 @@
 				switch(type) {
 					case 'compound': return this._drawEntries(Object.keys(data));
 					case 'list': return this._drawEntries(data.value);
-					case 'byteArray': return this._drawEntries(data);
-					case 'intArray': return this._drawEntries(data);
+					case 'byteArray':
+					case 'intArray':
 					case 'longArray': return this._drawEntries(data);
 					case 'string': return this._drawString(path, data);
-					case 'byte': return this._drawNumber(path, data, 'b');
-					case 'double': return this._drawNumber(path, data, 'd');
-					case 'float': return this._drawNumber(path, data, 'f');
-					case 'short': return this._drawNumber(path, data, 's');
-					case 'int': return this._drawNumber(path, data);
+					case 'byte':
+					case 'double':
+					case 'float':
+					case 'short':
+					case 'int': return this._drawNumber(path, data, type);
 					case 'long': return this._drawLong(path, data);
 					default: return `<span>${type}</span>`;
 				}
@@ -231,23 +231,52 @@
 		}
 
 		_drawString(path, data) {
-			const click = this._on('click', el => {
-				const edit = this._onLoad(input => {
-					input.focus();
-					input.setSelectionRange(data.length, data.length)
-					input.addEventListener('blur', () => {
-						this._setTag(path, input.value);
-						this._redraw();
-					})
-				})
-				el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
-				this._addEvents();
-			})
+			// const click = this._on('click', el => {
+			// 	const edit = this._onLoad(input => {
+			// 		input.focus();
+			// 		input.setSelectionRange(data.length, data.length)
+			// 		input.addEventListener('blur', () => {
+			// 			this._setTag(path, input.value);
+			// 			this._redraw();
+			// 		})
+			// 	})
+			// 	el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
+			// 	this._addEvents();
+			// })
 			return `<span ${click}>${JSON.stringify(data)}</span>`;
 		}
 
-		_drawNumber(path, data, suffix) {
-			return `<span>${data}${suffix || ''}</span>`;
+		_drawNumber(path, data, type) {
+			// const string = `${data}`;
+			// const click = this._on('click', el => {
+			// 	const edit = this._onLoad(input => {
+			// 		input.focus();
+			// 		input.setSelectionRange(string.length, string.length)
+			// 		input.addEventListener('blur', () => {
+			// 			console.log(input)
+			// 			console.log(input.value)
+			// 			const newValue = this._parseNumber(type, input.value, data);
+			// 			console.log("CHANGE NUM", newValue)
+			// 			this._setTag(path, newValue);
+			// 			this._redraw();
+			// 		})
+			// 	})
+			// 	el.outerHTML = `<input type="text" value="${data}" ${edit}>`;
+			// 	this._addEvents();
+			// })
+			return `<span ${click}>${data}</span>`;
+		}
+
+		_parseNumber(type, input, old) {
+			switch (type) {
+				case 'byte':
+				case 'short':
+				case 'int': return parseInt(input);
+				case 'float':
+				case 'double': return parseFloat(input);
+				default:
+					return old
+			}
 		}
 
 		_drawLong(path, data) {

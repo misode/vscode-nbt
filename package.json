@@ -1,7 +1,7 @@
 {
 	"name": "vscode-nbt",
-	"displayName": "NBT Editor",
-	"description": "NBT Editor for VSCode",
+	"displayName": "NBT Viewer",
+	"description": "NBT Viewer for VSCode (WIP)",
 	"version": "0.0.4",
 	"publisher": "Misode",
 	"repository": {

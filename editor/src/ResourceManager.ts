@@ -1,7 +1,4 @@
-import { BlockAtlas } from '@webmc/render/src/BlockAtlas'
-import { BlockModel, BlockModelProvider } from '@webmc/render/src/BlockModel'
-import { BlockDefinition } from '@webmc/render/src/BlockDefinition'
-import { BlockDefinitionProvider } from '@webmc/render'
+import { BlockAtlas, BlockDefinition, BlockDefinitionProvider, BlockModel, BlockModelProvider } from '@webmc/render'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider {
   private blockDefinitions: { [id: string]: BlockDefinition }
@@ -14,7 +11,6 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
     this.blockAtlas = BlockAtlas.empty()
   }
 
-  // @ts-ignore
   public getBlockDefinition(id: string) {
     return this.blockDefinitions[id]
   }

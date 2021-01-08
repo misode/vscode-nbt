@@ -71,7 +71,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         webviewPanel.webview.options = {
             enableScripts: true,
         };
-        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure);
 
         webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel));
     }
@@ -97,13 +97,14 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
     //#endregion
 
-    private getHtmlForWebview(webview: vscode.Webview): string {
-        const scriptUri = webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, 'media', 'nbt.js')
+    private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
+        const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
+            path.join(this._context.extensionPath, ...folders)
         ));
-        const styleUri = webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, 'media', 'nbt.css')
-        ));
+        const scriptUri = uri('editor', 'out', 'editor.js');
+        const styleUri = uri('editor', 'res', 'editor.css');
+        const atlasUrl = uri('editor', 'res', 'generated', 'atlas.png');
+        const assetsUrl = uri('editor', 'res', 'generated', 'assets.js');
 
         const nonce = getNonce();
 
@@ -128,11 +129,15 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
             <body>
                 <div class="nbt-editor"></div>
 
+                ${isStructure ? `
+                    <img class="block-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
+                    <script nonce="${nonce}" src="${assetsUrl}"></script>
+                ` : ''}
+
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
 			</html>`;
     }
-
 	private _requestId = 1;
 	private readonly _callbacks = new Map<number, (response: any) => void>();
 
@@ -158,11 +163,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
             case 'ready':
                 if (document.documentData.anvil) {
                     const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
-                        x: c.x,
-                        z: c.z,
-                        timestamp: c.timestamp,
-                        compression: c.compression,
-                        loaded: c.loaded,
+                        ...c,
                         data: c.loaded ? c.data : undefined
                     }))
                     this.postMessage(panel, 'init', {
@@ -170,6 +171,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                     });
                 } else {
                     this.postMessage(panel, 'init', {
+                        structure: document.isStructure,
                         content: document.documentData
                     });
                 }

@@ -1,8 +1,8 @@
 {
 	"name": "vscode-nbt",
 	"displayName": "NBT Viewer",
-	"description": "View Minecraft NBT and structure files",
-	"version": "0.0.4",
+	"description": "View Minecraft NBT and 3D structures",
+	"version": "0.0.1",
 	"publisher": "Misodee",
 	"repository": {
 		"type": "git",
@@ -35,16 +35,6 @@
 						"filenamePattern": "*.mca"
 					}
 				],
-				"priority": "option"
-			},
-			{
-				"viewType": "nbtEditor.structure3D",
-				"displayName": "3D Structure Preview",
-				"selector": [
-					{
-						"filenamePattern": "**/structures/**/*.nbt"
-					}
-				],
 				"priority": "default"
 			}
 		]
@@ -54,8 +44,8 @@
 		"genAssets": "ts-node src/GenerateAssets.ts",
 		"build": "tsc -p ./",
 		"watch": "tsc -w -p ./",
-		"buildEditor": "cd structure3d && npm run build && cd ..",
-		"watchEditor": "cd structure3d && npm run watch"
+		"buildEditor": "cd editor && npm run build && cd ..",
+		"watchEditor": "cd editor && npm run watch"
 	},
 	"devDependencies": {
 		"@types/adm-zip": "^0.4.33",

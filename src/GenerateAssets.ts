@@ -73,7 +73,8 @@ async function generate() {
     })
   }))
 
-  await fs.promises.mkdir('./media/generated', { recursive: true })
-  await fs.promises.writeFile('./media/generated/assets.js', `const stringifiedAssets = '${JSON.stringify(out)}'`)
-  atlas.pack().pipe(fs.createWriteStream('./media/generated/atlas.png'))
+  const root = './editor/res/generated'
+  await fs.promises.mkdir(root, { recursive: true })
+  await fs.promises.writeFile(root + '/assets.js', `const stringifiedAssets = '${JSON.stringify(out)}'`)
+  atlas.pack().pipe(fs.createWriteStream(root + '/atlas.png'))
 }

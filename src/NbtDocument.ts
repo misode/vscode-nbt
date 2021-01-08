@@ -1,7 +1,6 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
-import { Disposable, disposeAll } from './dispose';
-import { getNonce, hasGzipHeader, isRegionFile, zlibUnzip } from './util';
+import { Disposable } from './dispose';
+import { hasGzipHeader, isRegionFile, zlibUnzip } from './util';
 const {gzip, ungzip} = require('node-gzip');
 const nbt = require('nbt')
 
@@ -97,6 +96,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
     private _documentData: NbtFile;
 
+    private _isStructure: boolean;
+
     private readonly _delegate: NbtDocumentDelegate;
 
     private constructor(
@@ -107,12 +108,15 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         super();
         this._uri = uri;
         this._documentData = initialContent;
+        this._isStructure = this.isStructureData()
         this._delegate = delegate;
     }
 
     public get uri() { return this._uri; }
 
-    public get documentData(): NbtFile { return this._documentData; }
+    public get documentData() { return this._documentData; }
+
+    public get isStructure() { return this._isStructure; }
 
     private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
     public readonly onDidDispose = this._onDidDispose.event;
@@ -128,6 +132,16 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     dispose(): void {
         this._onDidDispose.fire();
         super.dispose();
+    }
+
+    public isStructureData() {
+        if (this._documentData.anvil) return false
+        const root = this._documentData.data.value
+        return root['size']?.type === 'list'
+            && root['size'].value.type === 'int'
+            && root['size'].value.value.length === 3
+            && root['blocks']?.type === 'list'
+            && root['palette']?.type === 'list'
     }
 
     async getChunkData(index: number): Promise<NbtChunk> {

@@ -1,8 +1,8 @@
 module.exports = (env, argv) => ({
-  entry: './src/Structure3D.ts',
+  entry: './src/Editor.ts',
   output: {
     path: __dirname + '/out',
-    filename: 'structure3d.js'
+    filename: 'editor.js'
   },
   resolve: {
     extensions: ['.ts', '.js']

@@ -60,6 +60,19 @@ div:last-child > .nbt-body {
 	font-style: italic;
 }
 
+.nbt-center {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	height: 100%;
+}
+
+.nbt-error {
+	color: #ec5035;
+}
+
 .nbt-collapse {
 	display: inline-block;
 	width: 12px;
@@ -95,3 +108,16 @@ div:last-child > .nbt-body {
 .nbt-icon.byteArray-icon { background-position: -16px -32px; }
 .nbt-icon.intArray-icon { background-position: -32px -32px; }
 .nbt-icon.longArray-icon { background-position: -48px -32px; }
+
+canvas {
+  display: block;
+  width: calc(100vw - 20px);
+  height: calc(100vh);
+  background-color: #1e1e1e;
+  border: none;
+  image-rendering: pixelated;
+}
+
+.block-atlas {
+  display: none;
+}

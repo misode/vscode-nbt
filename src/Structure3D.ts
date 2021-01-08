@@ -1,16 +1,16 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
-import { NbtDocument, NbtChunk, NbtFile } from './NbtDocument';
+import { NbtDocument, NbtFile } from './NbtDocument';
 import { getNonce } from './util';
 import { WebviewCollection } from './WebviewCollection';
 
-export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
+export class Structure3DProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
     public static register(context: vscode.ExtensionContext): vscode.Disposable {
         return vscode.window.registerCustomEditorProvider(
-            'nbtEditor.nbt',
-            new NbtEditorProvider(context),
+            'nbtEditor.structure3D',
+            new Structure3DProvider(context),
             {
                 webviewOptions: {
                     retainContextWhenHidden: true
@@ -99,11 +99,17 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
     private getHtmlForWebview(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, 'media', 'nbt.js')
+            path.join(this._context.extensionPath, 'structure3d', 'out', 'structure3D.js')
         ));
         const styleUri = webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, 'media', 'nbt.css')
+            path.join(this._context.extensionPath, 'media', 'structure3D.css')
         ));
+        const atlasUrl = webview.asWebviewUri(vscode.Uri.file(
+            path.join(this._context.extensionPath, 'media', 'generated', 'atlas.png')
+        ))
+        const assetsUrl = webview.asWebviewUri(vscode.Uri.file(
+            path.join(this._context.extensionPath, 'media', 'generated', 'assets.js')
+        ))
 
         const nonce = getNonce();
 
@@ -121,14 +127,17 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-				<link href="${styleUri}" rel="stylesheet" />
+                <link href="${styleUri}" rel="stylesheet" />
 
 				<title>NBT Editor</title>
 			</head>
             <body>
-                <div class="nbt-editor"></div>
+            
+                <canvas class="structure-3d" width="640" height="480"></canvas>
+                <img class="block-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
 
-				<script nonce="${nonce}" src="${scriptUri}"></script>
+                <script nonce="${nonce}" src="${assetsUrl}"></script>
+                <script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
 			</html>`;
     }
@@ -156,33 +165,13 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
     private onMessage(message: any, document: NbtDocument, panel: vscode.WebviewPanel) {
         switch (message.type) {
             case 'ready':
-                if (document.documentData.anvil) {
-                    const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
-                        x: c.x,
-                        z: c.z,
-                        timestamp: c.timestamp,
-                        compression: c.compression,
-                        loaded: c.loaded,
-                        data: c.loaded ? c.data : undefined
-                    }))
-                    this.postMessage(panel, 'init', {
-                        content: { anvil: true, chunks }
-                    });
-                } else {
-                    this.postMessage(panel, 'init', {
-                        content: document.documentData
-                    });
-                }
+                this.postMessage(panel, 'init', {
+                    content: document.documentData
+                });
                 return;
 
             case 'dirty':
                 document.markDirty();
-                return;
-
-            case 'getChunkData':
-                document.getChunkData(message.index as number).then(data => {
-                    this.broadcastMessage(document, 'chunk', data);
-                });
                 return;
 
             case 'response':

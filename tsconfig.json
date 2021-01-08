@@ -9,10 +9,12 @@
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
-		"noImplicitReturns": true
+		"resolveJsonModule": true
 	},
-	"exclude": [
-		"node_modules",
-		".vscode-test"
-	]
+	"include": [
+		"src"
+  ],
+  "exclude": [
+    "GenerateAssets.ts"
+  ]
 }

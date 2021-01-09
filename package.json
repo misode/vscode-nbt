@@ -3,6 +3,7 @@
 	"displayName": "NBT Viewer",
 	"description": "View Minecraft NBT and 3D structures",
 	"version": "0.0.5",
+	"preview": true,
 	"publisher": "Misodee",
 	"repository": {
 		"type": "git",
@@ -15,8 +16,7 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCustomEditor:nbtEditor.nbt",
-		"onCustomEditor:nbtEditor.structure3D"
+		"onCustomEditor:nbtEditor.nbt"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -60,8 +60,6 @@
 		"typescript": "^3.9.4"
 	},
 	"dependencies": {
-		"@webmc/core": "^0.1.0",
-		"@webmc/render": "^0.2.1",
 		"nbt": "^0.8.1",
 		"node-gzip": "^1.1.2"
 	}

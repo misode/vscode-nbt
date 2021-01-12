@@ -92,6 +92,7 @@ div:last-child > .nbt-body {
 .nbt-icon {
 	display: inline-block;
 	background-image: url('./icons.png');
+	background-size: 64px;
 	width: 16px;
 	height: 16px;
 	margin-bottom: -3px;
@@ -105,10 +106,10 @@ div:last-child > .nbt-body {
 .nbt-icon.short-icon { background-position: -16px -16px; }
 .nbt-icon.string-icon { background-position: -32px -16px; }
 .nbt-icon.compound-icon { background-position: -48px -16px; }
-.nbt-icon.list-icon { background-position: 0 -32px; }
-.nbt-icon.byteArray-icon { background-position: -16px -32px; }
-.nbt-icon.intArray-icon { background-position: -32px -32px; }
-.nbt-icon.longArray-icon { background-position: -48px -32px; }
+.nbt-icon.list-icon { background-position: -32px -32px; }
+.nbt-icon.byteArray-icon { background-position: 0 -32px; }
+.nbt-icon.intArray-icon { background-position: -16px -32px; }
+.nbt-icon.longArray-icon { background-position: 0 -48px; }
 
 canvas {
   display: block;

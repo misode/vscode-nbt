@@ -128,6 +128,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 			</head>
             <body>
                 <div class="nbt-editor"></div>
+                <div class="panel-menu"></div>
 
                 ${isStructure ? `
                     <img class="block-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">

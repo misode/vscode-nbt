@@ -1,8 +1,8 @@
-import { Editor } from "./Editor";
+import { EditorPanel } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { hexId } from "./Util"
 
-export class TreeEditor implements Editor {
+export class TreeEditor implements EditorPanel {
   private static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
 
   private events: { [id: string]: (el: Element) => void }
@@ -10,19 +10,24 @@ export class TreeEditor implements Editor {
   private content: HTMLDivElement
   private data: any
 
-  constructor() {
+  constructor(private root: Element) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
 
     this.content = document.createElement('div');
     this.content.className = 'nbt-content';
-    document.querySelector('.nbt-editor').append(this.content)
+    this.data = { value: {} }
   }
 
-  public async onUpdate(data: any) {
+  reveal() {
+    this.root.append(this.content)
+    this.redraw()
+  }
+
+  async update(data: any) {
     this.data = data.data
-    console.log(this.data)
+    console.log("update", this.data)
     const rootKeys = Object.keys(this.data.value)
     if (rootKeys.length === 1) {
       this.expand(new NbtPath([rootKeys[0]]))
@@ -111,7 +116,7 @@ export class TreeEditor implements Editor {
       }
     } catch (e) {
       console.error(e)
-      return `<span class="nbt-error">Error "${e.message}"</span>`
+      return `<span class="error">Error "${e.message}"</span>`
     }
   }
 
@@ -127,7 +132,7 @@ export class TreeEditor implements Editor {
       }
     } catch (e) {
       console.error(e)
-      return `<span>Error "${e.message}"</span>`
+      return `<span class="error">Error "${e.message}"</span>`
     }
   }
 
@@ -150,9 +155,11 @@ export class TreeEditor implements Editor {
         el.textContent = '+';
       } else {
         this.expand(path);
-        body.innerHTML = this.drawTagBody(path, type, data)
-        this.addEvents();
         el.textContent = '-';
+        setTimeout(() => {
+          body.innerHTML = this.drawTagBody(path, type, data)
+          this.addEvents();
+        })
       }
     })
     return `<span class="nbt-collapse" ${click}>${this.isExpanded(path) ? '-' : '+'}</span>`;

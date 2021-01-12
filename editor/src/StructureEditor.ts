@@ -1,11 +1,11 @@
 import { Structure } from "@webmc/core";
 import { StructureRenderer } from "@webmc/render";
-import { Editor } from "./Editor";
+import { EditorPanel } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 
 declare const stringifiedAssets: string
 
-export class Structure3D implements Editor {
+export class StructureEditor implements EditorPanel {
   private canvas: HTMLCanvasElement
   private resources: ResourceManager
   private renderer: StructureRenderer
@@ -14,7 +14,7 @@ export class Structure3D implements Editor {
   private yRotation: number
   private viewDist: number
 
-  constructor() {
+  constructor(private root: Element, ) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -22,9 +22,8 @@ export class Structure3D implements Editor {
     this.resources.loadBlockModels(assets.models)
     this.resources.loadBlockAtlas(img, assets.textures)
     const blockAtlas = this.resources.getBlockAtlas()
-    
+
     this.canvas = document.createElement('canvas')
-    document.querySelector('.nbt-editor').append(this.canvas)
     this.canvas.className = 'structure-3d'
     const gl = this.canvas.getContext('webgl');
     const structure = new Structure([0, 0, 0])
@@ -66,7 +65,7 @@ export class Structure3D implements Editor {
       this.resize()
       this.yRotation = this.yRotation % (Math.PI * 2)
       this.xRotation = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.xRotation))
-      this.viewDist = Math.max(1, Math.min(20, this.viewDist))
+      this.viewDist = Math.max(1, Math.min(30, this.viewDist))
       this.renderer.drawStructure(this.xRotation, this.yRotation, this.viewDist);
     })
   }
@@ -83,9 +82,12 @@ export class Structure3D implements Editor {
     return false
   }
 
-  async onUpdate(data: any) {
+  reveal() {
+    this.root.append(this.canvas)
+  }
+
+  async update(data: any) {
     const structure = await Structure.fromNbt(data.data)
-    console.log(structure)
     this.renderer.setStructure(structure)
     this.render()
   }

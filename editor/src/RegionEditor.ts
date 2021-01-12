@@ -1,13 +1,14 @@
-import { Editor } from "./Editor";
+import { EditorPanel } from "./Editor";
 
-export class RegionEditor implements Editor {
+export class RegionEditor implements EditorPanel {
+  constructor(private root: Element) {}
 
-  constructor() {
-    document.querySelector('.nbt-editor').innerHTML =
-      `<div class="nbt-center">
-        <span class="nbt-error">Region editor is not yet supported.</span>
+  reveal() {
+    this.root.innerHTML =
+      `<div class="center">
+        <span class="error">Region editor is not yet supported.</span>
       </div>`
   }
 
-  public async onUpdate(data: any) {}
+  async update() {}
 }

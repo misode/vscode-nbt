@@ -1,44 +1,119 @@
 import { RegionEditor } from "./RegionEditor";
-import { Structure3D } from "./Structure3D";
+import { StructureEditor } from "./StructureEditor";
 import { TreeEditor } from "./TreeEditor";
 
 declare function acquireVsCodeApi(): any
 const vscode = acquireVsCodeApi();
 
-export interface Editor {
-  onUpdate(data: any): Promise<void>
+const root = document.querySelector('.nbt-editor')
+
+const LOCALES = {
+  'panel.structure': '3D',
+  'panel.region': 'Region',
+  'panel.tree': 'Tree',
 }
 
-let nbtData: any
-let editor: Editor | null = null
+function lazy<T>(getter: () => T) {
+	let value: T | null = null
+	return () => {
+		if (value === null) {
+			value = getter()
+		}
+		return value
+	}
+}
 
-main()
+export function locale(key: string) {
+  return LOCALES[key] ?? key
+}
 
-function main() {
+export interface EditorPanel {
+	reveal(): void
+  update(data: any): Promise<void>
+}
 
-  window.addEventListener('message', async e => {
-		const { type, body, requestId } = e.data;
+class Editor {
+	private panels: {
+		[key: string]: {
+			editor: () => EditorPanel
+			updated?: boolean
+			options?: string[]
+		}
+	} = {
+		'structure': {
+			editor: lazy(() => new StructureEditor(root)),
+			options: ['structure', 'tree']
+		},
+		'region': {
+			editor: lazy(() => new RegionEditor(root))
+		},
+		'tree': {
+			editor: lazy(() => new TreeEditor(root))
+		}
+	}
+	private nbtFile: any
+	private activePanel: string
+	private type: string
+
+	constructor() {
+		window.addEventListener('message', async e => {
+			const { type, body, requestId } = e.data;
+			editor.onMessage(type, body, requestId)
+		});
+
+		vscode.postMessage({ type: 'ready' })
+	}
+
+	onMessage(type: string, body: any, requestId: number) {
 		switch (type) {
 			case 'init':
 				if (body.structure) {
-					editor = new Structure3D()
+					this.type = 'structure'
 				} else if (body.content.anvil) {
-					editor = new RegionEditor()
+					this.type = 'region'
 				} else {
-					editor = new TreeEditor()
+					this.type = 'tree'
 				}
-				editor.onUpdate(body.content)
-				return;
-
-			case 'update':
-        editor?.onUpdate(body.content)
+				this.nbtFile = body.content
+				this.setPanel(this.type)
 				return;
 
 			case 'getFileData':
-				vscode.postMessage({ type: 'response', requestId, body: nbtData });
+				vscode.postMessage({ type: 'response', requestId, body: this.nbtFile });
 				return;
 		}
-  });
+	}
 
-  vscode.postMessage({ type: 'ready' })
+	private setPanel(panel: string) {
+		root.innerHTML = `<div class="spinner"></div>`
+		this.activePanel = panel
+		this.setPanelMenu()
+		setTimeout(async () => {
+			const editorPanel = this.panels[panel].editor()
+			if (!this.panels[panel].updated) {
+				await editorPanel.update(this.nbtFile)
+				this.panels[panel].updated = true
+			}
+			root.innerHTML = ''
+			editorPanel.reveal()
+		})
+	}
+
+	private setPanelMenu() {
+		const el = document.querySelector('.panel-menu')
+		el.innerHTML = ''
+		this.panels[this.type].options?.forEach((p: string) => {
+			const button = document.createElement('div')
+			el.append(button)
+			button.classList.add('btn')
+			button.textContent = locale(`panel.${p}`)
+			if (p === this.activePanel) {
+				button.classList.add('active')
+			} else {
+				button.addEventListener('click', () => this.setPanel(p))
+			}
+		})
+	}
 }
+
+const editor = new Editor()

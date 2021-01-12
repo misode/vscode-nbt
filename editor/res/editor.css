@@ -14,6 +14,7 @@ html, body {
 .nbt-content {
 	width: 100%;
 	height: 100%;
+	padding-top: 30px;
 }
 
 .nbt-tag {
@@ -60,7 +61,7 @@ div:last-child > .nbt-body {
 	font-style: italic;
 }
 
-.nbt-center {
+.center {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -69,7 +70,7 @@ div:last-child > .nbt-body {
 	height: 100%;
 }
 
-.nbt-error {
+.error {
 	color: #ec5035;
 }
 
@@ -120,4 +121,61 @@ canvas {
 
 .block-atlas {
   display: none;
+}
+
+.panel-menu {
+	position: fixed;
+	top: 5px;
+	left: 20px;
+	display: flex;
+}
+
+.panel-menu > *:not(:last-child) {
+	margin-right: 5px;
+}
+
+.btn {
+	background-color: #252526;
+	color: #dddddd;
+	padding: 2px 8px;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.btn.active {
+	background-color: #333333;
+	color: #d8b24a;
+	cursor: initial;
+}
+
+.spinner {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+}
+
+.spinner:after {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 8px;
+  border-radius: 50%;
+  border: 6px solid #333333;
+  border-color: #333333 transparent #333333 transparent;
+  animation: spinner 1.2s linear infinite, fadein 0.4s;
+}
+
+@keyframes spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

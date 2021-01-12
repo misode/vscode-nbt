@@ -8,9 +8,10 @@ const vscode = acquireVsCodeApi();
 const root = document.querySelector('.nbt-editor')
 
 const LOCALES = {
+	'grid': 'Show Grid',
   'panel.structure': '3D',
   'panel.region': 'Region',
-  'panel.tree': 'Tree',
+	'panel.tree': 'Tree',
 }
 
 function lazy<T>(getter: () => T) {
@@ -29,7 +30,8 @@ export function locale(key: string) {
 
 export interface EditorPanel {
 	reveal(): void
-  update(data: any): Promise<void>
+	update(data: any): void
+	menu?(): Element[]
 }
 
 class Editor {
@@ -87,11 +89,11 @@ class Editor {
 	private setPanel(panel: string) {
 		root.innerHTML = `<div class="spinner"></div>`
 		this.activePanel = panel
-		this.setPanelMenu()
-		setTimeout(async () => {
+		setTimeout(() => {
 			const editorPanel = this.panels[panel].editor()
+			this.setPanelMenu(editorPanel)
 			if (!this.panels[panel].updated) {
-				await editorPanel.update(this.nbtFile)
+				editorPanel.update(this.nbtFile)
 				this.panels[panel].updated = true
 			}
 			root.innerHTML = ''
@@ -99,7 +101,7 @@ class Editor {
 		})
 	}
 
-	private setPanelMenu() {
+	private setPanelMenu(panel: EditorPanel) {
 		const el = document.querySelector('.panel-menu')
 		el.innerHTML = ''
 		this.panels[this.type].options?.forEach((p: string) => {
@@ -113,6 +115,10 @@ class Editor {
 				button.addEventListener('click', () => this.setPanel(p))
 			}
 		})
+		if (panel.menu) {
+			el.insertAdjacentHTML('beforeend', '<div class="menu-spacer"></div>')
+			panel.menu().forEach(e => el.append(e))
+		}
 	}
 }
 

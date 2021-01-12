@@ -1,18 +1,22 @@
 import { Structure } from "@webmc/core";
 import { StructureRenderer } from "@webmc/render";
-import { EditorPanel } from "./Editor";
+import { EditorPanel, locale } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
+import { mat4 } from "gl-matrix"
 
 declare const stringifiedAssets: string
 
 export class StructureEditor implements EditorPanel {
   private canvas: HTMLCanvasElement
   private resources: ResourceManager
+  private structure: Structure
   private renderer: StructureRenderer
 
   private xRotation: number
   private yRotation: number
   private viewDist: number
+
+  private gridActive: boolean
 
   constructor(private root: Element, ) {
     const assets = JSON.parse(stringifiedAssets)
@@ -26,12 +30,14 @@ export class StructureEditor implements EditorPanel {
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'structure-3d'
     const gl = this.canvas.getContext('webgl');
-    const structure = new Structure([0, 0, 0])
-    this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, structure)
+    this.structure = new Structure([0, 0, 0])
+    this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, this.structure)
 
     this.xRotation = 0.8
     this.yRotation = 0.5
     this.viewDist = 4.0
+
+    this.gridActive = true
 
     let dragPos: [number, number] | null = null
     this.canvas.addEventListener('mousedown', evt => {
@@ -66,7 +72,19 @@ export class StructureEditor implements EditorPanel {
       this.yRotation = this.yRotation % (Math.PI * 2)
       this.xRotation = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.xRotation))
       this.viewDist = Math.max(1, Math.min(30, this.viewDist))
-      this.renderer.drawStructure(this.xRotation, this.yRotation, this.viewDist);
+      
+      const size = this.structure.getSize()
+      const viewMatrix = mat4.create();
+      mat4.translate(viewMatrix, viewMatrix, [0, 0, -this.viewDist]);
+      mat4.rotate(viewMatrix, viewMatrix, this.xRotation, [1, 0, 0]);
+      mat4.rotate(viewMatrix, viewMatrix, this.yRotation, [0, 1, 0]);
+      mat4.translate(viewMatrix, viewMatrix, [-size[0] / 2, -size[1] / 2, -size[2] / 2]);
+
+      if (this.gridActive) {
+        this.renderer.drawGrid(viewMatrix);
+      }
+
+      this.renderer.drawStructure(viewMatrix);
     })
   }
 
@@ -86,9 +104,23 @@ export class StructureEditor implements EditorPanel {
     this.root.append(this.canvas)
   }
 
-  async update(data: any) {
-    const structure = await Structure.fromNbt(data.data)
-    this.renderer.setStructure(structure)
+  update(data: any) {
+    this.structure = Structure.fromNbt(data.data)
+    this.renderer.setStructure(this.structure)
     this.render()
+  }
+
+  menu() {
+    const gridToggle = document.createElement('div')
+    gridToggle.classList.add('btn')
+    gridToggle.textContent = locale('grid')
+    gridToggle.classList.toggle('active', this.gridActive)
+    gridToggle.addEventListener('click', () => {
+      this.gridActive = !this.gridActive
+      gridToggle.classList.toggle('active', this.gridActive)
+      this.render()
+    })
+
+    return [gridToggle]
   }
 }

@@ -10,5 +10,5 @@ export class RegionEditor implements EditorPanel {
       </div>`
   }
 
-  async update() {}
+  update() {}
 }

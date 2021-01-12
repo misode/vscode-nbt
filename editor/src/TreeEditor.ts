@@ -25,9 +25,8 @@ export class TreeEditor implements EditorPanel {
     this.redraw()
   }
 
-  async update(data: any) {
+  update(data: any) {
     this.data = data.data
-    console.log("update", this.data)
     const rootKeys = Object.keys(this.data.value)
     if (rootKeys.length === 1) {
       this.expand(new NbtPath([rootKeys[0]]))

@@ -134,6 +134,10 @@ canvas {
 	margin-right: 5px;
 }
 
+.menu-spacer {
+	margin: 0 10px;
+}
+
 .btn {
 	background-color: #252526;
 	color: #dddddd;
@@ -146,7 +150,6 @@ canvas {
 .btn.active {
 	background-color: #333333;
 	color: #d8b24a;
-	cursor: initial;
 }
 
 .spinner {

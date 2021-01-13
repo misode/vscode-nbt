@@ -110,6 +110,9 @@ div:last-child > .nbt-body {
 .nbt-icon.byteArray-icon { background-position: 0 -32px; }
 .nbt-icon.intArray-icon { background-position: -16px -32px; }
 .nbt-icon.longArray-icon { background-position: 0 -48px; }
+.nbt-icon.chunk-icon { background-position: -16px -48px; }
+.nbt-icon.number-icon { background-position: -32px -48px; }
+.nbt-icon.null-icon { background-position: -48px -48px; }
 
 canvas {
   display: block;

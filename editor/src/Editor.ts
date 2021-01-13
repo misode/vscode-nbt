@@ -31,6 +31,7 @@ export function locale(key: string) {
 export interface EditorPanel {
 	reveal(): void
 	update(data: any): void
+	onMessage?(type: string, body: any, requestId: number): void
 	menu?(): Element[]
 }
 
@@ -47,7 +48,7 @@ class Editor {
 			options: ['structure', 'tree']
 		},
 		'region': {
-			editor: lazy(() => new RegionEditor(root))
+			editor: lazy(() => new RegionEditor(root, vscode))
 		},
 		'tree': {
 			editor: lazy(() => new TreeEditor(root))
@@ -83,6 +84,9 @@ class Editor {
 			case 'getFileData':
 				vscode.postMessage({ type: 'response', requestId, body: this.nbtFile });
 				return;
+			
+			default:
+				this.panels[this.type].editor().onMessage?.(type, body, requestId)
 		}
 	}
 

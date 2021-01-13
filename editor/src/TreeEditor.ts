@@ -7,10 +7,10 @@ export class TreeEditor implements EditorPanel {
 
   private events: { [id: string]: (el: Element) => void }
   private expanded: Set<string>
-  private content: HTMLDivElement
+  protected content: HTMLDivElement
   private data: any
 
-  constructor(private root: Element) {
+  constructor(protected root: Element) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
@@ -34,7 +34,7 @@ export class TreeEditor implements EditorPanel {
     this.redraw()
   }
 
-  private onLoad(callback: (el: Element) => void) {
+  protected onLoad(callback: (el: Element) => void) {
     const id = hexId()
     this.events[id] = (el) => {
       callback(el)
@@ -42,7 +42,7 @@ export class TreeEditor implements EditorPanel {
     return `data-id="${id}"`
   }
 
-  private on(event: string, callback: (el: Element) => void) {
+  protected on(event: string, callback: (el: Element) => void) {
     return this.onLoad((el) => {
       el.addEventListener(event, (evt) => {
         callback(el)
@@ -51,15 +51,12 @@ export class TreeEditor implements EditorPanel {
     })
   }
 
-  private redraw() {
-    var t0 = performance.now()
+  protected redraw() {
     this.content.innerHTML = this.drawTag(new NbtPath(), 'compound', this.data.value);
     this.addEvents()
-    var t1 = performance.now()
-    console.log(`Redraw: ${t1-t0} ms`)
   }
 
-  private addEvents() {
+  protected addEvents() {
     Object.keys(this.events).forEach(id => {
       const el = this.content.querySelector(`[data-id="${id}"]`);
       if (el !== undefined) this.events[id](el)
@@ -67,19 +64,19 @@ export class TreeEditor implements EditorPanel {
     this.events = {}
   }
 
-  private isExpanded(path) {
+  protected isExpanded(path) {
     return this.expanded.has(path.toString())
   }
 
-  private collapse(path) {
+  protected collapse(path) {
     this.expanded.delete(path.toString())
   }
 
-  private expand(path) {
+  protected expand(path) {
     this.expanded.add(path.toString())
   }
 
-  private drawTag(path: NbtPath, type: string, data: any) {
+  protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
     return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}">
       ${this.canExpand(type) ? this.drawCollapse(path, type, data) : ''}
@@ -92,11 +89,11 @@ export class TreeEditor implements EditorPanel {
     </div>`
   }
 
-  private canExpand(type: string) {
+  protected canExpand(type: string) {
     return TreeEditor.EXPANDABLE_TYPES.has(type)
   }
 
-  private drawTagHeader(path: NbtPath, type: string, data: any) {
+  protected drawTagHeader(path: NbtPath, type: string, data: any) {
     try {
       switch(type) {
         case 'compound': return this.drawEntries(Object.keys(data));
@@ -119,7 +116,7 @@ export class TreeEditor implements EditorPanel {
     }
   }
 
-  private drawTagBody(path: NbtPath, type: string, data: any) {
+  protected drawTagBody(path: NbtPath, type: string, data: any) {
     try {
       switch(type) {
         case 'compound': return this.drawCompound(path, data);
@@ -135,17 +132,17 @@ export class TreeEditor implements EditorPanel {
     }
   }
 
-  private drawIcon(type: string) {
+  protected drawIcon(type: string) {
     return `<span class="nbt-icon ${type}-icon"></span>`
   }
 
-  private drawKey(path: NbtPath) {
+  protected drawKey(path: NbtPath) {
     const el = path.last()
     if (el === undefined || typeof el === 'number') return ''
     return `<span class="nbt-key">${path.last()}: </span>`
   }
 
-  private drawCollapse(path: NbtPath, type: string, data: any) {
+  protected drawCollapse(path: NbtPath, type: string, data: any) {
     const click = this.on('click', (el) => {
       const body = el.parentElement.nextElementSibling;
       if (this.isExpanded(path)) {
@@ -164,37 +161,37 @@ export class TreeEditor implements EditorPanel {
     return `<span class="nbt-collapse" ${click}>${this.isExpanded(path) ? '-' : '+'}</span>`;
   }
 
-  private drawEntries(entries: any[]) {
+  protected drawEntries(entries: any[]) {
     return `<span class="nbt-entries">${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}</span>`;
   }
 
-  private drawCompound(path: NbtPath, data: any) {
+  protected drawCompound(path: NbtPath, data: any) {
     return Object.keys(data).sort().map(k => `<div>
       ${this.drawTag(path.push(k), data[k].type, data[k].value)}
     </div>`).join('')
   }
 
-  private drawList(path: NbtPath, data: any) {
+  protected drawList(path: NbtPath, data: any) {
     return data.value.map((v, i) => `<div>
       ${this.drawTag(path.push(i), data.type, v)}
     </div>`).join('')
   }
 
-  private drawArray(path: NbtPath, data: any, type: string) {
+  protected drawArray(path: NbtPath, data: any, type: string) {
     return data.map((v, i) => `<div>
       ${this.drawTag(path.push(i), type, v)}
     </div>`).join('')
   }
 
-  private drawString(path: NbtPath, data: any) {
+  protected drawString(path: NbtPath, data: any) {
     return `<span>${JSON.stringify(data)}</span>`;
   }
 
-  private drawNumber(path: NbtPath, data: any, type: string) {
+  protected drawNumber(path: NbtPath, data: any, type: string) {
     return `<span>${data}</span>`;
   }
 
-  private drawLong(path: NbtPath, data: any) {
+  protected drawLong(path: NbtPath, data: any) {
     return `<span>[${data}]</span>`;
   }
 }

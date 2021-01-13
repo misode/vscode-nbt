@@ -2,7 +2,8 @@ import { Structure } from "@webmc/core";
 import { StructureRenderer } from "@webmc/render";
 import { EditorPanel, locale } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
-import { mat4 } from "gl-matrix"
+import { mat4, vec2, vec3 } from "gl-matrix"
+import { clampVec3, negVec3 } from "./Util";
 
 declare const stringifiedAssets: string
 
@@ -12,9 +13,9 @@ export class StructureEditor implements EditorPanel {
   private structure: Structure
   private renderer: StructureRenderer
 
-  private xRotation: number
-  private yRotation: number
-  private viewDist: number
+  private cPos: vec3
+  private cRot: vec2
+  private cDist: number
 
   private gridActive: boolean
 
@@ -33,20 +34,36 @@ export class StructureEditor implements EditorPanel {
     this.structure = new Structure([0, 0, 0])
     this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, this.structure)
 
-    this.xRotation = 0.8
-    this.yRotation = 0.5
-    this.viewDist = 4.0
+    this.cPos = vec3.create()
+    this.cRot = vec2.fromValues(0.4, 0.6)
+    this.cDist = 10
 
     this.gridActive = true
 
     let dragPos: [number, number] | null = null
+    let dragButton: number
     this.canvas.addEventListener('mousedown', evt => {
       dragPos = [evt.clientX, evt.clientY]
+      dragButton = evt.button
     })
     this.canvas.addEventListener('mousemove', evt => {
       if (dragPos) {
-        this.yRotation += (evt.clientX - dragPos[0]) / 100
-        this.xRotation += (evt.clientY - dragPos[1]) / 100
+        const dx = (evt.clientX - dragPos[0]) / 100
+        const dy = (evt.clientY - dragPos[1]) / 100
+        if (dragButton === 0) {
+          vec2.add(this.cRot, this.cRot, [dx, dy])
+        } else if (dragButton === 2) {
+          vec3.rotateY(this.cPos, this.cPos, [0, 0, 0], this.cRot[0])
+          vec3.rotateX(this.cPos, this.cPos, [0, 0, 0], this.cRot[1])
+          const d = vec3.fromValues(dx, -dy, 0)
+          vec3.scale(d, d, 0.25 * this.cDist)
+          vec3.add(this.cPos, this.cPos, d)
+          vec3.rotateX(this.cPos, this.cPos, [0, 0, 0], -this.cRot[1])
+          vec3.rotateY(this.cPos, this.cPos, [0, 0, 0], -this.cRot[0])
+          clampVec3(this.cPos, negVec3(this.structure.getSize()), [0, 0, 0])
+        } else {
+          return
+        }
         dragPos = [evt.clientX, evt.clientY]
         this.render();
       }
@@ -55,7 +72,8 @@ export class StructureEditor implements EditorPanel {
       dragPos = null
     })
     this.canvas.addEventListener('wheel', evt => {
-      this.viewDist += evt.deltaY / 100
+      this.cDist += evt.deltaY / 100
+      this.cDist = Math.max(1, this.cDist)
       this.render();
     })
 
@@ -69,16 +87,12 @@ export class StructureEditor implements EditorPanel {
   render() {
     requestAnimationFrame(() => {
       this.resize()
-      this.yRotation = this.yRotation % (Math.PI * 2)
-      this.xRotation = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.xRotation))
-      this.viewDist = Math.max(1, Math.min(30, this.viewDist))
-      
-      const size = this.structure.getSize()
+
       const viewMatrix = mat4.create();
-      mat4.translate(viewMatrix, viewMatrix, [0, 0, -this.viewDist]);
-      mat4.rotate(viewMatrix, viewMatrix, this.xRotation, [1, 0, 0]);
-      mat4.rotate(viewMatrix, viewMatrix, this.yRotation, [0, 1, 0]);
-      mat4.translate(viewMatrix, viewMatrix, [-size[0] / 2, -size[1] / 2, -size[2] / 2]);
+      mat4.translate(viewMatrix, viewMatrix, [0, 0, -this.cDist])
+      mat4.rotateX(viewMatrix, viewMatrix, this.cRot[1])
+      mat4.rotateY(viewMatrix, viewMatrix, this.cRot[0])
+      mat4.translate(viewMatrix, viewMatrix, this.cPos);
 
       if (this.gridActive) {
         this.renderer.drawGrid(viewMatrix);
@@ -107,6 +121,11 @@ export class StructureEditor implements EditorPanel {
   update(data: any) {
     this.structure = Structure.fromNbt(data.data)
     this.renderer.setStructure(this.structure)
+
+    vec3.copy(this.cPos, this.structure.getSize())
+    vec3.scale(this.cPos, this.cPos, -0.5)
+    this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
+
     this.render()
   }
 

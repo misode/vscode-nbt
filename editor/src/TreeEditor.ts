@@ -1,5 +1,6 @@
 import { EditorPanel } from "./Editor";
 import { NbtPath } from "./NbtPath";
+import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
 
 export class TreeEditor implements EditorPanel {
@@ -192,6 +193,6 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected drawLong(path: NbtPath, data: any) {
-    return `<span>[${data}]</span>`;
+    return `<span>${Snbt.stringifyLong(data)}</span>`;
   }
 }

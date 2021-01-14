@@ -1,4 +1,5 @@
 import { RegionEditor } from "./RegionEditor";
+import { SnbtEditor } from "./SnbtEditor";
 import { StructureEditor } from "./StructureEditor";
 import { TreeEditor } from "./TreeEditor";
 
@@ -8,10 +9,12 @@ const vscode = acquireVsCodeApi();
 const root = document.querySelector('.nbt-editor')
 
 const LOCALES = {
+	'copy': 'Copy',
 	'grid': 'Show Grid',
   'panel.structure': '3D',
   'panel.region': 'Region',
 	'panel.tree': 'Tree',
+	'panel.snbt': 'SNBT',
 }
 
 function lazy<T>(getter: () => T) {
@@ -45,13 +48,17 @@ class Editor {
 	} = {
 		'structure': {
 			editor: lazy(() => new StructureEditor(root)),
-			options: ['structure', 'tree']
+			options: ['structure', 'tree', 'snbt']
 		},
 		'region': {
 			editor: lazy(() => new RegionEditor(root, vscode))
 		},
 		'tree': {
-			editor: lazy(() => new TreeEditor(root))
+			editor: lazy(() => new TreeEditor(root)),
+			options: ['tree', 'snbt']
+		},
+		'snbt': {
+			editor: lazy(() => new SnbtEditor(root))
 		}
 	}
 	private nbtFile: any

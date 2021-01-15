@@ -100,9 +100,9 @@ class Editor {
 	private setPanel(panel: string) {
 		root.innerHTML = `<div class="spinner"></div>`
 		this.activePanel = panel
+		const editorPanel = this.panels[panel].editor()
+		this.setPanelMenu(editorPanel)
 		setTimeout(() => {
-			const editorPanel = this.panels[panel].editor()
-			this.setPanelMenu(editorPanel)
 			if (!this.panels[panel].updated) {
 				editorPanel.update(this.nbtFile)
 				this.panels[panel].updated = true

@@ -3,7 +3,7 @@ import { StructureRenderer } from "@webmc/render";
 import { EditorPanel, locale } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
-import { clampVec3, negVec3 } from "./Util";
+import { clamp, clampVec3, negVec3 } from "./Util";
 
 declare const stringifiedAssets: string
 
@@ -52,6 +52,8 @@ export class StructureEditor implements EditorPanel {
         const dy = (evt.clientY - dragPos[1]) / 100
         if (dragButton === 0) {
           vec2.add(this.cRot, this.cRot, [dx, dy])
+          this.cRot[0] = this.cRot[0] % (Math.PI * 2)
+          this.cRot[1] = clamp(this.cRot[1], -Math.PI / 2, Math.PI / 2)
         } else if (dragButton === 2) {
           vec3.rotateY(this.cPos, this.cPos, [0, 0, 0], this.cRot[0])
           vec3.rotateX(this.cPos, this.cPos, [0, 0, 0], this.cRot[1])
@@ -73,7 +75,7 @@ export class StructureEditor implements EditorPanel {
     })
     this.canvas.addEventListener('wheel', evt => {
       this.cDist += evt.deltaY / 100
-      this.cDist = Math.max(1, this.cDist)
+      this.cDist = Math.max(1, Math.min(50, this.cDist))
       this.render();
     })
 

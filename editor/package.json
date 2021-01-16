@@ -13,6 +13,6 @@
   },
   "dependencies": {
     "@webmc/core": "0.1.1",
-    "@webmc/render": "0.3.2"
+    "@webmc/render": "0.4.0"
   }
 }

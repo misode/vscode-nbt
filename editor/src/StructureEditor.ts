@@ -12,14 +12,18 @@ export class StructureEditor implements EditorPanel {
   private resources: ResourceManager
   private structure: Structure
   private renderer: StructureRenderer
+  private canvas2: HTMLCanvasElement
+  private gl2: WebGLRenderingContext
+  private renderer2: StructureRenderer
 
   private cPos: vec3
   private cRot: vec2
   private cDist: number
 
   private gridActive: boolean
+  private selectedBlock: vec3 | null
 
-  constructor(private root: Element, ) {
+  constructor(private root: Element) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -34,15 +38,23 @@ export class StructureEditor implements EditorPanel {
     this.structure = new Structure([0, 0, 0])
     this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, this.structure)
 
+    this.canvas2 = document.createElement('canvas')
+    this.canvas2.className = 'structure-3d click-detection'
+    this.gl2 = this.canvas2.getContext('webgl')
+    this.renderer2 = new StructureRenderer(this.gl2, this.resources, this.resources, blockAtlas, this.structure)
+
     this.cPos = vec3.create()
     this.cRot = vec2.fromValues(0.4, 0.6)
     this.cDist = 10
 
     this.gridActive = true
+    this.selectedBlock = null
 
+    let dragTime: number
     let dragPos: [number, number] | null = null
     let dragButton: number
     this.canvas.addEventListener('mousedown', evt => {
+      dragTime = Date.now()
       dragPos = [evt.clientX, evt.clientY]
       dragButton = evt.button
     })
@@ -70,8 +82,13 @@ export class StructureEditor implements EditorPanel {
         this.render();
       }
     })
-    this.canvas.addEventListener('mouseup', () => {
+    this.canvas.addEventListener('mouseup', evt => {
       dragPos = null
+      if (Date.now() - dragTime < 200) {
+        if (dragButton === 0) {
+          this.selectBlock(evt.clientX, evt.clientY)
+        }
+      }
     })
     this.canvas.addEventListener('wheel', evt => {
       this.cDist += evt.deltaY / 100
@@ -90,21 +107,29 @@ export class StructureEditor implements EditorPanel {
     requestAnimationFrame(() => {
       this.resize()
 
-      const viewMatrix = mat4.create();
-      mat4.translate(viewMatrix, viewMatrix, [0, 0, -this.cDist])
-      mat4.rotateX(viewMatrix, viewMatrix, this.cRot[1])
-      mat4.rotateY(viewMatrix, viewMatrix, this.cRot[0])
-      mat4.translate(viewMatrix, viewMatrix, this.cPos);
+      const viewMatrix = this.getViewMatrix()
 
       if (this.gridActive) {
         this.renderer.drawGrid(viewMatrix);
       }
 
       this.renderer.drawStructure(viewMatrix);
+
+      if (this.selectedBlock) {
+        this.renderer.drawOutline(viewMatrix, this.selectedBlock)
+      }
     })
   }
 
   resize() {
+    const displayWidth2 = this.canvas2.clientWidth;
+    const displayHeight2 = this.canvas2.clientHeight;
+    if (this.canvas2.width !== displayWidth2 || this.canvas2.height !== displayHeight2) {
+      this.canvas2.width = displayWidth2;
+      this.canvas2.height = displayHeight2;
+      this.renderer2.setViewport(0, 0, this.canvas2.width, this.canvas2.height)
+    }
+
     const displayWidth = this.canvas.clientWidth;
     const displayHeight = this.canvas.clientHeight;
     if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
@@ -118,11 +143,13 @@ export class StructureEditor implements EditorPanel {
 
   reveal() {
     this.root.append(this.canvas)
+    this.root.append(this.canvas2)
   }
 
   update(data: any) {
     this.structure = Structure.fromNbt(data.data)
     this.renderer.setStructure(this.structure)
+    this.renderer2.setStructure(this.structure)
 
     vec3.copy(this.cPos, this.structure.getSize())
     vec3.scale(this.cPos, this.cPos, -0.5)
@@ -143,5 +170,27 @@ export class StructureEditor implements EditorPanel {
     })
 
     return [gridToggle]
+  }
+
+  private getViewMatrix() {
+    const viewMatrix = mat4.create();
+    mat4.translate(viewMatrix, viewMatrix, [0, 0, -this.cDist])
+    mat4.rotateX(viewMatrix, viewMatrix, this.cRot[1])
+    mat4.rotateY(viewMatrix, viewMatrix, this.cRot[0])
+    mat4.translate(viewMatrix, viewMatrix, this.cPos);
+    return viewMatrix
+  }
+
+  private selectBlock(x: number, y: number) {
+    const viewMatrix = this.getViewMatrix()
+    this.renderer2.drawColoredStructure(viewMatrix)
+    const color = new Uint8Array(4)
+    this.gl2.readPixels(x, this.canvas2.height - y, 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
+    if (color[3] === 255) {
+      this.selectedBlock = [color[0], color[1], color[2]]
+    } else {
+      this.selectedBlock = null
+    }
+    this.render()
   }
 }

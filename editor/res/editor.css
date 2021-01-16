@@ -114,12 +114,20 @@ div:last-child > .nbt-body {
 .nbt-icon.number-icon { background-position: -32px -48px; }
 .nbt-icon.null-icon { background-position: -48px -48px; }
 
-canvas {
-  display: block;
-  width: calc(100vw - 20px);
-  height: calc(100vh);
+.structure-3d {
+	display: block;
+	position: absolute;
+	top: 0;
+	left: 0;
+  width: 100vw;
+  height: 100vh;
   background-color: #1e1e1e;
   border: none;
+}
+
+.structure-3d.click-detection {
+	z-index: -1;
+	image-rendering: pixelated;
 }
 
 .block-atlas {

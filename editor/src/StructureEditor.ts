@@ -4,6 +4,7 @@ import { EditorPanel, locale } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
 import { clamp, clampVec3, negVec3 } from "./Util";
+import { TreeEditor } from "./TreeEditor";
 
 declare const stringifiedAssets: string
 
@@ -144,6 +145,7 @@ export class StructureEditor implements EditorPanel {
   reveal() {
     this.root.append(this.canvas)
     this.root.append(this.canvas2)
+    this.showBlockDetail()
   }
 
   update(data: any) {
@@ -191,6 +193,29 @@ export class StructureEditor implements EditorPanel {
     } else {
       this.selectedBlock = null
     }
+    this.showBlockDetail()
     this.render()
+  }
+
+  private showBlockDetail() {
+    this.root.querySelector('.side-panel')?.remove()
+    if (this.selectedBlock === null) return
+
+    const sidePanel = document.createElement('div')
+    sidePanel.classList.add('side-panel')
+    this.root.append(sidePanel)
+    const block = this.structure.getBlocks().find(b => vec3.exactEquals(b.pos, this.selectedBlock))
+    const properties = block.state.getProperties()
+    sidePanel.innerHTML = `
+      <div class="block-name">${block.state.getName()}</div>
+      ${Object.keys(properties).length === 0 ? '' : `
+        <div class="block-props">
+        ${Object.entries(properties).map(([k, v]) => `
+          <span class="prop-key">${k}</span>
+          <span class="prop-value">${v}</span>
+        `).join('')}
+        </div>
+      `}
+    `
   }
 }

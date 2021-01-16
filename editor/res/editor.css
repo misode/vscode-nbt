@@ -210,3 +210,38 @@ div:last-child > .nbt-body {
 .snbt-editor::selection {
 	background-color: #285b8dbe;
 }
+
+.side-panel {
+	background-color: #252526;
+	position: absolute;
+	right: 20px;
+	top: 5px;
+	padding: 4px 8px;
+}
+
+.block-name {
+	color: #d8b24a;
+	font-size: large;
+}
+
+.block-props {
+	margin-top: 5px;
+	display: inline-grid;
+	grid-template-columns: auto auto;
+}
+
+.prop-key {
+	grid-column: 1;
+	color: #fff;
+}
+
+.prop-value {
+	grid-column: 2;
+	color: #dddddd;
+	padding-left: 9px;
+}
+
+.block-props > * {
+	border-bottom: 1px solid #333333;
+	margin-bottom: 2px;
+}

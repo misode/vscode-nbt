@@ -225,7 +225,7 @@ div:last-child > .nbt-body {
 }
 
 .block-props {
-	margin-top: 5px;
+	padding-top: 5px;
 	display: inline-grid;
 	grid-template-columns: auto auto;
 }
@@ -244,4 +244,8 @@ div:last-child > .nbt-body {
 .block-props > * {
 	border-bottom: 1px solid #333333;
 	margin-bottom: 2px;
+}
+
+.side-panel .nbt-content {
+	padding-top: 10px;
 }

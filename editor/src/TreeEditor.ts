@@ -1,3 +1,4 @@
+import { NamedNbtTag, NbtTag } from "@webmc/core";
 import { EditorPanel } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { Snbt } from "./Snbt";
@@ -9,7 +10,7 @@ export class TreeEditor implements EditorPanel {
   private events: { [id: string]: (el: Element) => void }
   private expanded: Set<string>
   protected content: HTMLDivElement
-  private data: any
+  private data: NamedNbtTag
 
   constructor(protected root: Element) {
     this.events = {}
@@ -18,7 +19,7 @@ export class TreeEditor implements EditorPanel {
 
     this.content = document.createElement('div');
     this.content.className = 'nbt-content';
-    this.data = { value: {} }
+    this.data = { name: '', value: {} }
   }
 
   reveal() {
@@ -65,15 +66,15 @@ export class TreeEditor implements EditorPanel {
     this.events = {}
   }
 
-  protected isExpanded(path) {
+  protected isExpanded(path: NbtPath) {
     return this.expanded.has(path.toString())
   }
 
-  protected collapse(path) {
+  protected collapse(path: NbtPath) {
     this.expanded.delete(path.toString())
   }
 
-  protected expand(path) {
+  protected expand(path: NbtPath) {
     this.expanded.add(path.toString())
   }
 

@@ -1,4 +1,4 @@
-import { Structure } from "@webmc/core";
+import { BlockPos, Structure } from "@webmc/core";
 import { StructureRenderer } from "@webmc/render";
 import { EditorPanel, locale } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
@@ -22,7 +22,7 @@ export class StructureEditor implements EditorPanel {
   private cDist: number
 
   private gridActive: boolean
-  private selectedBlock: vec3 | null
+  private selectedBlock: BlockPos | null
 
   constructor(private root: Element) {
     const assets = JSON.parse(stringifiedAssets)
@@ -200,11 +200,12 @@ export class StructureEditor implements EditorPanel {
   private showBlockDetail() {
     this.root.querySelector('.side-panel')?.remove()
     if (this.selectedBlock === null) return
+    const block = this.structure.getBlock(this.selectedBlock)
+    if (block === null) return
 
     const sidePanel = document.createElement('div')
     sidePanel.classList.add('side-panel')
     this.root.append(sidePanel)
-    const block = this.structure.getBlocks().find(b => vec3.exactEquals(b.pos, this.selectedBlock))
     const properties = block.state.getProperties()
     sidePanel.innerHTML = `
       <div class="block-name">${block.state.getName()}</div>
@@ -217,5 +218,13 @@ export class StructureEditor implements EditorPanel {
         </div>
       `}
     `
+    if (block.nbt) {
+      const nbtTree = document.createElement('div')
+      sidePanel.append(nbtTree)
+      const tree = new TreeEditor(nbtTree)
+      console.log(block.nbt)
+      tree.update({ data: { name: '', value: block.nbt } })
+      tree.reveal()
+    }
   }
 }

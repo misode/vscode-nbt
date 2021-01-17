@@ -1,4 +1,4 @@
-import { NamedNbtTag, NbtTag } from "@webmc/core";
+import { NamedNbtTag } from "@webmc/nbt";
 import { EditorPanel } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { Snbt } from "./Snbt";

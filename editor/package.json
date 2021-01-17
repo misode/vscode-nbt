@@ -12,7 +12,8 @@
     "webpack-dev-server": "^3.11.0"
   },
   "dependencies": {
-    "@webmc/core": "0.1.2",
+    "@webmc/core": "0.1.3",
+    "@webmc/nbt": "0.0.1",
     "@webmc/render": "0.4.0"
   }
 }

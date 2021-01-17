@@ -1,8 +1,8 @@
 import * as path from 'path';
+import { NbtChunk } from '@webmc/nbt'
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
-import { NbtDocument, NbtChunk, NbtFile } from './NbtDocument';
-import { getNonce } from './util';
+import { NbtDocument, NbtFile } from './NbtDocument';
 import { WebviewCollection } from './WebviewCollection';
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
@@ -97,6 +97,15 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
     //#endregion
 
+    private getNonce() {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
     private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
         const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
             path.join(this._context.extensionPath, ...folders)
@@ -106,7 +115,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         const atlasUrl = uri('editor', 'res', 'generated', 'atlas.png');
         const assetsUrl = uri('editor', 'res', 'generated', 'assets.js');
 
-        const nonce = getNonce();
+        const nonce = this.getNonce();
 
         return `
 			<!DOCTYPE html>
@@ -163,7 +172,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         switch (message.type) {
             case 'ready':
                 if (document.documentData.anvil) {
-                    const chunks: NbtChunk[] = document.documentData.chunks.map(c => ({
+                    const chunks = document.documentData.chunks.map(c => ({
                         ...c,
                         data: c.loaded ? c.data : undefined
                     }))

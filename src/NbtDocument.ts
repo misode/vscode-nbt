@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
-import { hasGzipHeader, isRegionFile, zlibUnzip } from './util';
-const {gzip, ungzip} = require('node-gzip');
-const nbt = require('nbt')
+import * as nbt from '@webmc/nbt';
 
 interface NbtDocumentDelegate {
     getFileData(): Promise<NbtFile>;
@@ -10,11 +8,11 @@ interface NbtDocumentDelegate {
 
 export type SimpleNbtFile = {
     gzipped: boolean,
-    data: NamedNbtCompound
+    data: nbt.NamedNbtTag
 }
 
 export type AnvilNbtFile = {
-    chunks: NbtChunk[]
+    chunks: nbt.NbtChunk[]
 }
 
 export type NbtFile = {
@@ -23,19 +21,6 @@ export type NbtFile = {
     anvil: true
 } & AnvilNbtFile
 
-export type NbtChunk = {
-    x: number,
-    z: number,
-    timestamp: Uint8Array,
-    compression: number,
-    loaded: boolean
-    data?: Uint8Array | NamedNbtCompound
-}
-
-type NamedNbtCompound = {
-    name: string,
-    value: any
-}
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
@@ -52,45 +37,21 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
         let array = await vscode.workspace.fs.readFile(uri);
 
-        if (isRegionFile(uri)) {
-            const chunks = this.readRegionHeader(array)
-            return { anvil: true, chunks }
-        }
-
-        const gzipped = hasGzipHeader(array)
-        if (gzipped) {
-            array = await ungzip(array)
-        }
-
-        const data = nbt.parseUncompressed(array)
-        return {
-            anvil: false,
-            gzipped,
-            data
-        }
-    }
-
-    private static readRegionHeader(array: Uint8Array): NbtChunk[] {
-        const chunks: NbtChunk[] = [];
-        for (let x = 0; x < 32; x += 1) {
-            for (let z = 0; z < 32; z += 1) {
-                const i = 4 * ((x & 31) + (z & 31) * 32);
-                const sectors = array[i + 3];
-                if (sectors === 0) continue;
-
-                const offset = (array[i] << 16) + (array[i + 1] << 8) + array[i + 2];
-                const timestamp = array.slice(i + 4096, i + 4100);
-
-                const j = offset * 4096;
-                const length = (array[j] << 24) + (array[j + 1] << 16) + (array[j + 2] << 8) + array[j + 3] 
-                const compression = array[j + 4]
-                const data = array.slice(j + 5, j + 4 + length)
-
-                chunks.push({ x, z, timestamp, compression, loaded: false, data });
+        if (uri.fsPath.endsWith('.mca')) {
+            return {
+                anvil: true,
+                chunks: nbt.readRegionHeader(array)
             }
         }
-        return chunks;
+
+        const { compressed, result } = nbt.read(array)
+        return {
+            anvil: false,
+            gzipped: compressed,
+            data: result
+        }
     }
+
 
     private readonly _uri: vscode.Uri;
 
@@ -144,24 +105,13 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             && root['palette']?.type === 'list'
     }
 
-    async getChunkData(index: number): Promise<NbtChunk> {
+    async getChunkData(index: number): Promise<nbt.NbtChunk> {
         if (!this._documentData.anvil) {
-            throw {};
+            throw new Error('File is not a region file');
         }
 
-        const chunk = this._documentData.chunks[index];
-        if (chunk.loaded) return chunk;
-
-        let data = chunk.data as Uint8Array;
-        if (chunk.compression === 1) {
-            data = await ungzip(data);
-        } else if (chunk.compression === 2) {
-            data = await zlibUnzip(data);
-        }
-
-        chunk.data = nbt.parseUncompressed(data);
-        chunk.loaded = true;
-        return chunk;
+        const chunks = this._documentData.chunks;
+        return nbt.readChunk(chunks, chunks[index].x, chunks[index].z)
     }
 
     markDirty() {
@@ -183,8 +133,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             vscode.window.showWarningMessage('Saving region files is not supported.')
             return
         }
-        const buffer = nbt.writeUncompressed(nbtFile.data)
-        const fileData = new Uint8Array(nbtFile.gzipped ? await gzip(buffer) : buffer)
+        const fileData = new Uint8Array(nbt.write(nbtFile.data, nbtFile.gzipped))
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }
 

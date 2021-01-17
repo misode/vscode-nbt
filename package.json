@@ -60,6 +60,6 @@
 		"typescript": "^3.9.4"
 	},
 	"dependencies": {
-		"@webmc/nbt": "^0.0.1"
+		"@webmc/nbt": "^0.1.1"
 	}
 }

@@ -172,10 +172,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         switch (message.type) {
             case 'ready':
                 if (document.documentData.anvil) {
-                    const chunks = document.documentData.chunks.map(c => ({
-                        ...c,
-                        data: c.loaded ? c.data : undefined
-                    }))
+                    const chunks = document.documentData.chunks
+                        .map(c => ({ x: c.x, z: c.z }))
                     this.postMessage(panel, 'init', {
                         content: { anvil: true, chunks }
                     });

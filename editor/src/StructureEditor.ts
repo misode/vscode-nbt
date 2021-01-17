@@ -222,7 +222,6 @@ export class StructureEditor implements EditorPanel {
       const nbtTree = document.createElement('div')
       sidePanel.append(nbtTree)
       const tree = new TreeEditor(nbtTree)
-      console.log(block.nbt)
       tree.update({ data: { name: '', value: block.nbt } })
       tree.reveal()
     }

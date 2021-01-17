@@ -1,26 +1,20 @@
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
 import * as nbt from '@webmc/nbt';
+import { NbtChunk } from '@webmc/nbt';
 
 interface NbtDocumentDelegate {
     getFileData(): Promise<NbtFile>;
 }
 
-export type SimpleNbtFile = {
-    gzipped: boolean,
-    data: nbt.NamedNbtTag
-}
-
-export type AnvilNbtFile = {
-    chunks: nbt.NbtChunk[]
-}
-
 export type NbtFile = {
     anvil: false
-} & SimpleNbtFile | {
+    gzipped: boolean
+    data: nbt.NamedNbtTag
+} | {
     anvil: true
-} & AnvilNbtFile
-
+    chunks: nbt.NbtChunk[]
+}
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
@@ -40,7 +34,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         if (uri.fsPath.endsWith('.mca')) {
             return {
                 anvil: true,
-                chunks: nbt.readRegionHeader(array)
+                chunks: nbt.readRegion(array)
             }
         }
 
@@ -125,15 +119,15 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
-        const nbtFile = await this._delegate.getFileData();
+        const nbtFile = this._documentData
         if (cancellation.isCancellationRequested) {
             return;
         }
-        if (nbtFile.anvil) {
-            vscode.window.showWarningMessage('Saving region files is not supported.')
-            return
-        }
-        const fileData = new Uint8Array(nbt.write(nbtFile.data, nbtFile.gzipped))
+
+        const fileData = nbtFile.anvil
+            ? nbt.writeRegion(nbtFile.chunks)
+            : nbt.write(nbtFile.data, nbtFile.gzipped)
+
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }
 

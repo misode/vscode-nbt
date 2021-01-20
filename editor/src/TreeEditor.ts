@@ -1,5 +1,6 @@
 import { NamedNbtTag } from "@webmc/nbt";
-import { EditorPanel } from "./Editor";
+import { NbtFile } from "../../src/types";
+import { EditorPanel, VsCode } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
@@ -12,7 +13,7 @@ export class TreeEditor implements EditorPanel {
   protected content: HTMLDivElement
   private data: NamedNbtTag
 
-  constructor(protected root: Element, protected vscode: any) {
+  constructor(protected root: Element, protected vscode: VsCode) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
@@ -27,13 +28,18 @@ export class TreeEditor implements EditorPanel {
     this.redraw()
   }
 
-  update(data: any) {
-    this.data = data.data
+  onInit(file: NbtFile) {
+    if (file.region !== false) return
+    this.data = file.data
     const rootKeys = Object.keys(this.data.value)
     if (rootKeys.length === 1) {
       this.expand(new NbtPath([rootKeys[0]]))
     }
     this.redraw()
+  }
+
+  onUpdate(file: NbtFile) {
+    this.onInit(file)
   }
 
   protected onLoad(callback: (el: Element) => void) {

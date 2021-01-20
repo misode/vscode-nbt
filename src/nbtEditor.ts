@@ -1,7 +1,9 @@
+import { NbtChunk } from '@webmc/nbt';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
 import { NbtDocument } from './NbtDocument';
+import { ViewMessage } from './types';
 import { WebviewCollection } from './WebviewCollection';
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
@@ -40,9 +42,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         }));
 
         listeners.push(document.onDidChangeContent(e => {
-            for (const webviewPanel of this.webviews.get(document.uri)) {
-                this.postMessage(webviewPanel, 'update', { content: e });
-            }
+            this.broadcastMessage(document, { type: 'update', body: e })
         }));
 
         document.onDidDispose(() => disposeAll(listeners));
@@ -137,39 +137,37 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 			</body>
 			</html>`;
     }
-	private _requestId = 1;
-	private readonly _callbacks = new Map<number, (response: any) => void>();
 
-	private postMessageWithResponse<R = unknown>(panel: vscode.WebviewPanel, type: string, body: any): Promise<R> {
-		const requestId = this._requestId++;
-		const p = new Promise<R>(resolve => this._callbacks.set(requestId, resolve));
-		panel.webview.postMessage({ type, requestId, body });
-		return p;
+    private postMessage(panel: vscode.WebviewPanel, message: ViewMessage): void {
+        panel.webview.postMessage(message);
     }
 
-    private postMessage(panel: vscode.WebviewPanel, type: string, body: any): void {
-        panel.webview.postMessage({ type, body });
-    }
-
-    private broadcastMessage(document: NbtDocument, type: string, body: any): void {
+    private broadcastMessage(document: NbtDocument, message: ViewMessage): void {
         for (const webviewPanel of this.webviews.get(document.uri)) {
-            this.postMessage(webviewPanel, type, body);
+            this.postMessage(webviewPanel, message);
         }
     }
 
     private onMessage(message: any, document: NbtDocument, panel: vscode.WebviewPanel) {
         switch (message.type) {
             case 'ready':
-                if (document.documentData.anvil) {
+                if (document.documentData.region) {
                     const chunks = document.documentData.chunks
-                        .map(c => ({ x: c.x, z: c.z }))
-                    this.postMessage(panel, 'init', {
-                        content: { anvil: true, chunks }
+                        .map(c => ({ x: c.x, z: c.z } as NbtChunk))
+                    this.postMessage(panel, {
+                        type: 'init',
+                        body: { type: 'region', content: {
+                            region: true,
+                            chunks: chunks
+                        } }                      
                     });
                 } else {
-                    this.postMessage(panel, 'init', {
-                        structure: document.isStructure,
-                        content: document.documentData
+                    this.postMessage(panel, {
+                        type: 'init',
+                        body: {
+                            type: document.isStructure ? 'structure' : 'default',
+                            content: document.documentData
+                        }
                     });
                 }
                 return;
@@ -184,17 +182,12 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
             case 'getChunkData':
                 document.getChunkData(message.index as number).then(data => {
-                    this.broadcastMessage(document, 'chunk', data);
+                    this.postMessage(panel, { type: 'chunk', body: data } );
                 });
                 return;
 
             case 'error':
-                vscode.window.showErrorMessage(`Error in webview: ${message.body.message}`)
-                return;
-
-            case 'response':
-                const callback = this._callbacks.get(message.requestId);
-                callback?.(message.body);
+                vscode.window.showErrorMessage(`Error in webview: ${message.body}`)
                 return;
         }
     }

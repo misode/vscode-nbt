@@ -1,33 +1,15 @@
-import * as nbt from "@webmc/nbt"
+import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/types"
 import { RegionEditor } from "./RegionEditor";
 import { SnbtEditor } from "./SnbtEditor";
 import { StructureEditor } from "./StructureEditor";
 import { TreeEditor } from "./TreeEditor";
 
-declare function acquireVsCodeApi(): any
+export type VsCode = {
+	postMessage(message: EditorMessage): void
+}
+
+declare function acquireVsCodeApi(): VsCode
 const vscode = acquireVsCodeApi();
-
-export type SimpleNbtFile = {
-	anvil: false
-	gzipped: boolean
-	data: nbt.NamedNbtTag
-}
-
-export type RegionNbtFile = {
-	anvil: true
-	chunks: nbt.NbtChunk[]
-}
-
-export type NbtFile = SimpleNbtFile | RegionNbtFile
-
-export type NbtEdit = {
-	label: 'Set',
-	path: (number | string)[]
-	new: any,
-	old: any
-} | {
-	label: 'Init'
-}
 
 const root = document.querySelector('.nbt-editor')
 
@@ -56,8 +38,9 @@ export function locale(key: string) {
 
 export interface EditorPanel {
 	reveal(): void
-	update(data: any, edit: NbtEdit): void
-	onMessage?(type: string, body: any, requestId: number): void
+	onInit(file: NbtFile): void
+	onUpdate(file: NbtFile, edit: NbtEdit): void
+	onMessage?(message: ViewMessage): void
 	menu?(): Element[]
 }
 
@@ -81,53 +64,49 @@ class Editor {
 			options: ['tree', 'snbt']
 		},
 		'snbt': {
-			editor: lazy(() => new SnbtEditor(root))
+			editor: lazy(() => new SnbtEditor(root, vscode))
 		}
 	}
+
+	private type: string
 	private nbtFile: NbtFile
 	private activePanel: string
-	private type: string
 
 	constructor() {
 		window.addEventListener('message', async e => {
-			const { type, body, requestId } = e.data;
-			editor.onMessage(type, body, requestId)
+			editor.onMessage(e.data)
 		});
 
 		vscode.postMessage({ type: 'ready' })
 	}
 
-	onMessage(type: string, body: any, requestId: number) {
-		switch (type) {
+	onMessage(m: ViewMessage) {
+		switch (m.type) {
 			case 'init':
-				if (body.structure) {
+				if (m.body.type === 'structure') {
 					this.type = 'structure'
-				} else if (body.content.anvil) {
+				} else if (m.body.type === 'region') {
 					this.type = 'region'
 				} else {
 					this.type = 'tree'
 				}
-				this.nbtFile = body.content
+				this.nbtFile = m.body.content
 				this.setPanel(this.type)
 				return;
 
 			case 'update':
 				try {
-					this.applyEdit(body.content)
+					this.applyEdit(m.body)
 					Object.values(this.panels).forEach(p => p.updated = false)
-					this.panels[this.activePanel].editor().update(this.nbtFile, body.content)
+					this.panels[this.activePanel].editor().onUpdate(this.nbtFile, m.body)
 					this.panels[this.activePanel].updated = true
 				} catch (e) {
-					vscode.postMessage({ type: 'error', body: e })
+					vscode.postMessage({ type: 'error', body: e.message })
 				}
 				return;
 
-			case 'getFileData':
-				vscode.postMessage({ type: 'response', requestId, body: this.nbtFile });
-				return;
-			
 			default:
-				this.panels[this.type].editor().onMessage?.(type, body, requestId)
+				this.panels[this.type].editor().onMessage?.(m)
 		}
 	}
 
@@ -138,7 +117,7 @@ class Editor {
 		this.setPanelMenu(editorPanel)
 		setTimeout(() => {
 			if (!this.panels[panel].updated) {
-				editorPanel.update(this.nbtFile, { label: 'Init' })
+				editorPanel.onInit(this.nbtFile)
 				this.panels[panel].updated = true
 			}
 			root.innerHTML = ''
@@ -167,22 +146,29 @@ class Editor {
 	}
 
 	private applyEdit(edit: NbtEdit) {
-		if (edit.label !== 'Set') return
+		for (let i = 0; i < edit.ops.length; i += 1) {
+				const op = edit.ops[i];
+				switch(op.type) {
+						case 'set': this.pathSet(op.path, op.new);
+				}
+		}
+}
 
+	private pathSet(path: (number | string)[], value: any) {
 		let node: any
     let type = 'compound'
     let index = 0
 
-    if (this.nbtFile.anvil) {
-      const chunk = this.nbtFile.chunks[edit.path[0]]
+    if (this.nbtFile.region) {
+      const chunk = this.nbtFile.chunks[path[0]]
       node = chunk.nbt.value
       index = 1
-    } else if (this.nbtFile.anvil === false) {
+    } else if (this.nbtFile.region === false) {
       node = this.nbtFile.data.value
     }
 
-    for (; index < edit.path.length - 1; index++) {
-      const el = edit.path[index]
+    for (; index < path.length - 1; index++) {
+      const el = path[index]
       if (type === 'compound' && typeof el === 'string') {
         type = node[el].type
         node = node[el].value
@@ -195,13 +181,13 @@ class Editor {
       }
     }
 
-    const last = edit.path[edit.path.length -1]
+    const last = path[path.length -1]
     if (type === 'compound' && typeof last === 'string') {
-      node[last].value = edit.new
+      node[last].value = value
     } else if (type === 'list' && typeof last === 'number') {
-      node = node.value[last] = edit.new
+      node = node.value[last] = value
     } else if (type.endsWith('Array') && typeof last === 'number') {
-      node = node[last] = edit.new
+      node = node[last] = value
     }
 	}
 }

@@ -1,7 +1,8 @@
 import { BlockPos, Structure } from "@webmc/core";
 import { getListTag } from "@webmc/nbt";
 import { StructureRenderer } from "@webmc/render";
-import { EditorPanel, locale, NbtEdit, SimpleNbtFile } from "./Editor";
+import { NbtEdit, NbtFile } from "../../src/types";
+import { EditorPanel, locale, VsCode } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
 import { clamp, clampVec3, negVec3 } from "./Util";
@@ -25,7 +26,7 @@ export class StructureEditor implements EditorPanel {
   private gridActive: boolean
   private selectedBlock: BlockPos | null
 
-  constructor(private root: Element, private vscode: any) {
+  constructor(private root: Element, private vscode: VsCode) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -149,26 +150,28 @@ export class StructureEditor implements EditorPanel {
     this.showSidePanel()
   }
 
-  update(data: SimpleNbtFile, edit: NbtEdit) {
-    if (edit.label === 'Init') {
-      this.structure = Structure.fromNbt(data.data)
-      this.renderer.setStructure(this.structure)
-      this.renderer2.setStructure(this.structure)
-  
-      vec3.copy(this.cPos, this.structure.getSize())
-      vec3.scale(this.cPos, this.cPos, -0.5)
-      this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
-      this.render()
+  onInit(file: NbtFile) {
+    if (file.region !== false) return
+    this.structure = Structure.fromNbt(file.data)
+    this.renderer.setStructure(this.structure)
+    this.renderer2.setStructure(this.structure)
 
-    } else if (edit.label === 'Set') {
-      if (edit.path.slice(0, 1)[0] === 'size') {
-        this.structure['size'] = getListTag(data.data.value, 'size', 'int', 3)
-        this.renderer['gridBuffers'] = this.renderer['getGridBuffers']()
-        this.showSidePanel()
-        this.render()
-      } else {
-        throw new Error('Unsupported edit path')
-      }
+    vec3.copy(this.cPos, this.structure.getSize())
+    vec3.scale(this.cPos, this.cPos, -0.5)
+    this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
+    this.render()
+  }
+
+  onUpdate(file: NbtFile, edit: NbtEdit) {
+    if (file.region !== false) return
+    if (edit.ops.length === 1 && edit.ops[0].path.length >= 1
+        && edit.ops[0].path[0] === 'size') {
+      this.structure['size'] = getListTag(file.data.value, 'size', 'int', 3)
+      this.renderer['gridBuffers'] = this.renderer['getGridBuffers']()
+      this.showSidePanel()
+      this.render()
+    } else {
+      this.onInit(file)
     }
   }
 
@@ -237,7 +240,7 @@ export class StructureEditor implements EditorPanel {
         const nbtTree = document.createElement('div')
         sidePanel.append(nbtTree)
         const tree = new TreeEditor(nbtTree, this.vscode)
-        tree.update({ data: { name: '', value: block.nbt } })
+        tree.onInit({ region: false, gzipped: false, data: { name: '', value: block.nbt } })
         tree.reveal()
       }
     } else {
@@ -251,10 +254,12 @@ export class StructureEditor implements EditorPanel {
         ;(el as HTMLInputElement).value = original.toString()
         el.addEventListener('change', () => {
           this.vscode.postMessage({ type: 'edit', body: {
-            label: 'Set',
-            path: ['size', i],
-            old: original,
-            new: parseInt((el as HTMLInputElement).value)
+            ops: [{
+              type: 'set',
+              path: ['size', i],
+              old: original,
+              new: parseInt((el as HTMLInputElement).value)
+            }]
           } })
         })
       })

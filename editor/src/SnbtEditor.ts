@@ -1,10 +1,11 @@
-import { EditorPanel, locale } from "./Editor";
+import { NbtFile } from "../../src/types";
+import { EditorPanel, locale, VsCode } from "./Editor";
 import { Snbt } from "./Snbt";
 
 export class SnbtEditor implements EditorPanel {
   private snbt: string
 
-  constructor(private root: Element) {
+  constructor(private root: Element, private vscode: VsCode) {
     this.snbt = ''
   }
 
@@ -20,12 +21,17 @@ export class SnbtEditor implements EditorPanel {
     this.root.append(content)
   }
 
-  update(data: any) {
+  onInit(data: NbtFile) {
+    if (data.region !== false) return
     this.snbt = Snbt.stringify('compound', data.data.value)
     const textarea = this.root.querySelector('.snbt-editor')
     if (textarea) {
       textarea.textContent = this.snbt
     }
+  }
+
+  onUpdate(data: NbtFile) {
+    this.onInit(data)
   }
 
   menu() {

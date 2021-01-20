@@ -1,25 +1,7 @@
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
 import * as nbt from '@webmc/nbt';
-import { NamedNbtTag, NbtTag, NbtValues } from '@webmc/nbt';
-
-export type NbtFile = {
-    anvil: false
-    gzipped: boolean
-    data: nbt.NamedNbtTag
-} | {
-    anvil: true
-    chunks: nbt.NbtChunk[]
-}
-
-type NbtPath = (string | number)[]
-
-export type NbtEdit = {
-    label: 'Set',
-    path: NbtPath
-    new: any,
-    old: any
-}
+import { NbtEdit, NbtFile, NbtPath } from './types';
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
@@ -37,14 +19,14 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
         if (uri.fsPath.endsWith('.mca')) {
             return {
-                anvil: true,
+                region: true,
                 chunks: nbt.readRegion(array)
             }
         }
 
         const { compressed, result } = nbt.read(array)
         return {
-            anvil: false,
+            region: false,
             gzipped: compressed,
             data: result
         }
@@ -93,40 +75,48 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     makeEdit(edit: NbtEdit) {
-        if (edit.label !== 'Set') {
-            throw new Error(`Unknown edit ${edit.label}`)
-        }
         this._edits.push(edit);
-        this.pathSet(edit.path, edit.new)
+        this.applyEdit(edit)
+        const reversedEdit = this.reverseEdit(edit)
 
 		this._onDidChange.fire({
-			label: edit.label,
+			label: 'Edit',
 			undo: async () => {
                 this._edits.pop();
-                this.pathSet(edit.path, edit.old);
-				this._onDidChangeDocument.fire({
-                    label: edit.label,
-                    path: edit.path,
-                    old: edit.new,
-                    new: edit.old
-                });
+                this.applyEdit(reversedEdit)
+				this._onDidChangeDocument.fire(reversedEdit);
 			},
 			redo: async () => {
                 this._edits.push(edit);
-                this.pathSet(edit.path, edit.new);
+                this.applyEdit(edit);
 				this._onDidChangeDocument.fire(edit);
 			}
 		});
         this._onDidChangeDocument.fire(edit);
     }
-    
+
+    private reverseEdit(edit: NbtEdit): NbtEdit {
+        return {
+            ops: [...edit.ops].reverse()
+                .map(op => ({ ...op, new: op.old, old: op.new }))
+        }
+    }
+
+    private applyEdit(edit: NbtEdit) {
+        for (let i = 0; i < edit.ops.length; i += 1) {
+            const op = edit.ops[i];
+            switch(op.type) {
+                case 'set': this.pathSet(op.path, op.new);
+            }
+        }
+    }
+
     private pathSet(path: NbtPath, value: any) {
-        console.log(`Set path ${JSON.stringify(path)} -> ${JSON.stringify(value)}`)
         let node: any
         let type = 'compound'
         let index = 0
 
-        if (this._documentData.anvil) {
+        if (this._documentData.region) {
             if (typeof path[0] !== 'number') {
                 throw new Error('Edit path should start with a number in region files')
             }
@@ -170,7 +160,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     private isStructureData() {
-        if (this._documentData.anvil) return false
+        if (this._documentData.region) return false
         const root = this._documentData.data.value
         return root['size']?.type === 'list'
             && root['size'].value.type === 'int'
@@ -180,7 +170,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     async getChunkData(index: number): Promise<nbt.NbtChunk> {
-        if (!this._documentData.anvil) {
+        if (!this._documentData.region) {
             throw new Error('File is not a region file');
         }
 
@@ -199,7 +189,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             return;
         }
 
-        const fileData = nbtFile.anvil
+        const fileData = nbtFile.region
             ? nbt.writeRegion(nbtFile.chunks)
             : nbt.write(nbtFile.data, nbtFile.gzipped)
 
@@ -211,10 +201,12 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         this._documentData = diskContent;
 		this._edits = this._savedEdits;
         this._onDidChangeDocument.fire({
-            label: 'Set',
-            path: [],
-            old: null,
-            new: this._documentData
+            ops: [{
+                type: 'set',
+                path: [],
+                old: null,
+                new: this._documentData
+            }]
         });
     }
 

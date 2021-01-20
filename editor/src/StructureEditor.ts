@@ -1,6 +1,7 @@
 import { BlockPos, Structure } from "@webmc/core";
+import { getListTag } from "@webmc/nbt";
 import { StructureRenderer } from "@webmc/render";
-import { EditorPanel, locale } from "./Editor";
+import { EditorPanel, locale, NbtEdit, SimpleNbtFile } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
 import { clamp, clampVec3, negVec3 } from "./Util";
@@ -24,7 +25,7 @@ export class StructureEditor implements EditorPanel {
   private gridActive: boolean
   private selectedBlock: BlockPos | null
 
-  constructor(private root: Element) {
+  constructor(private root: Element, private vscode: any) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -93,7 +94,7 @@ export class StructureEditor implements EditorPanel {
     })
     this.canvas.addEventListener('wheel', evt => {
       this.cDist += evt.deltaY / 100
-      this.cDist = Math.max(1, Math.min(50, this.cDist))
+      this.cDist = Math.max(1, Math.min(100, this.cDist))
       this.render();
     })
 
@@ -145,19 +146,30 @@ export class StructureEditor implements EditorPanel {
   reveal() {
     this.root.append(this.canvas)
     this.root.append(this.canvas2)
-    this.showBlockDetail()
+    this.showSidePanel()
   }
 
-  update(data: any) {
-    this.structure = Structure.fromNbt(data.data)
-    this.renderer.setStructure(this.structure)
-    this.renderer2.setStructure(this.structure)
+  update(data: SimpleNbtFile, edit: NbtEdit) {
+    if (edit.label === 'Init') {
+      this.structure = Structure.fromNbt(data.data)
+      this.renderer.setStructure(this.structure)
+      this.renderer2.setStructure(this.structure)
+  
+      vec3.copy(this.cPos, this.structure.getSize())
+      vec3.scale(this.cPos, this.cPos, -0.5)
+      this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
+      this.render()
 
-    vec3.copy(this.cPos, this.structure.getSize())
-    vec3.scale(this.cPos, this.cPos, -0.5)
-    this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
-
-    this.render()
+    } else if (edit.label === 'Set') {
+      if (edit.path.slice(0, 1)[0] === 'size') {
+        this.structure['size'] = getListTag(data.data.value, 'size', 'int', 3)
+        this.renderer['gridBuffers'] = this.renderer['getGridBuffers']()
+        this.showSidePanel()
+        this.render()
+      } else {
+        throw new Error('Unsupported edit path')
+      }
+    }
   }
 
   menu() {
@@ -188,42 +200,64 @@ export class StructureEditor implements EditorPanel {
     this.renderer2.drawColoredStructure(viewMatrix)
     const color = new Uint8Array(4)
     this.gl2.readPixels(x, this.canvas2.height - y, 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
+    const oldSelectedBlock = this.selectedBlock ? [...this.selectedBlock] : null
     if (color[3] === 255) {
       this.selectedBlock = [color[0], color[1], color[2]]
     } else {
       this.selectedBlock = null
     }
-    this.showBlockDetail()
-    this.render()
+    if (JSON.stringify(oldSelectedBlock) !== JSON.stringify(this.selectedBlock)) {
+      this.showSidePanel()
+      this.render()
+    }
   }
 
-  private showBlockDetail() {
+  private showSidePanel() {
     this.root.querySelector('.side-panel')?.remove()
-    if (this.selectedBlock === null) return
-    const block = this.structure.getBlock(this.selectedBlock)
-    if (block === null) return
+    const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
+    
 
     const sidePanel = document.createElement('div')
     sidePanel.classList.add('side-panel')
     this.root.append(sidePanel)
-    const properties = block.state.getProperties()
-    sidePanel.innerHTML = `
-      <div class="block-name">${block.state.getName()}</div>
-      ${Object.keys(properties).length === 0 ? '' : `
-        <div class="block-props">
-        ${Object.entries(properties).map(([k, v]) => `
-          <span class="prop-key">${k}</span>
-          <span class="prop-value">${v}</span>
-        `).join('')}
+    if (block) {
+      const properties = block.state.getProperties()
+      sidePanel.innerHTML = `
+        <div class="block-name">${block.state.getName()}</div>
+        ${Object.keys(properties).length === 0 ? '' : `
+          <div class="block-props">
+          ${Object.entries(properties).map(([k, v]) => `
+            <span class="prop-key">${k}</span>
+            <span class="prop-value">${v}</span>
+          `).join('')}
+          </div>
+        `}
+      `
+      if (block.nbt) {
+        const nbtTree = document.createElement('div')
+        sidePanel.append(nbtTree)
+        const tree = new TreeEditor(nbtTree, this.vscode)
+        tree.update({ data: { name: '', value: block.nbt } })
+        tree.reveal()
+      }
+    } else {
+      sidePanel.innerHTML = `
+        <div class="structure-size">
+          <label>Size</label><input type="number"><input type="number"><input type="number">
         </div>
-      `}
-    `
-    if (block.nbt) {
-      const nbtTree = document.createElement('div')
-      sidePanel.append(nbtTree)
-      const tree = new TreeEditor(nbtTree)
-      tree.update({ data: { name: '', value: block.nbt } })
-      tree.reveal()
+      `
+      sidePanel.querySelectorAll('.structure-size input').forEach((el, i) => {
+        const original = this.structure.getSize()[i]
+        ;(el as HTMLInputElement).value = original.toString()
+        el.addEventListener('change', () => {
+          this.vscode.postMessage({ type: 'edit', body: {
+            label: 'Set',
+            path: ['size', i],
+            old: original,
+            new: parseInt((el as HTMLInputElement).value)
+          } })
+        })
+      })
     }
   }
 }

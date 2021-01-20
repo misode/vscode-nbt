@@ -1,8 +1,7 @@
 import * as path from 'path';
-import { NbtChunk } from '@webmc/nbt'
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
-import { NbtDocument, NbtFile } from './NbtDocument';
+import { NbtDocument } from './NbtDocument';
 import { WebviewCollection } from './WebviewCollection';
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
@@ -15,7 +14,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 webviewOptions: {
                     retainContextWhenHidden: true
                 },
-                supportsMultipleEditorsPerDocument: false,
+                supportsMultipleEditorsPerDocument: true,
             });
     }
 
@@ -29,30 +28,20 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
     async openCustomDocument(
         uri: vscode.Uri,
-        openContext: { backupId?: string },
+        openContext: vscode.CustomDocumentOpenContext,
         _token: vscode.CancellationToken
     ): Promise<NbtDocument> {
-        const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, {
-            getFileData: async () => {
-                const webviewsForDocument = Array.from(this.webviews.get(document.uri));
-                if (!webviewsForDocument.length) {
-                    throw new Error('Could not find webview to save for');
-                }
-                const panel = webviewsForDocument[0];
-                const response = await this.postMessageWithResponse<NbtFile>(panel, 'getFileData', {});
-                return response;
-            }
-        });
+        const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId);
 
         const listeners: vscode.Disposable[] = [];
 
         listeners.push(document.onDidChange(e => {
-            this._onDidChangeCustomDocument.fire({ document });
+            this._onDidChangeCustomDocument.fire({ document, ...e });
         }));
 
         listeners.push(document.onDidChangeContent(e => {
             for (const webviewPanel of this.webviews.get(document.uri)) {
-                this.postMessage(webviewPanel, 'update', { content: e.content, });
+                this.postMessage(webviewPanel, 'update', { content: e });
             }
         }));
 
@@ -76,7 +65,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel));
     }
 
-    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent <NbtDocument>>();
+    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>();
     public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
 
     public saveCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
@@ -185,14 +174,22 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 }
                 return;
 
-            case 'dirty':
-                document.markDirty();
+            case 'edit':
+                try {
+                    document.makeEdit(message.body)
+                } catch (e) {
+                    vscode.window.showErrorMessage(`Failed to apply edit: ${e.message}`)
+                }
                 return;
 
             case 'getChunkData':
                 document.getChunkData(message.index as number).then(data => {
                     this.broadcastMessage(document, 'chunk', data);
                 });
+                return;
+
+            case 'error':
+                vscode.window.showErrorMessage(`Error in webview: ${message.body.message}`)
                 return;
 
             case 'response':

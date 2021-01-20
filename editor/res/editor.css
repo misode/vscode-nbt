@@ -249,3 +249,12 @@ div:last-child > .nbt-body {
 .side-panel .nbt-content {
 	padding-top: 10px;
 }
+
+.structure-size input {
+	width: 50px;
+	background: #3c3c3c;
+	color: #8d8d8d;
+	border: none;
+	margin-left: 7px;
+	padding: 2px 4px;
+}

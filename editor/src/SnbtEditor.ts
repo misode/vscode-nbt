@@ -22,6 +22,10 @@ export class SnbtEditor implements EditorPanel {
 
   update(data: any) {
     this.snbt = Snbt.stringify('compound', data.data.value)
+    const textarea = this.root.querySelector('.snbt-editor')
+    if (textarea) {
+      textarea.textContent = this.snbt
+    }
   }
 
   menu() {

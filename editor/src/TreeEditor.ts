@@ -12,7 +12,7 @@ export class TreeEditor implements EditorPanel {
   protected content: HTMLDivElement
   private data: NamedNbtTag
 
-  constructor(protected root: Element) {
+  constructor(protected root: Element, protected vscode: any) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
@@ -113,7 +113,7 @@ export class TreeEditor implements EditorPanel {
         default: return `<span>${type}</span>`;
       }
     } catch (e) {
-      console.error(e)
+      this.vscode.postMessage({ type: 'error', body: e })
       return `<span class="error">Error "${e.message}"</span>`
     }
   }
@@ -129,7 +129,7 @@ export class TreeEditor implements EditorPanel {
         default: return '';
       }
     } catch (e) {
-      console.error(e)
+      this.vscode.postMessage({ type: 'error', body: e })
       return `<span class="error">Error "${e.message}"</span>`
     }
   }

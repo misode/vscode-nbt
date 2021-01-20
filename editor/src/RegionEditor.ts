@@ -5,8 +5,8 @@ import { TreeEditor } from "./TreeEditor";
 export class RegionEditor extends TreeEditor {
   private chunks: any[]
 
-  constructor(root: Element, private vscode: any) {
-    super(root)
+  constructor(root: Element, vscode: any) {
+    super(root, vscode)
   }
 
   redraw() {

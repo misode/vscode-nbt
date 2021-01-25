@@ -47,15 +47,15 @@ export type EditorMessage = {
 }
 
 export type ViewMessage = {
-    type: 'init'
-    body: {
-        type: 'default' | 'region' | 'structure'
-        content: NbtFile
-    }
+  type: 'init'
+  body: {
+    type: 'default' | 'region' | 'structure'
+    content: NbtFile
+  }
 } | {
-    type: 'update'
-    body: NbtEdit
+  type: 'update'
+  body: NbtEdit
 } | {
-    type: 'chunk'
-    body: NbtChunk
+  type: 'chunk'
+  body: NbtChunk
 }

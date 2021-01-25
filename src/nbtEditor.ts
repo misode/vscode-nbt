@@ -156,10 +156,13 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                         .map(c => ({ x: c.x, z: c.z } as NbtChunk))
                     this.postMessage(panel, {
                         type: 'init',
-                        body: { type: 'region', content: {
-                            region: true,
-                            chunks: chunks
-                        } }                      
+                        body: {
+                            type: 'region',
+                            content: {
+                                region: true,
+                                chunks: chunks
+                            }
+                        }                      
                     });
                 } else {
                     this.postMessage(panel, {

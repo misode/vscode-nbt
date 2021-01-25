@@ -37,6 +37,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
     private _documentData: NbtFile;
     private _isStructure: boolean;
+    private _isReadOnly: boolean;
 	private _edits: NbtEdit[] = [];
 	private _savedEdits: NbtEdit[] = [];
 
@@ -47,7 +48,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         super();
         this._uri = uri;
         this._documentData = initialContent;
-        this._isStructure = this.isStructureData()
+        this._isStructure = this.isStructureData();
+        this._isReadOnly = uri.scheme === 'git';
     }
 
     public get uri() { return this._uri; }
@@ -55,6 +57,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     public get documentData() { return this._documentData; }
 
     public get isStructure() { return this._isStructure; }
+
+    public get isReadOnly() { return this._isReadOnly; }
 
     private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
     public readonly onDidDispose = this._onDidDispose.event;
@@ -75,6 +79,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     makeEdit(edit: NbtEdit) {
+        if (this._isReadOnly) {
+            vscode.window.showWarningMessage('Cannot edit in read-only editor')
+            return
+        }
+
         this._edits.push(edit);
         this.applyEdit(edit)
         const reversedEdit = this.reverseEdit(edit)
@@ -184,6 +193,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+        if (this._isReadOnly) {
+            return;
+        }
+
         const nbtFile = this._documentData
         if (cancellation.isCancellationRequested) {
             return;

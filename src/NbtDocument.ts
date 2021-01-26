@@ -178,13 +178,13 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             && root['palette']?.type === 'list'
     }
 
-    async getChunkData(index: number): Promise<nbt.NbtChunk> {
+    async getChunkData(x: number, z: number): Promise<nbt.NbtChunk> {
         if (!this._documentData.region) {
             throw new Error('File is not a region file');
         }
 
         const chunks = this._documentData.chunks;
-        return nbt.readChunk(chunks, chunks[index].x, chunks[index].z)
+        return nbt.readChunk(chunks, x, z)
     }
 
     async save(cancellation: vscode.CancellationToken): Promise<void> {

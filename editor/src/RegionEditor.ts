@@ -41,8 +41,8 @@ export class RegionEditor extends TreeEditor {
 
   private drawChunk(path: NbtPath, chunk: Partial<NbtChunk>) {
     const expanded = chunk.nbt && this.isExpanded(path);
-    return `<div class="nbt-tag collapse">
-      ${chunk.nbt ? this.drawCollapse(path, 'compound', chunk.nbt.value) : this.drawChunkExpand(path)}
+    return `<div class="nbt-tag collapse" ${this.on('click', el => this.clickChunk(path, chunk, el))}>
+      ${this.drawCollapse(path)}
       ${this.drawIcon('chunk')}
       <span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
     </div>
@@ -51,12 +51,12 @@ export class RegionEditor extends TreeEditor {
     </div>`
   }
 
-  private drawChunkExpand(path: NbtPath) {
-    const click = this.on('click', () => {
+  private clickChunk(path: NbtPath, chunk: Partial<NbtChunk>, el: Element) {
+    if (chunk.nbt) {
+      this.clickExpandableTag(path, 'compound', chunk.nbt.value, el)
+    } else {
       this.expand(path);
-      const chunk = this.chunks[path.last() as number]
-      this.vscode.postMessage({ type: 'getChunkData', body: { x: chunk.x, z: chunk.z } })
-    })
-    return `<span class="nbt-collapse" ${click}>+</span>`;
+      this.vscode.postMessage({ type: 'getChunkData', body: { x: chunk.x, z: chunk.z } });
+    }
   }
 }

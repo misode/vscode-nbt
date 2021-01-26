@@ -6,12 +6,32 @@ import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
 
 export class TreeEditor implements EditorPanel {
-  private static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
+  static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
 
-  private events: { [id: string]: (el: Element) => void }
-  private expanded: Set<string>
+  static readonly PARSERS: {[type: string]: (value: string) => any} = {
+    'string': v => v,
+    'byte': v => parseInt(v),
+    'short': v => parseInt(v),
+    'int': v => parseInt(v),
+    'float': v => parseFloat(v),
+    'double': v => parseFloat(v),
+    'long': v => Snbt.parseLong(v),
+  }
+
+  static readonly SERIALIZERS: {[type: string]: (value: any) => string} = {
+    'string': v => v,
+    'byte': v => `${v}`,
+    'short': v => `${v}`,
+    'int': v => `${v}`,
+    'float': v => `${v}`,
+    'double': v => `${v}`,
+    'long': v => Snbt.stringifyLong(v),
+  }
+
+  protected events: { [id: string]: (el: Element) => void }
+  protected expanded: Set<string>
   protected content: HTMLDivElement
-  private data: NamedNbtTag
+  protected data: NamedNbtTag
 
   constructor(protected root: Element, protected vscode: VsCode) {
     this.events = {}
@@ -86,8 +106,8 @@ export class TreeEditor implements EditorPanel {
 
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
-    return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}">
-      ${this.canExpand(type) ? this.drawCollapse(path, type, data) : ''}
+    return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.on('click', el => this.clickTag(path, type, data, el))}>
+      ${this.canExpand(type) ? this.drawCollapse(path) : ''}
       ${this.drawIcon(type)}
       ${this.drawKey(path)}
       ${this.drawTagHeader(path, type, data)}
@@ -103,23 +123,17 @@ export class TreeEditor implements EditorPanel {
 
   protected drawTagHeader(path: NbtPath, type: string, data: any) {
     try {
-      switch(type) {
-        case 'compound': return this.drawEntries(Object.keys(data));
-        case 'list': return this.drawEntries(data.value);
-        case 'byteArray':
-        case 'intArray':
-        case 'longArray': return this.drawEntries(data);
-        case 'string': return this.drawString(path, data);
-        case 'byte':
-        case 'double':
-        case 'float':
-        case 'short':
-        case 'int': return this.drawNumber(path, data, type);
-        case 'long': return this.drawLong(path, data);
-        default: return `<span>${type}</span>`;
+      if (type === 'compound') {
+        return this.drawEntries(Object.keys(data))
+      } else if (type === 'list') {
+        return this.drawEntries(data.value)
+      } else if (type.endsWith('Array')) {
+        return this.drawEntries(data)
+      } else {
+        return this.drawPrimitiveTag(type, data)
       }
     } catch (e) {
-      this.vscode.postMessage({ type: 'error', body: e })
+      this.vscode.postMessage({ type: 'error', body: e.message })
       return `<span class="error">Error "${e.message}"</span>`
     }
   }
@@ -135,7 +149,7 @@ export class TreeEditor implements EditorPanel {
         default: return '';
       }
     } catch (e) {
-      this.vscode.postMessage({ type: 'error', body: e })
+      this.vscode.postMessage({ type: 'error', body: e.message })
       return `<span class="error">Error "${e.message}"</span>`
     }
   }
@@ -150,23 +164,8 @@ export class TreeEditor implements EditorPanel {
     return `<span class="nbt-key">${path.last()}: </span>`
   }
 
-  protected drawCollapse(path: NbtPath, type: string, data: any) {
-    const click = this.on('click', (el) => {
-      const body = el.parentElement.nextElementSibling;
-      if (this.isExpanded(path)) {
-        this.collapse(path);
-        body.innerHTML = '';
-        el.textContent = '+';
-      } else {
-        this.expand(path);
-        el.textContent = '-';
-        setTimeout(() => {
-          body.innerHTML = this.drawTagBody(path, type, data)
-          this.addEvents();
-        })
-      }
-    })
-    return `<span class="nbt-collapse" ${click}>${this.isExpanded(path) ? '-' : '+'}</span>`;
+  protected drawCollapse(path: NbtPath) {
+    return `<span class="nbt-collapse">${this.isExpanded(path) ? '-' : '+'}</span>`;
   }
 
   protected drawEntries(entries: any[]) {
@@ -191,15 +190,60 @@ export class TreeEditor implements EditorPanel {
     </div>`).join('')
   }
 
-  protected drawString(path: NbtPath, data: any) {
-    return `<span>${JSON.stringify(data)}</span>`;
+  protected drawPrimitiveTag(type: string, data: any) {
+    return `<span class="nbt-value">${TreeEditor.SERIALIZERS[type](data)}</span>`;
   }
 
-  protected drawNumber(path: NbtPath, data: any, type: string) {
-    return `<span>${data}</span>`;
+  protected clickTag(path: NbtPath, type: string, data: any, el: Element) {
+    if (this.canExpand(type)) {
+      this.clickExpandableTag(path, type, data, el);
+    } else {
+      this.clickPrimitiveTag(path, type, data, el)
+    }
   }
 
-  protected drawLong(path: NbtPath, data: any) {
-    return `<span>${Snbt.stringifyLong(data)}</span>`;
+  protected clickExpandableTag(path: NbtPath, type: string, data: any, el: Element) {
+    const body = el.nextElementSibling;
+    if (this.isExpanded(path)) {
+      this.collapse(path);
+      body.innerHTML = '';
+      el.querySelector('.nbt-collapse').textContent = '+';
+    } else {
+      this.expand(path);
+      el.querySelector('.nbt-collapse').textContent = '-';
+      setTimeout(() => {
+        body.innerHTML = this.drawTagBody(path, type, data)
+        this.addEvents();
+      })
+    }
+  }
+
+  protected clickPrimitiveTag(path: NbtPath, type: string, data: any, el: Element) {
+    const spanEl = el.querySelector('span.nbt-value')
+    if (spanEl === null) return
+    const value = TreeEditor.SERIALIZERS[type](data)
+    spanEl.outerHTML = `<input class="nbt-value" type="text" value="${value}" ${this.onLoad(el => {
+      const inputEl = el as HTMLInputElement
+      inputEl.focus();
+      inputEl.setSelectionRange(value.length, value.length)
+      const makeEdit = () => {
+        const newData = TreeEditor.PARSERS[type](inputEl.value)
+        inputEl.outerHTML = this.drawPrimitiveTag(type, newData)
+        if (JSON.stringify(data) !== JSON.stringify(newData)) {
+          this.vscode.postMessage({ type: 'edit', body: {
+            ops: [{ type: 'set', path: path['arr'], old: data, new: newData }]
+          } })
+        }
+      }
+      inputEl.addEventListener('blur', makeEdit)
+      inputEl.addEventListener('keyup', evt => {
+        if (evt.key === 'Enter') {
+          makeEdit()
+        } else if (evt.key === 'Escape') {
+          inputEl.outerHTML = this.drawPrimitiveTag(type, data)
+        }
+      })
+    })}>`
+    this.addEvents()
   }
 }

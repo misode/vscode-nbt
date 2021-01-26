@@ -1,9 +1,11 @@
 * {
 	box-sizing: content-box;
+	--monospace: 'Monaco', 'Menlo', 'Consolas', 'Droid Sans Mono', 'Inconsolata', 'Courier New', 'monospace';
 }
 
 html, body {
 	height: 100%;
+	font-size: 14px;
 }
 
 .nbt-editor {
@@ -19,6 +21,12 @@ html, body {
 
 .nbt-tag {
 	height: 22px;
+	cursor: default;
+	user-select: none;
+}
+
+.nbt-tag:hover {
+	background: #252526;
 }
 
 .nbt-tag:not(.collapse) {
@@ -61,6 +69,21 @@ div:last-child > .nbt-body {
 	font-style: italic;
 }
 
+.nbt-value {
+	font-family: var(--monospace);
+	font-size: 14px;
+}
+
+input.nbt-value {
+	background-color: #3c3c3c;
+	border: none;
+	color: var(--vscode-editor-foreground);
+}
+
+span.nbt-value {
+	margin-left: 2px;
+}
+
 .center {
 	display: flex;
 	flex-direction: column;
@@ -84,8 +107,6 @@ div:last-child > .nbt-body {
 	color: #777;
 	font-family: monospace;
 	font-size: 12px;
-	cursor: pointer;
-	user-select: none;
 	font-weight: bold;
 }
 
@@ -197,7 +218,8 @@ div:last-child > .nbt-body {
 .snbt-editor {
 	background-color: #1e1e1e;
 	color: #d4d4d4;
-	font-family: 'Monaco', 'Menlo', 'Consolas', 'Droid Sans Mono', 'Inconsolata', 'Courier New', 'monospace';
+	font-family: var(--monospace);
+	font-size: 14px;
 	width: 100%;
 	border: none;
 	outline: none !important;

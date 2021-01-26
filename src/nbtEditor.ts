@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
 import { NbtDocument } from './NbtDocument';
-import { ViewMessage } from './types';
+import { EditorMessage, ViewMessage } from './types';
 import { WebviewCollection } from './WebviewCollection';
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
@@ -148,7 +148,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         }
     }
 
-    private onMessage(message: any, document: NbtDocument, panel: vscode.WebviewPanel) {
+    private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
         switch (message.type) {
             case 'ready':
                 if (document.documentData.region) {
@@ -184,7 +184,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 return;
 
             case 'getChunkData':
-                document.getChunkData(message.index as number).then(data => {
+                document.getChunkData(message.body.x, message.body.z).then(data => {
                     this.postMessage(panel, { type: 'chunk', body: data } );
                 });
                 return;

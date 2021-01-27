@@ -16,17 +16,24 @@ html, body {
 }
 
 .nbt-content {
-	padding-top: 30px;
+	padding: 30px 0;
 }
 
 .nbt-tag {
 	height: 22px;
 	cursor: default;
 	user-select: none;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
 }
 
 .nbt-tag:hover {
 	background: #252526;
+}
+
+.nbt-tag.selected {
+	background-color: #3a3321;
 }
 
 .nbt-tag:not(.collapse) {
@@ -37,22 +44,21 @@ html, body {
 }
 
 div:last-child > .nbt-tag {
-	border-color: transparent;
+	border: none;
 }
 
 .nbt-tag:not(.collapse)::before {
 	content: '';
 	position: absolute;
 	width: 9px;
-	height: 8px;
+	height: 10px;
 	top: 0;
-	left: -1px;
+	left: 0;
 	border-bottom: 1px #777 solid;
 }
 
 div:last-child > .nbt-tag:not(.collapse)::before {
 	border-left: 1px #777 solid;
-	width: 10px;
 }
 
 .nbt-body {
@@ -69,6 +75,11 @@ div:last-child > .nbt-body {
 	font-style: italic;
 }
 
+.nbt-key {
+	margin-right: 5px;
+	line-height: 1;
+}
+
 .nbt-value {
 	font-family: var(--monospace);
 	font-size: 14px;
@@ -78,10 +89,13 @@ input.nbt-value {
 	background-color: #3c3c3c;
 	border: none;
 	color: var(--vscode-editor-foreground);
+	width: 250px;
 }
 
 span.nbt-value {
-	margin-left: 2px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	margin: 0 2px;
 }
 
 .center {
@@ -108,6 +122,7 @@ span.nbt-value {
 	font-family: monospace;
 	font-size: 12px;
 	font-weight: bold;
+	margin-right: 5px;
 }
 
 .nbt-icon {
@@ -116,7 +131,8 @@ span.nbt-value {
 	background-size: 64px;
 	width: 16px;
 	height: 16px;
-	margin-bottom: -3px;
+	min-width: 16px;
+	margin-right: 5px;
 }
 
 .nbt-icon.byte-icon { background-position: 0 0; }
@@ -162,10 +178,6 @@ span.nbt-value {
 	display: flex;
 }
 
-.panel-menu > *:not(:last-child) {
-	margin-right: 5px;
-}
-
 .menu-spacer {
 	margin: 0 10px;
 }
@@ -182,6 +194,10 @@ span.nbt-value {
 .btn.active {
 	background-color: #333333;
 	color: #d8b24a;
+}
+
+.btn.disabled {
+	display: none;
 }
 
 .spinner {
@@ -234,11 +250,25 @@ span.nbt-value {
 }
 
 .side-panel {
-	background-color: #252526;
+	background-color: #252526be;
 	position: absolute;
-	right: 20px;
-	top: 5px;
+	left: 20px;
+	top: 37px;
 	padding: 4px 8px;
+	max-width: 400px;
+	overflow: hidden;
+}
+
+.side-panel .nbt-content {
+	padding: 10px 0 0;
+}
+
+.side-panel .nbt-tag:hover {
+	background: #333333;
+}
+
+.side-panel .nbt-tag.selected {
+	background-color: #423a27;
 }
 
 .block-name {
@@ -266,10 +296,6 @@ span.nbt-value {
 .block-props > * {
 	border-bottom: 1px solid #333333;
 	margin-bottom: 2px;
-}
-
-.side-panel .nbt-content {
-	padding-top: 10px;
 }
 
 .structure-size input {

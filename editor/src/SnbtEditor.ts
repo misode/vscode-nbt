@@ -1,11 +1,11 @@
 import { NbtFile } from "../../src/types";
-import { EditorPanel, locale, VsCode } from "./Editor";
+import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { Snbt } from "./Snbt";
 
 export class SnbtEditor implements EditorPanel {
   private snbt: string
 
-  constructor(private root: Element, private vscode: VsCode) {
+  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler) {
     this.snbt = ''
   }
 
@@ -15,7 +15,7 @@ export class SnbtEditor implements EditorPanel {
     const textarea = document.createElement('textarea')
     textarea.classList.add('snbt-editor')
     textarea.textContent = this.snbt
-    textarea.rows = (this.snbt.match(/\n/g)?.length ?? 0) + 2
+    textarea.rows = (this.snbt.match(/\n/g)?.length ?? 0) + 1
     textarea.readOnly = true
     content.append(textarea)
     this.root.append(content)

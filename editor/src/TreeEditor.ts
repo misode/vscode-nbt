@@ -1,9 +1,16 @@
 import { NamedNbtTag } from "@webmc/nbt";
 import { NbtFile } from "../../src/types";
-import { EditorPanel, VsCode } from "./Editor";
+import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
+
+export type SelectedTag = {
+  path: NbtPath
+  type: string
+  data: () => any
+  el: Element
+}
 
 export class TreeEditor implements EditorPanel {
   static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
@@ -33,7 +40,9 @@ export class TreeEditor implements EditorPanel {
   protected content: HTMLDivElement
   protected data: NamedNbtTag
 
-  constructor(protected root: Element, protected vscode: VsCode) {
+  protected selected: null | SelectedTag
+
+  constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
@@ -41,11 +50,14 @@ export class TreeEditor implements EditorPanel {
     this.content = document.createElement('div');
     this.content.className = 'nbt-content';
     this.data = { name: '', value: {} }
+    this.selected = null
   }
 
   reveal() {
     this.root.append(this.content)
-    this.redraw()
+    if (this.selected) {
+      this.select(this.selected)
+    }
   }
 
   onInit(file: NbtFile) {
@@ -60,6 +72,19 @@ export class TreeEditor implements EditorPanel {
 
   onUpdate(file: NbtFile) {
     this.onInit(file)
+  }
+
+  menu() {
+    const editTag = document.createElement('div')
+    editTag.className = 'btn btn-edit-tag disabled'
+    editTag.textContent = locale('editTag')
+    editTag.addEventListener('click', () => {
+      if (!this.selected) return
+      const el = this.root.querySelector('.nbt-tag.selected')
+      el.scrollIntoView({ block: 'center' })
+      this.clickTag(this.selected.path, this.selected.type, this.selected.data(), this.selected.el)
+    })
+    return [editTag]
   }
 
   protected onLoad(callback: (el: Element) => void) {
@@ -106,8 +131,11 @@ export class TreeEditor implements EditorPanel {
 
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
-    return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.on('click', el => this.clickTag(path, type, data, el))}>
-      ${this.canExpand(type) ? this.drawCollapse(path) : ''}
+    return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.onLoad(el => {
+      el.addEventListener('click', () => this.select({path, type, data: () => data, el }))
+      el.addEventListener('dblclick', () => this.clickTag(path, type, data, el))
+    })}>
+      ${this.drawCollapse(path, type, (el) => this.clickTag(path, type, data, el.parentElement))}
       ${this.drawIcon(type)}
       ${this.drawKey(path)}
       ${this.drawTagHeader(path, type, data)}
@@ -115,6 +143,14 @@ export class TreeEditor implements EditorPanel {
     <div class="nbt-body">
       ${expanded ? this.drawTagBody(path, type, data) : ''}
     </div>`
+  }
+
+  protected select(selected: SelectedTag) {
+    this.selected = selected
+    this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
+    selected.el.classList.add('selected')
+    const btnEditTag = document.querySelector('.btn-edit-tag') as HTMLElement
+    btnEditTag?.classList.toggle('disabled', this.canExpand(selected.type))
   }
 
   protected canExpand(type: string) {
@@ -164,8 +200,11 @@ export class TreeEditor implements EditorPanel {
     return `<span class="nbt-key">${path.last()}: </span>`
   }
 
-  protected drawCollapse(path: NbtPath) {
-    return `<span class="nbt-collapse">${this.isExpanded(path) ? '-' : '+'}</span>`;
+  protected drawCollapse(path: NbtPath, type: string, handler: (el: Element) => void) {
+    if (!this.canExpand(type)) return ''
+    return `<span class="nbt-collapse" ${this.on('click', handler)}>
+      ${this.isExpanded(path) ? '-' : '+'}
+    </span>`;
   }
 
   protected drawEntries(entries: any[]) {
@@ -225,14 +264,15 @@ export class TreeEditor implements EditorPanel {
     spanEl.outerHTML = `<input class="nbt-value" type="text" value="${value}" ${this.onLoad(el => {
       const inputEl = el as HTMLInputElement
       inputEl.focus();
-      inputEl.setSelectionRange(value.length, value.length)
+      inputEl.setSelectionRange(value.length, value.length);
+      inputEl.scrollLeft = inputEl.scrollWidth;
       const makeEdit = () => {
         const newData = TreeEditor.PARSERS[type](inputEl.value)
         inputEl.outerHTML = this.drawPrimitiveTag(type, newData)
         if (JSON.stringify(data) !== JSON.stringify(newData)) {
-          this.vscode.postMessage({ type: 'edit', body: {
-            ops: [{ type: 'set', path: path['arr'], old: data, new: newData }]
-          } })
+          this.editHandler({ ops: [
+            { type: 'set', path: path['arr'], old: data, new: newData }
+          ] })
         }
       }
       inputEl.addEventListener('blur', makeEdit)

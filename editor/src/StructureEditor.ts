@@ -1,8 +1,8 @@
 import { BlockPos, Structure } from "@webmc/core";
-import { getListTag } from "@webmc/nbt";
+import { getListTag, NamedNbtTag } from "@webmc/nbt";
 import { StructureRenderer } from "@webmc/render";
 import { NbtEdit, NbtFile } from "../../src/types";
-import { EditorPanel, locale, VsCode } from "./Editor";
+import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
 import { clamp, clampVec3, negVec3 } from "./Util";
@@ -13,6 +13,7 @@ declare const stringifiedAssets: string
 export class StructureEditor implements EditorPanel {
   private canvas: HTMLCanvasElement
   private resources: ResourceManager
+  private data: NamedNbtTag
   private structure: Structure
   private renderer: StructureRenderer
   private canvas2: HTMLCanvasElement
@@ -26,7 +27,7 @@ export class StructureEditor implements EditorPanel {
   private gridActive: boolean
   private selectedBlock: BlockPos | null
 
-  constructor(private root: Element, private vscode: VsCode) {
+  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -151,11 +152,7 @@ export class StructureEditor implements EditorPanel {
   }
 
   onInit(file: NbtFile) {
-    if (file.region !== false) return
-    this.structure = Structure.fromNbt(file.data)
-    this.renderer.setStructure(this.structure)
-    this.renderer2.setStructure(this.structure)
-
+    this.updateStructure(file)
     vec3.copy(this.cPos, this.structure.getSize())
     vec3.scale(this.cPos, this.cPos, -0.5)
     this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
@@ -171,8 +168,18 @@ export class StructureEditor implements EditorPanel {
       this.showSidePanel()
       this.render()
     } else {
-      this.onInit(file)
+      this.updateStructure(file)
+      this.showSidePanel()
+      this.render()
     }
+  }
+
+  private updateStructure(file: NbtFile) {
+    if (file.region !== false) return
+    this.data = file.data 
+    this.structure = Structure.fromNbt(this.data)
+    this.renderer.setStructure(this.structure)
+    this.renderer2.setStructure(this.structure)
   }
 
   menu() {
@@ -239,7 +246,13 @@ export class StructureEditor implements EditorPanel {
       if (block.nbt) {
         const nbtTree = document.createElement('div')
         sidePanel.append(nbtTree)
-        const tree = new TreeEditor(nbtTree, this.vscode)
+        const blockIndex = getListTag(this.data.value, 'blocks', 'compound')
+          .findIndex(t => JSON.stringify(getListTag(t, 'pos', 'int')) === JSON.stringify(block.pos))
+        const tree = new TreeEditor(nbtTree, this.vscode, edit => {
+          this.editHandler({
+            ops: edit.ops.map(o => ({... o, path: ['blocks', blockIndex, 'nbt', ...o.path]}))
+          }) 
+        })
         tree.onInit({ region: false, gzipped: false, data: { name: '', value: block.nbt } })
         tree.reveal()
       }
@@ -253,14 +266,12 @@ export class StructureEditor implements EditorPanel {
         const original = this.structure.getSize()[i]
         ;(el as HTMLInputElement).value = original.toString()
         el.addEventListener('change', () => {
-          this.vscode.postMessage({ type: 'edit', body: {
-            ops: [{
-              type: 'set',
-              path: ['size', i],
-              old: original,
-              new: parseInt((el as HTMLInputElement).value)
-            }]
-          } })
+          this.editHandler({ ops: [{
+            type: 'set',
+            path: ['size', i],
+            old: original,
+            new: parseInt((el as HTMLInputElement).value)
+          }] })
         })
       })
     }

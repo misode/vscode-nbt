@@ -1,14 +1,14 @@
 import { NbtChunk } from "@webmc/nbt";
 import { NbtFile, ViewMessage } from "../../src/types";
-import { VsCode } from "./Editor";
+import { EditHandler, VSCode } from "./Editor";
 import { NbtPath } from "./NbtPath";
 import { TreeEditor } from "./TreeEditor";
 
 export class RegionEditor extends TreeEditor {
   private chunks: Partial<NbtChunk>[]
 
-  constructor(root: Element, vscode: VsCode) {
-    super(root, vscode)
+  constructor(root: Element, vscode: VSCode, editHandler: EditHandler) {
+    super(root, vscode, editHandler)
   }
 
   redraw() {
@@ -41,8 +41,13 @@ export class RegionEditor extends TreeEditor {
 
   private drawChunk(path: NbtPath, chunk: Partial<NbtChunk>) {
     const expanded = chunk.nbt && this.isExpanded(path);
-    return `<div class="nbt-tag collapse" ${this.on('click', el => this.clickChunk(path, chunk, el))}>
-      ${this.drawCollapse(path)}
+    return `<div class="nbt-tag collapse" ${this.onLoad(el => {
+      el.addEventListener('click', () => this.select({
+        path, type: 'compound', data: () => path.shift().getFrom(this.chunks[path.head()].nbt), el
+      }))
+      el.addEventListener('dblclick', () => this.clickChunk(path, chunk, el))
+    })}>
+      ${this.drawCollapse(path, 'compound', (el) => this.clickChunk(path, chunk, el.parentElement))}
       ${this.drawIcon('chunk')}
       <span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
     </div>

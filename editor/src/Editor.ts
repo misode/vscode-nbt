@@ -4,17 +4,18 @@ import { SnbtEditor } from "./SnbtEditor";
 import { StructureEditor } from "./StructureEditor";
 import { TreeEditor } from "./TreeEditor";
 
-export type VsCode = {
+export type VSCode = {
 	postMessage(message: EditorMessage): void
 }
 
-declare function acquireVsCodeApi(): VsCode
+declare function acquireVsCodeApi(): VSCode
 const vscode = acquireVsCodeApi();
 
 const root = document.querySelector('.nbt-editor')
 
 const LOCALES = {
 	'copy': 'Copy',
+	'editTag': 'Edit Tag',
 	'grid': 'Show Grid',
   'panel.structure': '3D',
   'panel.region': 'Region',
@@ -44,6 +45,8 @@ export interface EditorPanel {
 	menu?(): Element[]
 }
 
+export type EditHandler = (edit: NbtEdit) => void
+
 class Editor {
 	private panels: {
 		[key: string]: {
@@ -53,18 +56,19 @@ class Editor {
 		}
 	} = {
 		'structure': {
-			editor: lazy(() => new StructureEditor(root, vscode)),
+			editor: lazy(() => new StructureEditor(root, vscode, this.makeEdit)),
 			options: ['structure', 'tree', 'snbt']
 		},
 		'region': {
-			editor: lazy(() => new RegionEditor(root, vscode))
+			editor: lazy(() => new RegionEditor(root, vscode, this.makeEdit)),
+			options: ['region']
 		},
 		'tree': {
-			editor: lazy(() => new TreeEditor(root, vscode)),
+			editor: lazy(() => new TreeEditor(root, vscode, this.makeEdit)),
 			options: ['tree', 'snbt']
 		},
 		'snbt': {
-			editor: lazy(() => new SnbtEditor(root, vscode))
+			editor: lazy(() => new SnbtEditor(root, vscode, this.makeEdit))
 		}
 	}
 
@@ -143,6 +147,10 @@ class Editor {
 			el.insertAdjacentHTML('beforeend', '<div class="menu-spacer"></div>')
 			panel.menu().forEach(e => el.append(e))
 		}
+	}
+
+	private makeEdit(edit: NbtEdit) {
+		vscode.postMessage({ type: 'edit', body: edit })
 	}
 
 	private applyEdit(edit: NbtEdit) {

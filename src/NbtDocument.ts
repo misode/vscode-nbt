@@ -133,6 +133,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             if (!chunk.nbt) {
                 throw new Error('Cannot edit chunk that has not been parsed')
             }
+            chunk.dirty = true
             node = chunk.nbt.value
             index = 1
         } else {
@@ -200,6 +201,12 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         const nbtFile = this._documentData
         if (cancellation.isCancellationRequested) {
             return;
+        }
+
+        if (nbtFile.region) {
+            nbtFile.chunks.filter(c => c.dirty).forEach(c => {
+                nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
+            })
         }
 
         const fileData = nbtFile.region

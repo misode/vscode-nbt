@@ -8,7 +8,9 @@ export type SimpleNbtFile = {
 
 export type RegionNbtFile = {
 	region: true
-	chunks: NbtChunk[]
+	chunks: (NbtChunk & {
+		dirty?: boolean
+	})[]
 }
 
 export type NbtFile = SimpleNbtFile | RegionNbtFile

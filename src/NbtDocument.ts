@@ -84,6 +84,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             return
         }
 
+        if (this._documentData.region) {
+            vscode.window.showWarningMessage('Editing region files is not supported yet')
+            return
+        }
+
         this._edits.push(edit);
         this.applyEdit(edit)
         const reversedEdit = this.reverseEdit(edit)
@@ -204,14 +209,16 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         }
 
         if (nbtFile.region) {
-            nbtFile.chunks.filter(c => c.dirty).forEach(c => {
-                nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
-            })
+            vscode.window.showErrorMessage('Saving region files is not supported yet')
+            return
+            // nbtFile.chunks.filter(c => c.dirty).forEach(c => {
+            //     nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
+            // })
         }
 
-        const fileData = nbtFile.region
+        const fileData = /* nbtFile.region
             ? nbt.writeRegion(nbtFile.chunks)
-            : nbt.write(nbtFile.data, nbtFile.gzipped)
+            : */ nbt.write(nbtFile.data, nbtFile.gzipped)
 
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }

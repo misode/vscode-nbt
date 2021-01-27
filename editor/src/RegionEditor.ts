@@ -19,6 +19,7 @@ export class RegionEditor extends TreeEditor {
   onInit(file: NbtFile) {
     if (file.region !== true) return
     this.chunks = file.chunks
+    this.redraw()
   }
 
   onUpdate(file: NbtFile) {

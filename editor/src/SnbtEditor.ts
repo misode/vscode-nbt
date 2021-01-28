@@ -5,7 +5,7 @@ import { Snbt } from "./Snbt";
 export class SnbtEditor implements EditorPanel {
   private snbt: string
 
-  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler) {
+  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler, private readOnly: boolean) {
     this.snbt = ''
   }
 

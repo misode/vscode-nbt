@@ -28,7 +28,7 @@ export class StructureEditor implements EditorPanel {
   private gridActive: boolean
   private selectedBlock: BlockPos | null
 
-  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler) {
+  constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler, private readOnly: boolean) {
     const assets = JSON.parse(stringifiedAssets)
     this.resources = new ResourceManager()
     const img = (document.querySelector('.block-atlas') as HTMLImageElement)
@@ -176,7 +176,7 @@ export class StructureEditor implements EditorPanel {
 
   private updateStructure(file: NbtFile) {
     if (file.region !== false) return
-    this.data = file.data 
+    this.data = file.data
     this.structure = Structure.fromNbt(this.data)
     this.renderer.setStructure(this.structure)
     this.renderer2.setStructure(this.structure)
@@ -225,7 +225,6 @@ export class StructureEditor implements EditorPanel {
   private showSidePanel() {
     this.root.querySelector('.side-panel')?.remove()
     const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
-    
 
     const sidePanel = document.createElement('div')
     sidePanel.classList.add('side-panel')
@@ -251,8 +250,8 @@ export class StructureEditor implements EditorPanel {
         const tree = new TreeEditor(nbtTree, this.vscode, edit => {
           this.editHandler({
             ops: edit.ops.map(o => ({... o, path: ['blocks', blockIndex, 'nbt', ...o.path]}))
-          }) 
-        })
+          })
+        }, this.readOnly)
         tree.onInit({ region: false, gzipped: false, data: { name: '', value: block.nbt } })
         tree.reveal()
       }
@@ -265,6 +264,8 @@ export class StructureEditor implements EditorPanel {
       sidePanel.querySelectorAll('.structure-size input').forEach((el, i) => {
         const original = this.structure.getSize()[i]
         ;(el as HTMLInputElement).value = original.toString()
+        if (this.readOnly) return
+
         el.addEventListener('change', () => {
           this.editHandler({ ops: [{
             type: 'set',

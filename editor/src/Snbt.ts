@@ -6,7 +6,7 @@ export class Snbt {
     const ii = i + '  '
     switch(type) {
       case 'compound': return Object.keys(data).length === 0 ? `{}`
-        : `{\n${Object.entries<any>(data).map(([k, v]) => 
+        : `{\n${Object.entries<any>(data).map(([k, v]) =>
           `${ii}"${k}": ${Snbt.stringify(v.type, v.value, ii)}`
         ).join(',\n')}\n${i}}`
       case 'list': return data.value.length === 0 ? `[]`
@@ -39,7 +39,7 @@ export class Snbt {
   }
 
   private static stringifyEntries(type: string, values: any[], ii: string, join: string) {
-    return values.map(v => 
+    return values.map(v =>
       `${ii}${Snbt.stringify(type, v, ii)}`
     ).join(join)
   }

@@ -8,8 +8,8 @@ import { TreeEditor } from "./TreeEditor";
 export class RegionEditor extends TreeEditor {
   private chunks: Partial<NbtChunk>[]
 
-  constructor(root: Element, vscode: VSCode, editHandler: EditHandler) {
-    super(root, vscode, editHandler)
+  constructor(root: Element, vscode: VSCode, editHandler: EditHandler, readOnly: boolean) {
+    super(root, vscode, editHandler, readOnly)
     this.chunks = []
   }
 

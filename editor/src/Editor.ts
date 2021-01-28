@@ -59,25 +59,26 @@ class Editor {
 		}
 	} = {
 		'structure': {
-			editor: lazy(() => new StructureEditor(root, vscode, this.makeEdit)),
+			editor: lazy(() => new StructureEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['structure', 'tree', 'snbt']
 		},
 		'region': {
-			editor: lazy(() => new RegionEditor(root, vscode, this.makeEdit)),
+			editor: lazy(() => new RegionEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['region']
 		},
 		'tree': {
-			editor: lazy(() => new TreeEditor(root, vscode, this.makeEdit)),
+			editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['tree', 'snbt']
 		},
 		'snbt': {
-			editor: lazy(() => new SnbtEditor(root, vscode, this.makeEdit))
+			editor: lazy(() => new SnbtEditor(root, vscode, e => this.makeEdit(e), this.readOnly))
 		}
 	}
 
 	private type: string
 	private nbtFile: NbtFile
 	private activePanel: string
+	private readOnly: boolean
 
 	constructor() {
 		window.addEventListener('message', async e => {
@@ -98,6 +99,7 @@ class Editor {
 					this.type = 'tree'
 				}
 				this.nbtFile = m.body.content
+				this.readOnly = m.body.readOnly
 				this.setPanel(this.type)
 				return;
 
@@ -157,6 +159,7 @@ class Editor {
 	}
 
 	private makeEdit(edit: NbtEdit) {
+		if (this.readOnly) return
 		vscode.postMessage({ type: 'edit', body: edit })
 	}
 }

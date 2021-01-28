@@ -158,6 +158,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                         type: 'init',
                         body: {
                             type: 'region',
+                            readOnly: document.isReadOnly,
                             content: {
                                 region: true,
                                 chunks: chunks
@@ -169,6 +170,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                         type: 'init',
                         body: {
                             type: document.isStructure ? 'structure' : 'default',
+                            readOnly: document.isReadOnly,
                             content: document.documentData
                         }
                     });

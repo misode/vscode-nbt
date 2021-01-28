@@ -43,7 +43,7 @@ export class TreeEditor implements EditorPanel {
 
   protected selected: null | SelectedTag
 
-  constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler) {
+  constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
     this.events = {}
     this.expanded = new Set()
     this.expand(new NbtPath())
@@ -81,6 +81,8 @@ export class TreeEditor implements EditorPanel {
   }
 
   menu() {
+    if (this.readOnly) return []
+
     const editTag = document.createElement('div')
     editTag.className = 'btn btn-edit-tag disabled'
     editTag.textContent = locale('editTag')
@@ -149,6 +151,8 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected select(selected: SelectedTag | null) {
+    if (this.readOnly) return
+
     this.selected = selected
     this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
     if (selected){
@@ -281,6 +285,8 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected clickPrimitiveTag(path: NbtPath, type: string, data: any, el: Element) {
+    if (this.readOnly) return
+
     const spanEl = el.querySelector('span.nbt-value')
     if (spanEl === null) return
     const value = TreeEditor.SERIALIZERS[type](data)
@@ -311,6 +317,8 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected removeTag(path: NbtPath, type: string, data: any, el: Element) {
+    if (this.readOnly) return
+
     const { type: parentType } = getNode(this.data, path.pop())
     if (parentType === 'compound') {
       this.editHandler({ ops: [

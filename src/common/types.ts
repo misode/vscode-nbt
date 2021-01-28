@@ -60,7 +60,8 @@ export type EditorMessage = {
 export type ViewMessage = {
   type: 'init'
   body: {
-    type: 'default' | 'region' | 'structure'
+		type: 'default' | 'region' | 'structure'
+		readOnly: boolean
     content: NbtFile
   }
 } | {

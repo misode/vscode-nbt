@@ -1,4 +1,4 @@
-import { NbtFile } from "../../src/types";
+import { NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { Snbt } from "./Snbt";
 

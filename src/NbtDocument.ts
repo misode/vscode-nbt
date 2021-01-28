@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { Disposable } from './dispose';
 import * as nbt from '@webmc/nbt';
-import { NbtEdit, NbtFile, NbtPath } from './types';
+import { NbtEdit, NbtFile } from './common/types';
+import { applyEdit, reverseEdit } from './common/Operations';
+import { output } from './extension';
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
@@ -49,7 +51,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         this._uri = uri;
         this._documentData = initialContent;
         this._isStructure = this.isStructureData();
-        this._isReadOnly = uri.scheme === 'git';
+        this._isReadOnly = uri.scheme === 'git' || this._documentData.region;
     }
 
     public get uri() { return this._uri; }
@@ -83,95 +85,26 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             vscode.window.showWarningMessage('Cannot edit in read-only editor')
             return
         }
-
-        if (this._documentData.region) {
-            vscode.window.showWarningMessage('Editing region files is not supported yet')
-            return
-        }
+        const logger = (s: string) => output.appendLine(s)
 
         this._edits.push(edit);
-        this.applyEdit(edit)
-        const reversedEdit = this.reverseEdit(edit)
+        applyEdit(this._documentData, edit, logger)
+        const reversed = reverseEdit(edit)
 
 		this._onDidChange.fire({
 			label: 'Edit',
 			undo: async () => {
                 this._edits.pop();
-                this.applyEdit(reversedEdit)
-				this._onDidChangeDocument.fire(reversedEdit);
+                applyEdit(this._documentData, reversed, logger)
+				this._onDidChangeDocument.fire(reversed);
 			},
 			redo: async () => {
                 this._edits.push(edit);
-                this.applyEdit(edit);
+                applyEdit(this._documentData, edit, logger);
 				this._onDidChangeDocument.fire(edit);
 			}
 		});
         this._onDidChangeDocument.fire(edit);
-    }
-
-    private reverseEdit(edit: NbtEdit): NbtEdit {
-        return {
-            ops: [...edit.ops].reverse()
-                .map(op => ({ ...op, new: op.old, old: op.new }))
-        }
-    }
-
-    private applyEdit(edit: NbtEdit) {
-        for (let i = 0; i < edit.ops.length; i += 1) {
-            const op = edit.ops[i];
-            switch(op.type) {
-                case 'set': this.pathSet(op.path, op.new);
-            }
-        }
-    }
-
-    private pathSet(path: NbtPath, value: any) {
-        let node: any
-        let type = 'compound'
-        let index = 0
-
-        if (this._documentData.region) {
-            if (typeof path[0] !== 'number') {
-                throw new Error('Edit path should start with a number in region files')
-            }
-            const chunk = this._documentData.chunks[path[0]]
-            if (!chunk.nbt) {
-                throw new Error('Cannot edit chunk that has not been parsed')
-            }
-            chunk.dirty = true
-            node = chunk.nbt.value
-            index = 1
-        } else {
-            node = this._documentData.data.value
-        }
-
-        for (; index < path.length - 1; index++) {
-            const el = path[index]
-            if (type === 'compound' && typeof el === 'string') {
-                type = node[el].type
-                node = node[el].value
-            } else if (type === 'list' && typeof el === 'number') {
-                type = node.type
-                node = node.value[el]
-            } else if (type.endsWith('Array') && typeof el === 'number') {
-                type = type.slice(-5)
-                node = node[el]
-            } else {
-                throw new Error(`Invalid edit path ${path} at index ${index}`)
-            }
-            if (node === undefined) {
-                throw new Error(`Path ${path} not found in document`)
-            }
-        }
-
-        const last = path[path.length -1]
-        if (type === 'compound' && typeof last === 'string') {
-            node[last].value = value
-        } else if (type === 'list' && typeof last === 'number') {
-            node = node.value[last] = value
-        } else if (type.endsWith('Array') && typeof last === 'number') {
-            node = node[last] = value
-        }
     }
 
     private isStructureData() {
@@ -209,16 +142,14 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         }
 
         if (nbtFile.region) {
-            vscode.window.showErrorMessage('Saving region files is not supported yet')
-            return
-            // nbtFile.chunks.filter(c => c.dirty).forEach(c => {
-            //     nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
-            // })
+            nbtFile.chunks.filter(c => c.dirty).forEach(c => {
+                nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
+            })
         }
 
-        const fileData = /* nbtFile.region
+        const fileData = nbtFile.region
             ? nbt.writeRegion(nbtFile.chunks)
-            : */ nbt.write(nbtFile.data, nbtFile.gzipped)
+            : nbt.write(nbtFile.data, nbtFile.gzipped)
 
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }

@@ -1,4 +1,5 @@
-import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/types"
+import { applyEdit } from "../../src/common/Operations";
+import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/common/types"
 import { RegionEditor } from "./RegionEditor";
 import { SnbtEditor } from "./SnbtEditor";
 import { StructureEditor } from "./StructureEditor";
@@ -11,11 +12,12 @@ export type VSCode = {
 declare function acquireVsCodeApi(): VSCode
 const vscode = acquireVsCodeApi();
 
-const root = document.querySelector('.nbt-editor')
+const root = document.querySelector('.nbt-editor')!
 
 const LOCALES = {
 	'copy': 'Copy',
-	'editTag': 'Edit Tag',
+	'editTag': 'Edit',
+	'removeTag': 'Remove',
 	'grid': 'Show Grid',
   'panel.structure': '3D',
   'panel.region': 'Region',
@@ -38,7 +40,8 @@ export function locale(key: string) {
 }
 
 export interface EditorPanel {
-	reveal(): void
+	reveal?(): void
+	hide?(): void
 	onInit(file: NbtFile): void
 	onUpdate(file: NbtFile, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
@@ -100,7 +103,7 @@ class Editor {
 
 			case 'update':
 				try {
-					this.applyEdit(m.body)
+					applyEdit(this.nbtFile, m.body)
 					Object.values(this.panels).forEach(p => p.updated = false)
 					this.panels[this.activePanel].editor().onUpdate(this.nbtFile, m.body)
 					this.panels[this.activePanel].updated = true
@@ -116,6 +119,7 @@ class Editor {
 
 	private setPanel(panel: string) {
 		root.innerHTML = `<div class="spinner"></div>`
+		this.panels[this.activePanel]?.editor().hide?.()
 		this.activePanel = panel
 		const editorPanel = this.panels[panel].editor()
 		this.setPanelMenu(editorPanel)
@@ -125,16 +129,19 @@ class Editor {
 				this.panels[panel].updated = true
 			}
 			root.innerHTML = ''
-			editorPanel.reveal()
+			editorPanel?.reveal?.()
 		})
 	}
 
 	private setPanelMenu(panel: EditorPanel) {
-		const el = document.querySelector('.panel-menu')
+		const el = document.querySelector('.panel-menu')!
 		el.innerHTML = ''
+		const btnGroup = document.createElement('div')
+		btnGroup.classList.add('btn-group')
+		el.append(btnGroup)
 		this.panels[this.type].options?.forEach((p: string) => {
 			const button = document.createElement('div')
-			el.append(button)
+			btnGroup.append(button)
 			button.classList.add('btn')
 			button.textContent = locale(`panel.${p}`)
 			if (p === this.activePanel) {
@@ -151,52 +158,6 @@ class Editor {
 
 	private makeEdit(edit: NbtEdit) {
 		vscode.postMessage({ type: 'edit', body: edit })
-	}
-
-	private applyEdit(edit: NbtEdit) {
-		for (let i = 0; i < edit.ops.length; i += 1) {
-				const op = edit.ops[i];
-				switch(op.type) {
-						case 'set': this.pathSet(op.path, op.new);
-				}
-		}
-}
-
-	private pathSet(path: (number | string)[], value: any) {
-		let node: any
-    let type = 'compound'
-    let index = 0
-
-    if (this.nbtFile.region) {
-      const chunk = this.nbtFile.chunks[path[0]]
-      node = chunk.nbt.value
-      index = 1
-    } else if (this.nbtFile.region === false) {
-      node = this.nbtFile.data.value
-    }
-
-    for (; index < path.length - 1; index++) {
-      const el = path[index]
-      if (type === 'compound' && typeof el === 'string') {
-        type = node[el].type
-        node = node[el].value
-      } else if (type === 'list' && typeof el === 'number') {
-        type = node.type
-        node = node.value[el]
-      } else if (type.endsWith('Array') && typeof el === 'number') {
-        type = type.slice(-5)
-        node = node[el]
-      }
-    }
-
-    const last = path[path.length -1]
-    if (type === 'compound' && typeof last === 'string') {
-      node[last].value = value
-    } else if (type === 'list' && typeof last === 'number') {
-      node = node.value[last] = value
-    } else if (type.endsWith('Array') && typeof last === 'number') {
-      node = node[last] = value
-    }
 	}
 }
 

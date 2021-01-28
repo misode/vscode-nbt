@@ -1,12 +1,13 @@
 import { BlockPos, Structure } from "@webmc/core";
 import { getListTag, NamedNbtTag } from "@webmc/nbt";
 import { StructureRenderer } from "@webmc/render";
-import { NbtEdit, NbtFile } from "../../src/types";
+import { NbtEdit, NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { ResourceManager } from "./ResourceManager";
 import { mat4, vec2, vec3 } from "gl-matrix"
 import { clamp, clampVec3, negVec3 } from "./Util";
 import { TreeEditor } from "./TreeEditor";
+import { NbtPath } from "../../src/common/NbtPath";
 
 declare const stringifiedAssets: string
 
@@ -38,13 +39,13 @@ export class StructureEditor implements EditorPanel {
 
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'structure-3d'
-    const gl = this.canvas.getContext('webgl');
+    const gl = this.canvas.getContext('webgl')!
     this.structure = new Structure([0, 0, 0])
     this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, this.structure)
 
     this.canvas2 = document.createElement('canvas')
     this.canvas2.className = 'structure-3d click-detection'
-    this.gl2 = this.canvas2.getContext('webgl')
+    this.gl2 = this.canvas2.getContext('webgl')!
     this.renderer2 = new StructureRenderer(this.gl2, this.resources, this.resources, blockAtlas, this.structure)
 
     this.cPos = vec3.create()
@@ -161,8 +162,7 @@ export class StructureEditor implements EditorPanel {
 
   onUpdate(file: NbtFile, edit: NbtEdit) {
     if (file.region !== false) return
-    if (edit.ops.length === 1 && edit.ops[0].path.length >= 1
-        && edit.ops[0].path[0] === 'size') {
+    if (edit.ops.length === 1 && new NbtPath(edit.ops[0].path).startsWith(new NbtPath(['size']))) {
       this.structure['size'] = getListTag(file.data.value, 'size', 'int', 3)
       this.renderer['gridBuffers'] = this.renderer['getGridBuffers']()
       this.showSidePanel()

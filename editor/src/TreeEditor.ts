@@ -1,7 +1,8 @@
 import { NamedNbtTag } from "@webmc/nbt";
-import { NbtFile } from "../../src/types";
+import { NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
-import { NbtPath } from "./NbtPath";
+import { NbtPath } from "../../src/common/NbtPath";
+import { getNode } from "../../src/common/Operations";
 import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
 
@@ -58,6 +59,11 @@ export class TreeEditor implements EditorPanel {
     if (this.selected) {
       this.select(this.selected)
     }
+    document.addEventListener('keyup', this.onKeyUp)
+  }
+
+  hide() {
+    document.removeEventListener('keyup', this.onKeyUp)
   }
 
   onInit(file: NbtFile) {
@@ -80,11 +86,24 @@ export class TreeEditor implements EditorPanel {
     editTag.textContent = locale('editTag')
     editTag.addEventListener('click', () => {
       if (!this.selected) return
-      const el = this.root.querySelector('.nbt-tag.selected')
-      el.scrollIntoView({ block: 'center' })
+      this.selected.el.scrollIntoView({ block: 'center' })
       this.clickTag(this.selected.path, this.selected.type, this.selected.data(), this.selected.el)
     })
-    return [editTag]
+    const removeTag = document.createElement('div')
+    removeTag.className = 'btn btn-remove-tag disabled'
+    removeTag.textContent = locale('removeTag')
+    removeTag.addEventListener('click', () => {
+      if (!this.selected) return
+      this.selected.el.scrollIntoView({ block: 'center' })
+      this.removeTag(this.selected.path, this.selected.type, this.selected.data(), this.selected.el)
+    })
+    return [removeTag, editTag]
+  }
+
+  protected onKeyUp = (evt: KeyboardEvent) => {
+    if (evt.key === 'Delete' && this.selected) {
+      this.removeTag(this.selected.path, this.selected.type, this.selected.data(), this.selected.el)
+    }
   }
 
   protected onLoad(callback: (el: Element) => void) {
@@ -112,7 +131,7 @@ export class TreeEditor implements EditorPanel {
   protected addEvents() {
     Object.keys(this.events).forEach(id => {
       const el = this.content.querySelector(`[data-id="${id}"]`);
-      if (el !== undefined) this.events[id](el)
+      if (el !== null) this.events[id](el)
     })
     this.events = {}
   }
@@ -129,13 +148,25 @@ export class TreeEditor implements EditorPanel {
     this.expanded.add(path.toString())
   }
 
+  protected select(selected: SelectedTag | null) {
+    this.selected = selected
+    this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
+    if (selected){
+      selected.el.classList.add('selected')
+      const btnEditTag = document.querySelector('.btn-edit-tag') as HTMLElement
+      btnEditTag?.classList.toggle('disabled', this.canExpand(selected.type))
+    }
+    const btnRemoveTag = document.querySelector('.btn-remove-tag') as HTMLElement
+    btnRemoveTag?.classList.toggle('disabled', this.selected === null || this.selected.path.length() === 0)
+  }
+
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
     return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.onLoad(el => {
       el.addEventListener('click', () => this.select({path, type, data: () => data, el }))
       el.addEventListener('dblclick', () => this.clickTag(path, type, data, el))
     })}>
-      ${this.drawCollapse(path, type, (el) => this.clickTag(path, type, data, el.parentElement))}
+      ${this.drawCollapse(path, type, (el) => this.clickTag(path, type, data, el.parentElement!))}
       ${this.drawIcon(type)}
       ${this.drawKey(path)}
       ${this.drawTagHeader(path, type, data)}
@@ -143,14 +174,6 @@ export class TreeEditor implements EditorPanel {
     <div class="nbt-body">
       ${expanded ? this.drawTagBody(path, type, data) : ''}
     </div>`
-  }
-
-  protected select(selected: SelectedTag) {
-    this.selected = selected
-    this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
-    selected.el.classList.add('selected')
-    const btnEditTag = document.querySelector('.btn-edit-tag') as HTMLElement
-    btnEditTag?.classList.toggle('disabled', this.canExpand(selected.type))
   }
 
   protected canExpand(type: string) {
@@ -242,14 +265,14 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected clickExpandableTag(path: NbtPath, type: string, data: any, el: Element) {
-    const body = el.nextElementSibling;
+    const body = el.nextElementSibling!;
     if (this.isExpanded(path)) {
       this.collapse(path);
       body.innerHTML = '';
-      el.querySelector('.nbt-collapse').textContent = '+';
+      el.querySelector('.nbt-collapse')!.textContent = '+';
     } else {
       this.expand(path);
-      el.querySelector('.nbt-collapse').textContent = '-';
+      el.querySelector('.nbt-collapse')!.textContent = '-';
       setTimeout(() => {
         body.innerHTML = this.drawTagBody(path, type, data)
         this.addEvents();
@@ -271,7 +294,7 @@ export class TreeEditor implements EditorPanel {
         inputEl.outerHTML = this.drawPrimitiveTag(type, newData)
         if (JSON.stringify(data) !== JSON.stringify(newData)) {
           this.editHandler({ ops: [
-            { type: 'set', path: path['arr'], old: data, new: newData }
+            { type: 'set', path: path.arr, old: data, new: newData }
           ] })
         }
       }
@@ -285,5 +308,21 @@ export class TreeEditor implements EditorPanel {
       })
     })}>`
     this.addEvents()
+  }
+
+  protected removeTag(path: NbtPath, type: string, data: any, el: Element) {
+    const { type: parentType } = getNode(this.data, path.pop())
+    if (parentType === 'compound') {
+      this.editHandler({ ops: [
+        { type: 'delete', path: path.pop().arr, key: path.last() as string, value: data, keyType: type }
+      ] })
+    } else {
+      this.editHandler({ ops: [
+        { type: 'remove', path: path.pop().arr, index: path.last() as number, value: data }
+      ] })
+    }
+    el.parentElement?.remove()
+    this.select(null)
+    path['arr']
   }
 }

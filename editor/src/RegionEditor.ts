@@ -1,7 +1,8 @@
 import { NbtChunk } from "@webmc/nbt";
-import { NbtFile, ViewMessage } from "../../src/types";
+import { NbtFile, ViewMessage } from "../../src/common/types";
+import { NbtPath } from "../../src/common/NbtPath";
+import { getNode } from "../../src/common/Operations";
 import { EditHandler, VSCode } from "./Editor";
-import { NbtPath } from "./NbtPath";
 import { TreeEditor } from "./TreeEditor";
 
 export class RegionEditor extends TreeEditor {
@@ -9,6 +10,7 @@ export class RegionEditor extends TreeEditor {
 
   constructor(root: Element, vscode: VSCode, editHandler: EditHandler) {
     super(root, vscode, editHandler)
+    this.chunks = []
   }
 
   redraw() {
@@ -44,16 +46,16 @@ export class RegionEditor extends TreeEditor {
     const expanded = chunk.nbt && this.isExpanded(path);
     return `<div class="nbt-tag collapse" ${this.onLoad(el => {
       el.addEventListener('click', () => this.select({
-        path, type: 'compound', data: () => path.shift().getFrom(this.chunks[path.head()].nbt), el
+        path, type: 'compound', data: () => getNode(this.chunks[path.head()].nbt, path.shift()).value, el
       }))
       el.addEventListener('dblclick', () => this.clickChunk(path, chunk, el))
     })}>
-      ${this.drawCollapse(path, 'compound', (el) => this.clickChunk(path, chunk, el.parentElement))}
+      ${this.drawCollapse(path, 'compound', (el) => this.clickChunk(path, chunk, el.parentElement!))}
       ${this.drawIcon('chunk')}
       <span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
     </div>
     <div class="nbt-body">
-      ${expanded ? this.drawCompound(path, chunk.nbt.value) : ''}
+      ${expanded ? this.drawCompound(path, chunk.nbt?.value) : ''}
     </div>`
   }
 
@@ -62,7 +64,7 @@ export class RegionEditor extends TreeEditor {
       this.clickExpandableTag(path, 'compound', chunk.nbt.value, el)
     } else {
       this.expand(path);
-      this.vscode.postMessage({ type: 'getChunkData', body: { x: chunk.x, z: chunk.z } });
+      this.vscode.postMessage({ type: 'getChunkData', body: { x: chunk.x!, z: chunk.z! } });
     }
   }
 }

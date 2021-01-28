@@ -47,6 +47,10 @@ div:last-child > .nbt-tag {
 	border: none;
 }
 
+div:last-child > .nbt-tag:not(.collapse) > .nbt-icon {
+	margin-left: 1px;
+}
+
 .nbt-tag:not(.collapse)::before {
 	content: '';
 	position: absolute;
@@ -198,6 +202,18 @@ span.nbt-value {
 
 .btn.disabled {
 	display: none;
+}
+
+.btn:not(:last-child) {
+	margin-right: 5px;
+}
+
+.btn-group {
+	display: flex;
+}
+
+.btn-group > .btn {
+	margin-right: 0;
 }
 
 .spinner {

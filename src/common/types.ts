@@ -15,13 +15,22 @@ export type RegionNbtFile = {
 
 export type NbtFile = SimpleNbtFile | RegionNbtFile
 
-export type NbtPath = (string | number)[]
-
 export type NbtEditOp = {
 	type: 'set'
-	path: NbtPath
+	path: (number | string)[]
 	new: any
 	old: any
+} | {
+	type: 'remove' | 'add'
+	path: (number | string)[]
+	index: number
+	value: any
+} | {
+	type: 'delete' | 'put'
+	path: (number | string)[]
+	key: string
+	keyType: string
+	value: any
 }
 
 export type NbtEdit = {

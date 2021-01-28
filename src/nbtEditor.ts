@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from './dispose';
 import { NbtDocument } from './NbtDocument';
-import { EditorMessage, ViewMessage } from './types';
+import { EditorMessage, ViewMessage } from './common/types';
 import { WebviewCollection } from './WebviewCollection';
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {

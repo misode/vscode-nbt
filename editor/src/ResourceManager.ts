@@ -44,7 +44,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
     const atlasCanvas = document.createElement('canvas')
     atlasCanvas.width = image.width
     atlasCanvas.height = image.height
-    const atlasCtx = atlasCanvas.getContext('2d')
+    const atlasCtx = atlasCanvas.getContext('2d')!
     atlasCtx.drawImage(image, 0, 0)
     const atlasData = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height)
     const idMap = {}

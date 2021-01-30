@@ -13,6 +13,8 @@ export type SelectedTag = {
   el: Element
 }
 
+export type EditingTag = Omit<SelectedTag, 'path'> & { path: NbtPath | null }
+
 export class TreeEditor implements EditorPanel {
   static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
 
@@ -57,6 +59,7 @@ export class TreeEditor implements EditorPanel {
   protected data: NamedNbtTag
 
   protected selected: null | SelectedTag
+  protected editing: null | EditingTag
 
   constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
     this.events = {}
@@ -67,6 +70,7 @@ export class TreeEditor implements EditorPanel {
     this.content.className = 'nbt-content';
     this.data = { name: '', value: {} }
     this.selected = null
+    this.editing = null
   }
 
   reveal() {
@@ -187,7 +191,10 @@ export class TreeEditor implements EditorPanel {
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
     return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.onLoad(el => {
-      el.addEventListener('click', () => this.select({path, type, data: () => data, el }))
+      el.addEventListener('click', () => {
+        this.clearEditing()
+        this.select({path, type, data: () => data, el })
+      })
       el.addEventListener('dblclick', () => this.clickTag(path, type, data, el))
     })}>
       ${this.drawCollapse(path, type, (el) => this.clickTag(path, type, data, el.parentElement!))}
@@ -306,7 +313,7 @@ export class TreeEditor implements EditorPanel {
 
   protected clickPrimitiveTag(path: NbtPath, type: string, data: any, el: Element) {
     if (this.readOnly) return
-    
+
     el.querySelector('span.nbt-value')?.remove()
     const value = TreeEditor.SERIALIZERS[type](data)
 
@@ -336,6 +343,7 @@ export class TreeEditor implements EditorPanel {
         makeEdit()
       }
     })
+    this.setEditing(path, type, data, el)
   }
 
   protected removeTag(path: NbtPath, type: string, data: any, el: Element) {
@@ -427,6 +435,7 @@ export class TreeEditor implements EditorPanel {
         makeEdit()
       }
     })
+    this.setEditing(null, type, data, nbtTag)
   }
 
   protected renameTag(path: NbtPath, type: string, data: any, el: Element) {
@@ -462,5 +471,24 @@ export class TreeEditor implements EditorPanel {
         makeEdit()
       }
     })
+    this.setEditing(path, type, data, el)
+  }
+
+  protected clearEditing() {
+    if (this.editing && this.editing.el.parentElement) {
+      if (this.editing.path === null) {
+        this.editing.el.parentElement.remove()
+      } else {
+        this.editing.el.parentElement.innerHTML =
+          this.drawTag(this.editing.path, this.editing.type, this.editing.data())
+        this.addEvents()
+      }
+    }
+    this.editing = null
+  }
+
+  protected setEditing(path: NbtPath | null, type: string, data: any, el: Element) {
+    this.clearEditing()
+    this.editing = { path, type, data: () => data, el }
   }
 }

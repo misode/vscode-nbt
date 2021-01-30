@@ -23,14 +23,12 @@ export type NbtEditOp = {
 } | {
 	type: 'remove' | 'add'
 	path: (number | string)[]
-	index: number
 	value: any
+	valueType: string
 } | {
-	type: 'delete' | 'put'
+	type: 'move'
 	path: (number | string)[]
-	key: string
-	keyType: string
-	value: any
+	target: (number | string)[]
 }
 
 export type NbtEdit = {

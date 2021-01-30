@@ -115,6 +115,7 @@ span.nbt-value {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	margin: 0 2px;
+	font-family: var(--monospace);
 }
 
 .center {

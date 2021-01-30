@@ -22,6 +22,7 @@ const LOCALES = {
 	'addTag': 'Add Tag',
 	'editTag': 'Edit',
 	'removeTag': 'Remove',
+	'renameTag': 'Rename',
 	'grid': 'Show Grid',
   'panel.structure': '3D',
   'panel.region': 'Region',

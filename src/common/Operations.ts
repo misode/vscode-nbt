@@ -13,8 +13,7 @@ export function reverseEditOp(op: NbtEditOp): NbtEditOp {
     case 'set': return { ...op, new: op.old, old: op.new }
     case 'add': return { ...op, type: 'remove' }
     case 'remove': return { ...op, type: 'add' }
-    case 'put': return { ...op, type: 'delete' }
-    case 'delete': return { ...op, type: 'put' }
+    case 'move': return { ...op, path: op.target, target: op.path }
   }
 }
 
@@ -23,16 +22,21 @@ export function applyEdit(file: NbtFile, edit: NbtEdit, logger?: (str: string) =
 }
 
 export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string) => void) {
-  logger?.(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()}${op.type === 'put' || op.type === 'delete' ? ` key=${op.key}` : op.type === 'add' || op.type === 'remove' ? ` index=${op.index}` : ''} ${op.type === 'remove' || op.type === 'delete' ? '' : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
+  logger?.(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()} ${op.type === 'remove' ? '' : op.type === 'move' ? `target=${new NbtPath(op.target).toString()}` : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
   try {
     const { data, path } = getRoot(file, new NbtPath(op.path))
-    const { type, value } = getNode(data, op.type === 'set' ? path.pop() : path)
+    const { type, value } = getNode(data, path.pop())
     switch(op.type) {
-      case 'set': return setValue(value, type, new NbtPath(op.path).last(), op.new)
-      case 'add': return addValue(value, type, op.index, op.value)
-      case 'remove': return removeValue(value, type, op.index)
-      case 'put': return putValue(value, op.key, op.keyType, op.value)
-      case 'delete': return deleteValue(value, op.key)
+      case 'set': setValue(value, type, path.last(), op.new); break
+      case 'add': addValue(value, type, path.last(), op.value, op.valueType); break
+      case 'remove': removeValue(value, type, path.last()); break
+      case 'move':
+        const { type: nType, value: nValue} = getNodeImpl(value, type, new NbtPath([path.last()]))
+        removeValue(value, type, path.last())
+        const target = new NbtPath(op.target)
+        const { type: tType, value: tValue} = getNode(data, target.pop())
+        addValue(tValue, tType, target.last(), nValue, nType)
+        break
     }
   } catch (e) {
     logger?.(`Error applying edit: ${e.message}`)
@@ -51,9 +55,10 @@ export function getRoot(file: NbtFile, path: NbtPath) {
 }
 
 export function getNode(data: NamedNbtTag, path: NbtPath) {
-  let value = data.value as any
-  let type = 'compound'
+  return getNodeImpl(data.value as any, 'compound', path)
+}
 
+export function getNodeImpl(value: any, type: string, path: NbtPath) {
   for (const el of path.arr) {
     if (type === 'compound' && typeof el === 'string') {
       type = value[el].type
@@ -82,26 +87,22 @@ export function setValue(node: any, type: string, last: number | string, value: 
   }
 }
 
-export function addValue(node: any, type: string, index: number, value: any) {
-  if (type === 'list') {
-    node.value.splice(index, 0, value)
+export function addValue(node: any, type: string, last: number | string, value: any, valueType: string) {
+  if (type === 'compound') {
+    node[last] = { type: valueType, value }
+  } else if (type === 'list') {
+    node.value.splice(last, 0, value)
   } else {
-    node.splice(index, 0, value)
+    node.splice(last, 0, value)
   }
 }
 
-export function removeValue(node: any, type: string, index: number) {
-  if (type === 'list') {
-    node.value.splice(index, 1)
+export function removeValue(node: any, type: string, last: number | string) {
+  if (type === 'compound') {
+    delete node[last]
+  } else if (type === 'list') {
+    node.value.splice(last, 1)
   } else {
-    node.splice(index, 1)
+    node.splice(last, 1)
   }
-}
-
-export function putValue(node: any, key: string, type: string, value: any) {
-  node[key] = { type, value }
-}
-
-export function deleteValue(node: any, key: string) {
-  delete node[key]
 }

@@ -113,7 +113,8 @@ export class TreeEditor implements EditorPanel {
     const editTag = actionButton('edit', this.clickTag)
     const removeTag = actionButton('remove', this.removeTag)
     const addTag = actionButton('add', this.addTag)
-    return [removeTag, editTag, addTag]
+    const renameTag = actionButton('rename', this.renameTag)
+    return [removeTag, editTag, addTag, renameTag]
   }
 
   protected onKeyUp = (evt: KeyboardEvent) => {
@@ -175,6 +176,9 @@ export class TreeEditor implements EditorPanel {
       btnEditTag?.classList.toggle('disabled', this.canExpand(selected.type))
       const btnAddTag = document.querySelector('.btn-add-tag') as HTMLElement
       btnAddTag?.classList.toggle('disabled', !this.canExpand(selected.type))
+      const parentType = getNode(this.data, selected.path.pop()).type
+      const btnRenameTag = document.querySelector('.btn-rename-tag') as HTMLElement
+      btnRenameTag?.classList.toggle('disabled', parentType !== 'compound')
     }
     const btnRemoveTag = document.querySelector('.btn-remove-tag') as HTMLElement
     btnRemoveTag?.classList.toggle('disabled', this.selected === null || this.selected.path.length() === 0)
@@ -302,51 +306,44 @@ export class TreeEditor implements EditorPanel {
 
   protected clickPrimitiveTag(path: NbtPath, type: string, data: any, el: Element) {
     if (this.readOnly) return
-
-    const spanEl = el.querySelector('span.nbt-value')
-    if (spanEl === null) return
+    
+    el.querySelector('span.nbt-value')?.remove()
     const value = TreeEditor.SERIALIZERS[type](data)
-    spanEl.outerHTML = `<input class="nbt-value" type="text" value="${value}" ${this.onLoad(el => {
-      const inputEl = el as HTMLInputElement
-      inputEl.focus();
-      inputEl.setSelectionRange(value.length, value.length);
-      inputEl.scrollLeft = inputEl.scrollWidth;
-      const makeEdit = () => {
-        const newData = TreeEditor.PARSERS[type](inputEl.value)
-        inputEl.outerHTML = this.drawPrimitiveTag(type, newData)
-        if (JSON.stringify(data) !== JSON.stringify(newData)) {
-          this.editHandler({ ops: [
-            { type: 'set', path: path.arr, old: data, new: newData }
-          ] })
-        }
+
+    const valueEl = document.createElement('input')
+    el.append(valueEl)
+    valueEl.classList.add('nbt-value')
+    valueEl.value = value
+    valueEl.focus();
+    valueEl.setSelectionRange(value.length, value.length);
+    valueEl.scrollLeft = valueEl.scrollWidth;
+
+    const confirmButton = document.createElement('button')
+    el.append(confirmButton)
+    confirmButton.classList.add('nbt-confirm')
+    confirmButton.textContent = locale('confirm')
+    const makeEdit = () => {
+      const newData = TreeEditor.PARSERS[type](valueEl.value)
+      if (JSON.stringify(data) !== JSON.stringify(newData)) {
+        this.editHandler({ ops: [
+          { type: 'set', path: path.arr, old: data, new: newData }
+        ] })
       }
-      inputEl.addEventListener('blur', makeEdit)
-      inputEl.addEventListener('keyup', evt => {
-        if (evt.key === 'Enter') {
-          makeEdit()
-        } else if (evt.key === 'Escape') {
-          inputEl.outerHTML = this.drawPrimitiveTag(type, data)
-        }
-      })
-    })}>`
-    this.addEvents()
+    }
+    confirmButton.addEventListener('click', makeEdit)
+    valueEl.addEventListener('keyup', evt => {
+      if (evt.key === 'Enter') {
+        makeEdit()
+      }
+    })
   }
 
   protected removeTag(path: NbtPath, type: string, data: any, el: Element) {
     if (this.readOnly) return
 
-    const { type: parentType } = getNode(this.data, path.pop())
-    if (parentType === 'compound') {
-      this.editHandler({ ops: [
-        { type: 'delete', path: path.pop().arr, key: path.last() as string, value: data, keyType: type }
-      ] })
-    } else {
-      this.editHandler({ ops: [
-        { type: 'remove', path: path.pop().arr, index: path.last() as number, value: data }
-      ] })
-    }
-    el.parentElement?.remove()
-    this.select(null)
+    this.editHandler({ ops: [
+      { type: 'remove', path: path.arr, value: data, valueType: type }
+    ] })
   }
 
   protected addTag(path: NbtPath, type: string, data: any, el: Element) {
@@ -406,28 +403,61 @@ export class TreeEditor implements EditorPanel {
     confirmButton.classList.add('nbt-confirm')
     confirmButton.textContent = locale('confirm')
     const makeEdit = () => {
-      const keyType = (type === 'compound' || data?.value?.length === 0)
+      const valueType = (type === 'compound' || data?.value?.length === 0)
         ? typeSelect.value
         : (type === 'list') ? data.type : type.replace(/Array$/, '')
-      const key = keyInput.value
-      let newData = TreeEditor.DEFAULTS[keyType]()
-      if (!this.canExpand(keyType)) {
+      const last = type === 'compound' ? keyInput.value : 0
+      let newData = TreeEditor.DEFAULTS[valueType]()
+      if (!this.canExpand(valueType)) {
         try {
-          newData = TreeEditor.PARSERS[keyType](valueInput.value)
+          newData = TreeEditor.PARSERS[valueType](valueInput.value)
         } catch(e) {}
       }
 
-      const edit: NbtEditOp = (type === 'compound')
-        ? { type: 'put', path: path.arr, key, keyType, value: newData }
-        : (data?.value?.length === 0)
-          ? { type: 'set', path: path.arr, new: { type: keyType, value: [newData] }, old: data }
-          : { type: 'add', path: path.arr, index: 0, value: newData }
+      const edit: NbtEditOp = (data?.value?.length === 0)
+        ? { type: 'set', path: path.arr, new: { type: valueType, value: [newData] }, old: data }
+        : { type: 'add', path: path.push(last).arr, value: newData, valueType }
 
       this.expand(path)
       this.editHandler({ ops: [edit] })
     }
     confirmButton.addEventListener('click', makeEdit)
     valueInput.addEventListener('keyup', evt => {
+      if (evt.key === 'Enter') {
+        makeEdit()
+      }
+    })
+  }
+
+  protected renameTag(path: NbtPath, type: string, data: any, el: Element) {
+    if (this.readOnly) return
+
+    el.querySelector('span.nbt-key')?.remove()
+    const valueEl = el.querySelector('.nbt-value')
+    const key = path.last() as string
+
+    const keyEl = document.createElement('input')
+    el.insertBefore(keyEl, valueEl)
+    keyEl.classList.add('nbt-value')
+    keyEl.value = key
+    keyEl.focus();
+    keyEl.setSelectionRange(key.length, key.length);
+    keyEl.scrollLeft = keyEl.scrollWidth;
+
+    const confirmButton = document.createElement('button')
+    el.insertBefore(confirmButton, valueEl)
+    confirmButton.classList.add('nbt-confirm')
+    confirmButton.textContent = locale('confirm')
+    const makeEdit = () => {
+      const newKey = keyEl.value
+      if (key !== newKey) {
+        this.editHandler({ ops: [
+          { type: 'move', path: path.arr, target: path.pop().push(newKey).arr }
+        ] })
+      }
+    }
+    confirmButton.addEventListener('click', makeEdit)
+    keyEl.addEventListener('keyup', evt => {
       if (evt.key === 'Enter') {
         makeEdit()
       }

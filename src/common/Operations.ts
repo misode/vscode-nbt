@@ -23,7 +23,7 @@ export function applyEdit(file: NbtFile, edit: NbtEdit, logger?: (str: string) =
 }
 
 export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string) => void) {
-  logger?.(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()}${op.type === 'put' || op.type === 'delete' ? `key=${op.key}` : op.type === 'add' || op.type === 'remove' ? ` index=${op.index}` : ''} ${op.type === 'remove' || op.type === 'delete' ? '' : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
+  logger?.(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()}${op.type === 'put' || op.type === 'delete' ? ` key=${op.key}` : op.type === 'add' || op.type === 'remove' ? ` index=${op.index}` : ''} ${op.type === 'remove' || op.type === 'delete' ? '' : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
   try {
     const { data, path } = getRoot(file, new NbtPath(op.path))
     const { type, value } = getNode(data, op.type === 'set' ? path.pop() : path)

@@ -16,6 +16,10 @@ const root = document.querySelector('.nbt-editor')!
 
 const LOCALES = {
 	'copy': 'Copy',
+	'name': 'Name',
+	'value': 'Value',
+	'confirm': 'Confirm',
+	'addTag': 'Add Tag',
 	'editTag': 'Edit',
 	'removeTag': 'Remove',
 	'grid': 'Show Grid',

@@ -12,12 +12,15 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         backupId: string | undefined,
     ): Promise<NbtDocument | PromiseLike<NbtDocument>> {
         const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
+        output.appendLine(`Creating NBT document [uri=${JSON.stringify(dataFile)}]`)
         const fileData = await NbtDocument.readFile(dataFile);
         return new NbtDocument(uri, fileData);
     }
 
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
         let array = await vscode.workspace.fs.readFile(uri);
+
+        output.appendLine(`Read file [length=${array.length}, scheme=${uri.scheme}, extension=${uri.path.match(/(?:\.([^.]+))?$/)?.[1]}]`)
 
         if (uri.scheme === 'git' && array.length === 0) {
             return {
@@ -35,6 +38,9 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         }
 
         const { compressed, result } = nbt.read(array)
+
+        output.appendLine(`Parsed NBT [compressed=${compressed}]`)
+
         return {
             region: false,
             gzipped: compressed,

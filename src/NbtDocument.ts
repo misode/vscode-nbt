@@ -19,6 +19,14 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
         let array = await vscode.workspace.fs.readFile(uri);
 
+        if (uri.scheme === 'git' && array.length === 0) {
+            return {
+                region: false,
+                gzipped: false,
+                data: { name: '', value: {} }
+            }
+        }
+
         if (uri.fsPath.endsWith('.mca')) {
             return {
                 region: true,

@@ -150,6 +150,11 @@ export class StructureEditor implements EditorPanel {
     this.root.append(this.canvas)
     this.root.append(this.canvas2)
     this.showSidePanel()
+    document.addEventListener('keydown', this.onKey)
+  }
+
+  hide() {
+    document.removeEventListener('keydown', this.onKey)
   }
 
   onInit(file: NbtFile) {
@@ -172,6 +177,10 @@ export class StructureEditor implements EditorPanel {
       this.showSidePanel()
       this.render()
     }
+  }
+
+  private onKey = (evt: KeyboardEvent) => {
+
   }
 
   private updateStructure(file: NbtFile) {

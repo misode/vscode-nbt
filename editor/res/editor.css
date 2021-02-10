@@ -8,6 +8,22 @@ html, body {
 	font-size: 14px;
 }
 
+input {
+	background: var(--vscode-input-background);
+	color: var(--vscode-foreground);
+	border: none;
+	font-family: Segoe WPC, Segoe UI, sans-serif;
+	padding: 2px 4px;
+}
+
+input:focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+input::placeholder {
+	color: var(--vscode-input-placeholderForeground)
+}
+
 .nbt-editor {
 	display: flex;
 	flex-direction: column;
@@ -32,7 +48,7 @@ html, body {
 }
 
 .nbt-tag.selected {
-	background-color: #3a3321;
+	background-color: #094771;
 }
 
 .nbt-tag:not(.collapse) {
@@ -89,6 +105,7 @@ div:last-child > .nbt-body {
 .nbt-tag input {
 	background-color: #3c3c3c;
 	border: none;
+	padding: 1px 2px;
 	color: var(--vscode-editor-foreground);
 	width: 250px;
 	font-family: var(--monospace);
@@ -128,7 +145,7 @@ span.nbt-value {
 }
 
 .error {
-	color: #ec5035;
+	color: var(--vscode-errorForeground);
 }
 
 .nbt-collapse {
@@ -343,7 +360,7 @@ span.nbt-value {
 }
 
 .side-panel .nbt-tag.selected {
-	background-color: #423a27;
+	background-color: #094771;
 }
 
 .block-name {
@@ -375,15 +392,13 @@ span.nbt-value {
 
 .find-widget input,
 .structure-size input {
-	width: 50px;
+	width: 200px;
 	height: 25px;
-	background: #3c3c3c;
-	color: #cccccc;
-	border: none;
 	margin-left: 7px;
-	font-family: Segoe WPC, Segoe UI, sans-serif;
-	padding: 2px 4px;
-	outline-color: #007fd4;
+}
+
+.structure-size input {
+	width: 70px;
 }
 
 .find-widget {
@@ -395,14 +410,10 @@ span.nbt-value {
 	width: 234px;
 	height: 33px;
 	background: #252526;
-	color: #cccccc;
+	color: var(--vscode-foreground);
 	box-shadow: 0 0 8px 2px rgba(0, 0, 0, 0.36);
 	transform: translateY(calc(-100% - 10px));
 	transition: transform 0.2s linear;
-}
-
-.find-widget input {
-	width: 200px;
 }
 
 .find-widget.visible {

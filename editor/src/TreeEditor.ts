@@ -78,11 +78,11 @@ export class TreeEditor implements EditorPanel {
     if (this.selected) {
       this.select(this.selected)
     }
-    document.addEventListener('keyup', this.onKeyUp)
+    document.addEventListener('keydown', this.onKey)
   }
 
   hide() {
-    document.removeEventListener('keyup', this.onKeyUp)
+    document.removeEventListener('keydown', this.onKey)
   }
 
   onInit(file: NbtFile) {
@@ -92,6 +92,8 @@ export class TreeEditor implements EditorPanel {
     if (rootKeys.length === 1) {
       this.expand(new NbtPath([rootKeys[0]]))
     }
+    this.select(null)
+    this.editing = null
     this.redraw()
   }
 
@@ -121,9 +123,18 @@ export class TreeEditor implements EditorPanel {
     return [removeTag, editTag, addTag, renameTag]
   }
 
-  protected onKeyUp = (evt: KeyboardEvent) => {
-    if (evt.key === 'Delete' && this.selected) {
-      this.removeTag(this.selected.path, this.selected.type, this.selected.data(), this.selected.el)
+  protected onKey = (evt: KeyboardEvent) => {
+    const s = this.selected
+    if (evt.key === 'Delete' && s) {
+      this.removeTag(s.path, s.type, s.data(), s.el)
+    } else if (evt.key === 'F2' && s) {
+      this.renameTag(s.path, s.type, s.data(), s.el)
+    } else if (evt.key === 'Escape') {
+      if (this.editing === null) {
+        this.select(null)
+      } else {
+        this.clearEditing()
+      }
     }
   }
 
@@ -174,24 +185,26 @@ export class TreeEditor implements EditorPanel {
 
     this.selected = selected
     this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
-    if (selected){
+    if (selected) {
       selected.el.classList.add('selected')
-      const btnEditTag = document.querySelector('.btn-edit-tag') as HTMLElement
-      btnEditTag?.classList.toggle('disabled', this.canExpand(selected.type))
-      const btnAddTag = document.querySelector('.btn-add-tag') as HTMLElement
-      btnAddTag?.classList.toggle('disabled', !this.canExpand(selected.type))
-      const parentType = getNode(this.data, selected.path.pop()).type
-      const btnRenameTag = document.querySelector('.btn-rename-tag') as HTMLElement
-      btnRenameTag?.classList.toggle('disabled', parentType !== 'compound')
     }
+
+    const btnEditTag = document.querySelector('.btn-edit-tag') as HTMLElement
+    btnEditTag?.classList.toggle('disabled', !selected || this.canExpand(selected.type))
+    const btnAddTag = document.querySelector('.btn-add-tag') as HTMLElement
+    btnAddTag?.classList.toggle('disabled', !selected || !this.canExpand(selected.type))
+    const parentType = selected ? getNode(this.data, selected.path.pop()).type : null
+    const btnRenameTag = document.querySelector('.btn-rename-tag') as HTMLElement
+    btnRenameTag?.classList.toggle('disabled', parentType !== 'compound')
     const btnRemoveTag = document.querySelector('.btn-remove-tag') as HTMLElement
-    btnRemoveTag?.classList.toggle('disabled', this.selected === null || this.selected.path.length() === 0)
+    btnRemoveTag?.classList.toggle('disabled', !this.selected || this.selected.path.length() === 0)
   }
 
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
     return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.onLoad(el => {
       el.addEventListener('click', () => {
+        if (el === this.selected?.el) return
         this.clearEditing()
         this.select({path, type, data: () => data, el })
       })
@@ -442,7 +455,7 @@ export class TreeEditor implements EditorPanel {
     if (this.readOnly) return
 
     el.querySelector('span.nbt-key')?.remove()
-    const valueEl = el.querySelector('.nbt-value')
+    const valueEl = el.querySelector('.nbt-value, .nbt-entries')
     const key = path.last() as string
 
     const keyEl = document.createElement('input')
@@ -464,6 +477,7 @@ export class TreeEditor implements EditorPanel {
           { type: 'move', path: path.arr, target: path.pop().push(newKey).arr }
         ] })
       }
+      this.clearEditing()
     }
     confirmButton.addEventListener('click', makeEdit)
     keyEl.addEventListener('keyup', evt => {
@@ -479,8 +493,12 @@ export class TreeEditor implements EditorPanel {
       if (this.editing.path === null) {
         this.editing.el.parentElement.remove()
       } else {
-        this.editing.el.parentElement.innerHTML =
-          this.drawTag(this.editing.path, this.editing.type, this.editing.data())
+        const parent = this.editing.el.parentElement
+        parent.innerHTML = this.drawTag(this.editing.path, this.editing.type, this.editing.data())
+        if (this.selected?.el === this.editing.el) {
+          this.selected.el = parent.querySelector('.nbt-tag')!
+          this.selected.el.classList.add('selected')
+        }
         this.addEvents()
       }
     }

@@ -85,10 +85,31 @@ class Editor {
 	private activePanel: string
 	private readOnly: boolean
 
+	private findWidget: HTMLElement
+
 	constructor() {
 		window.addEventListener('message', async e => {
 			editor.onMessage(e.data)
 		});
+
+		this.findWidget = document.querySelector('.find-widget') as HTMLElement
+		const findInput = this.findWidget.querySelector('input') as HTMLInputElement
+		findInput.addEventListener('keydown', () => {
+			this.doSearch()
+		})
+		this.findWidget.querySelector('.close-widget')?.addEventListener('click', () => {
+			this.findWidget.classList.remove('visible')
+		})
+
+		document.addEventListener('keydown', evt => {
+			if (evt.ctrlKey && evt.code === 'KeyF') {
+				this.findWidget.classList.add('visible')
+				findInput.focus()
+				findInput.setSelectionRange(0, findInput.value.length)
+			} else if (evt.key === 'Escape') {
+				this.findWidget.classList.remove('visible')
+			}
+		})
 
 		vscode.postMessage({ type: 'ready' })
 	}
@@ -161,6 +182,10 @@ class Editor {
 			el.insertAdjacentHTML('beforeend', '<div class="menu-spacer"></div>')
 			panel.menu().forEach(e => el.append(e))
 		}
+	}
+
+	private doSearch() {
+		// TODO
 	}
 
 	private makeEdit(edit: NbtEdit) {

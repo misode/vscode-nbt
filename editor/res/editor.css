@@ -1,5 +1,5 @@
 * {
-	box-sizing: content-box;
+	box-sizing: border-box;
 	--monospace: 'Monaco', 'Menlo', 'Consolas', 'Droid Sans Mono', 'Inconsolata', 'Courier New', 'monospace';
 }
 
@@ -141,6 +141,7 @@ span.nbt-value {
 	color: #777;
 	font-family: monospace;
 	font-size: 12px;
+	line-height: 12px;
 	font-weight: bold;
 	margin-right: 5px !important;
 }
@@ -372,11 +373,48 @@ span.nbt-value {
 	margin-bottom: 2px;
 }
 
+.find-widget input,
 .structure-size input {
 	width: 50px;
+	height: 25px;
 	background: #3c3c3c;
-	color: #8d8d8d;
+	color: #cccccc;
 	border: none;
 	margin-left: 7px;
+	font-family: Segoe WPC, Segoe UI, sans-serif;
 	padding: 2px 4px;
+	outline-color: #007fd4;
+}
+
+.find-widget {
+	position: fixed;
+	display: flex;
+	align-items: center;
+	top: 0px;
+	right: 28px;
+	width: 234px;
+	height: 33px;
+	background: #252526;
+	color: #cccccc;
+	box-shadow: 0 0 8px 2px rgba(0, 0, 0, 0.36);
+	transform: translateY(calc(-100% - 10px));
+	transition: transform 0.2s linear;
+}
+
+.find-widget input {
+	width: 200px;
+}
+
+.find-widget.visible {
+	transform: translateY(0);
+}
+
+.find-widget .button {
+	width: 20px;
+	height: 20px;
+	margin-left: 3px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

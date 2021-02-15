@@ -1,4 +1,5 @@
-import { BlockAtlas, BlockDefinition, BlockDefinitionProvider, BlockModel, BlockModelProvider } from '@webmc/render'
+import { BlockAtlas, BlockDefinition, BlockDefinitionProvider, BlockModel, BlockModelProvider, BlockProperties } from '@webmc/render'
+import { isOpaque } from './OpaqueHelper'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider {
   private blockDefinitions: { [id: string]: BlockDefinition }
@@ -25,6 +26,12 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 
   public getBlockAtlas() {
     return this.blockAtlas
+  }
+
+  public getBlockProperties(id: string | undefined): BlockProperties | null {
+    return {
+      opaque: isOpaque(id)
+    }
   }
 
   public loadBlockDefinitions(definitions: any) {

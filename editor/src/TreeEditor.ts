@@ -2,7 +2,7 @@ import { NamedNbtTag, tagNames } from "@webmc/nbt";
 import { NbtEditOp, NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { NbtPath } from "../../src/common/NbtPath";
-import { getNode } from "../../src/common/Operations";
+import { getNode, searchNode } from "../../src/common/Operations";
 import { Snbt } from "./Snbt";
 import { hexId } from "./Util"
 
@@ -55,6 +55,7 @@ export class TreeEditor implements EditorPanel {
 
   protected events: Record<string, (el: Element) => void>
   protected expanded: Set<string>
+  protected tempExpanded: Set<string>
   protected content: HTMLDivElement
   protected data: NamedNbtTag
 
@@ -64,6 +65,7 @@ export class TreeEditor implements EditorPanel {
   constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
     this.events = {}
     this.expanded = new Set()
+    this.tempExpanded = new Set()
     this.expand(new NbtPath())
 
     this.content = document.createElement('div');
@@ -99,6 +101,18 @@ export class TreeEditor implements EditorPanel {
 
   onUpdate(file: NbtFile) {
     this.onInit(file)
+  }
+
+  onSearch(query: string) {
+    const searchResults = searchNode(this.data, query)
+    return searchResults.map(r => ({
+      show: () => {
+        r.subPaths().forEach(p => {
+          this.tempExpanded.add(p.toString())
+        })
+        // TODO: render and highlight match
+      }
+    }))
   }
 
   menu() {
@@ -169,11 +183,14 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected isExpanded(path: NbtPath) {
-    return this.expanded.has(path.toString())
+    const p = path.toString()
+    return this.expanded.has(p) || this.tempExpanded.has(p)
   }
 
   protected collapse(path: NbtPath) {
-    this.expanded.delete(path.toString())
+    const p = path.toString()
+    this.expanded.delete(p)
+    this.tempExpanded.delete(p)
   }
 
   protected expand(path: NbtPath) {

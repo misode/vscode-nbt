@@ -407,7 +407,7 @@ span.nbt-value {
 	align-items: center;
 	top: 0px;
 	right: 28px;
-	width: 234px;
+	width: 352px;
 	height: 33px;
 	background: #252526;
 	color: var(--vscode-foreground);
@@ -428,4 +428,23 @@ span.nbt-value {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.find-widget .matches {
+	min-width: 69px;
+	height: 25px;
+	margin-left: 3px;
+	padding: 2px 0 0 2px;
+	font-size: 12px;
+	line-height: 23px;
+	vertical-align: middle;
+}
+
+.find-widget.no-results .matches {
+	color: #f48771;
+}
+
+.find-widget .button.disabled {
+	opacity: 0.3;
+	cursor: default;
 }

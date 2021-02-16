@@ -44,7 +44,7 @@ export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string)
   }
 }
 
-export function getRoot(file: NbtFile, path: NbtPath) {
+function getRoot(file: NbtFile, path: NbtPath) {
   if (file.region === true) {
     return {
       data: file.chunks[path.head() as number].nbt!,
@@ -58,7 +58,7 @@ export function getNode(data: NamedNbtTag, path: NbtPath) {
   return getNodeImpl(data.value as any, 'compound', path)
 }
 
-export function getNodeImpl(value: any, type: string, path: NbtPath) {
+function getNodeImpl(value: any, type: string, path: NbtPath) {
   for (const el of path.arr) {
     if (type === 'compound' && typeof el === 'string') {
       type = value[el].type
@@ -77,7 +77,7 @@ export function getNodeImpl(value: any, type: string, path: NbtPath) {
   return { type, value }
 }
 
-export function setValue(node: any, type: string, last: number | string, value: any) {
+function setValue(node: any, type: string, last: number | string, value: any) {
   if (type === 'compound' && typeof last === 'string') {
     node[last].value = value
   } else if (type === 'list' && typeof last === 'number') {
@@ -87,7 +87,7 @@ export function setValue(node: any, type: string, last: number | string, value: 
   }
 }
 
-export function addValue(node: any, type: string, last: number | string, value: any, valueType: string) {
+function addValue(node: any, type: string, last: number | string, value: any, valueType: string) {
   if (type === 'compound') {
     node[last] = { type: valueType, value }
   } else if (type === 'list') {
@@ -97,12 +97,38 @@ export function addValue(node: any, type: string, last: number | string, value: 
   }
 }
 
-export function removeValue(node: any, type: string, last: number | string) {
+function removeValue(node: any, type: string, last: number | string) {
   if (type === 'compound') {
     delete node[last]
   } else if (type === 'list') {
     node.value.splice(last, 1)
   } else {
     node.splice(last, 1)
+  }
+}
+
+export function searchNode(data: NamedNbtTag, query: string): NbtPath[] {
+  const results: NbtPath[] = []
+  searchNodeImpl(new NbtPath(), data.value as any, 'compound', query, results)
+  return results
+}
+
+function searchNodeImpl(path: NbtPath, node: any, type: string, query: string, results: NbtPath[]) {
+  switch (type) {
+    case 'compound':
+      Object.keys(node).forEach(k => {
+        searchNodeImpl(path.push(k), node[k].value, node[k].type, query, results)
+      })
+      break
+    case 'list':
+      (node.value as any[]).forEach((v, i) => {
+        searchNodeImpl(path.push(i), v, node.type, query, results)
+      })
+      break
+    case 'string':
+      if ((node as string).includes(query)) {
+        results.push(path)
+      }
+      break
   }
 }

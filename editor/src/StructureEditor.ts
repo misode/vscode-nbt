@@ -37,16 +37,23 @@ export class StructureEditor implements EditorPanel {
     this.resources.loadBlockAtlas(img, assets.textures)
     const blockAtlas = this.resources.getBlockAtlas()
 
+    const structureResources = {
+      blockDefinitions: this.resources,
+      blockModels: this.resources,
+      blockAtlas: blockAtlas,
+      blockProperties: this.resources
+    }
+
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'structure-3d'
     const gl = this.canvas.getContext('webgl')!
     this.structure = new Structure([0, 0, 0])
-    this.renderer = new StructureRenderer(gl, this.resources, this.resources, blockAtlas, this.structure)
+    this.renderer = new StructureRenderer(gl, this.structure, structureResources)
 
     this.canvas2 = document.createElement('canvas')
     this.canvas2.className = 'structure-3d click-detection'
     this.gl2 = this.canvas2.getContext('webgl')!
-    this.renderer2 = new StructureRenderer(this.gl2, this.resources, this.resources, blockAtlas, this.structure)
+    this.renderer2 = new StructureRenderer(this.gl2, this.structure, structureResources)
 
     this.cPos = vec3.create()
     this.cRot = vec2.fromValues(0.4, 0.6)
@@ -150,6 +157,11 @@ export class StructureEditor implements EditorPanel {
     this.root.append(this.canvas)
     this.root.append(this.canvas2)
     this.showSidePanel()
+    document.addEventListener('keydown', this.onKey)
+  }
+
+  hide() {
+    document.removeEventListener('keydown', this.onKey)
   }
 
   onInit(file: NbtFile) {
@@ -172,6 +184,10 @@ export class StructureEditor implements EditorPanel {
       this.showSidePanel()
       this.render()
     }
+  }
+
+  private onKey = (evt: KeyboardEvent) => {
+
   }
 
   private updateStructure(file: NbtFile) {

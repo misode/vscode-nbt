@@ -44,12 +44,18 @@ export function locale(key: string) {
   return LOCALES[key] ?? key
 }
 
+export type SearchResult = {
+	show(): void
+}
+
 export interface EditorPanel {
 	reveal?(): void
 	hide?(): void
 	onInit(file: NbtFile): void
 	onUpdate(file: NbtFile, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
+	onSearch?(query: string): SearchResult[]
+	onHideSearch?(): void
 	menu?(): Element[]
 }
 
@@ -85,10 +91,48 @@ class Editor {
 	private activePanel: string
 	private readOnly: boolean
 
+	private findWidget: HTMLElement
+	private searchQuery: string = ''
+	private searchResults: null | SearchResult[] = null
+	private searchIndex: number = 0
+
 	constructor() {
 		window.addEventListener('message', async e => {
-			editor.onMessage(e.data)
+			this.onMessage(e.data)
 		});
+
+		this.findWidget = document.querySelector('.find-widget') as HTMLElement
+		const findInput = this.findWidget.querySelector('input') as HTMLInputElement
+		findInput.addEventListener('keyup', evt => {
+			if (evt.key === 'Enter') {
+				if (evt.shiftKey) {
+					this.showMatch(this.searchIndex - 1)
+				} else {
+					this.showMatch(this.searchIndex + 1)
+				}
+			} else {
+				this.doSearch()
+			}
+		})
+		this.findWidget.querySelector('.previous-match')?.addEventListener('click', () => {
+			this.showMatch(this.searchIndex - 1)
+		})
+		this.findWidget.querySelector('.next-match')?.addEventListener('click', () => {
+			this.showMatch(this.searchIndex + 1)
+		})
+		this.findWidget.querySelector('.close-widget')?.addEventListener('click', () => {
+			this.findWidget.classList.remove('visible')
+		})
+
+		document.addEventListener('keydown', evt => {
+			if (evt.ctrlKey && evt.code === 'KeyF') {
+				this.findWidget.classList.add('visible')
+				findInput.focus()
+				findInput.setSelectionRange(0, findInput.value.length)
+			} else if (evt.key === 'Escape') {
+				this.findWidget.classList.remove('visible')
+			}
+		})
 
 		vscode.postMessage({ type: 'ready' })
 	}
@@ -163,10 +207,45 @@ class Editor {
 		}
 	}
 
+	private doSearch() {
+		const query = this.findWidget.querySelector('input')!.value
+		if (this.searchQuery === query) return
+		this.searchQuery = query
+
+		const editorPanel = this.panels[this.activePanel]?.editor()
+		if (editorPanel?.onSearch && query) {
+			this.searchResults = editorPanel.onSearch(query)
+			this.searchIndex = 0
+		} else {
+			this.searchResults = null
+		}
+
+		if (this.searchResults && this.searchResults.length > 0) {
+			this.showMatch(0)
+		} else {
+			editorPanel.onHideSearch?.()
+			this.findWidget.querySelector('.matches')!.textContent = `No results`
+		}
+		this.findWidget.classList.toggle('no-results', this.searchResults !== null && this.searchResults.length === 0)
+		this.findWidget.querySelectorAll('.previous-match, .next-match').forEach(e =>
+			e.classList.toggle('disabled', this.searchResults === null || this.searchResults.length === 0))
+	}
+
+	private showMatch(index: number) {
+		if (this.searchResults === null) return
+		const matches = this.searchResults.length
+		if (matches === 0) return
+
+		this.searchIndex = (index % matches + matches) % matches
+		this.findWidget.querySelector('.matches')!.textContent = `${this.searchIndex + 1} of ${matches}`
+
+		this.searchResults[this.searchIndex].show()
+	} 
+
 	private makeEdit(edit: NbtEdit) {
 		if (this.readOnly) return
 		vscode.postMessage({ type: 'edit', body: edit })
 	}
 }
 
-const editor = new Editor()
+new Editor()

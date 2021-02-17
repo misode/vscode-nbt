@@ -97,12 +97,14 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
     private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
         const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, ...folders)
+            path.join(this._context.extensionPath, 'editor', ...folders)
         ));
-        const scriptUri = uri('editor', 'out', 'editor.js');
-        const styleUri = uri('editor', 'res', 'editor.css');
-        const atlasUrl = uri('editor', 'res', 'generated', 'atlas.png');
-        const assetsUrl = uri('editor', 'res', 'generated', 'assets.js');
+        const scriptUri = uri('out', 'editor.js');
+        const styleUri = uri('res', 'editor.css');
+        const atlasUrl = uri('res', 'generated', 'atlas.png');
+        const assetsUrl = uri('res', 'generated', 'assets.js');
+		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
+		const codiconsFontUri =uri('node_modules', 'vscode-codicons', 'dist', 'codicon.ttf');
 
         const nonce = this.getNonce();
 
@@ -116,17 +118,31 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				Use a content security policy to only allow loading images from https or from our extension directory,
 				and only allow scripts that have a specific nonce.
 				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${codiconsFontUri}; img-src ${webview.cspSource} blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 				<link href="${styleUri}" rel="stylesheet" />
+				<link href="${codiconsUri}" rel="stylesheet" />
 
 				<title>NBT Editor</title>
 			</head>
             <body>
                 <div class="nbt-editor"></div>
                 <div class="panel-menu"></div>
+                <div class="find-widget">
+                    <input placeholder="Find">
+                    <div class="matches">No results</div>
+                    <div class="button previous-match" title="Previous match (Shift+Enter)">
+                        <i class="codicon codicon-arrow-up"></i>
+                    </div>
+                    <div class="button next-match" title="Next match (Enter)">
+                        <i class="codicon codicon-arrow-down"></i>
+                    </div>
+                    <div class="button close-widget" title="Close (Escape)">
+                        <i class="codicon codicon-close"></i>
+                    </div>
+                </div>
 
                 ${isStructure ? `
                     <img class="block-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">

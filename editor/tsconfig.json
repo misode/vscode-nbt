@@ -2,7 +2,8 @@
   "compilerOptions": {
     "target": "ES2017",
 		"module": "commonjs",
-		"strictNullChecks": true
+		"strictNullChecks": true,
+		"resolveJsonModule": true
 	},
 	"include": [
 		"src"

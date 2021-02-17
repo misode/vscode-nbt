@@ -14,8 +14,8 @@ export class RegionEditor extends TreeEditor {
   }
 
   redraw() {
-    this.content.innerHTML = this.drawRegion(new NbtPath(), this.chunks);
-    this.addEvents()
+    this.content.innerHTML = ''
+    this.content.append(this.drawRegion(new NbtPath(), this.chunks))
   }
 
   onInit(file: NbtFile) {
@@ -37,26 +37,36 @@ export class RegionEditor extends TreeEditor {
   }
 
   private drawRegion(path: NbtPath, chunks: Partial<NbtChunk>[]) {
-    return chunks.map((c, i) => `<div>
-			${this.drawChunk(path.push(i), c)}
-		</div>`).join('')
+    const el = document.createElement('div')
+    chunks.forEach((c, i) => {
+      const child = this.drawChunk(path.push(i), c)
+      el.append(child)
+    })
+    return el
   }
 
   private drawChunk(path: NbtPath, chunk: Partial<NbtChunk>) {
     const expanded = chunk.nbt && this.isExpanded(path);
-    return `<div class="nbt-tag collapse" ${this.onLoad(el => {
-      el.addEventListener('click', () => this.select({
-        path, type: 'compound', data: () => getNode(this.chunks[path.head()].nbt, path.shift()).value, el
-      }))
-      el.addEventListener('dblclick', () => this.clickChunk(path, chunk, el))
-    })}>
-      ${this.drawCollapse(path, 'compound', (el) => this.clickChunk(path, chunk, el.parentElement!))}
-      ${this.drawIcon('chunk')}
-      <span class="nbt-key">Chunk [${chunk.x}, ${chunk.z}]</span>
-    </div>
-    <div class="nbt-body">
-      ${expanded ? this.drawCompound(path, chunk.nbt?.value) : ''}
-    </div>`
+    const el = document.createElement('div')
+    const head = document.createElement('div')
+    head.classList.add('nbt-tag')
+    head.classList.add('collapse')
+    head.append(this.drawCollapse(path, () => this.clickChunk(path, chunk, head)))
+    head.append(this.drawIcon('chunk'))
+    head.append(this.drawKey(`Chunk [${chunk.x}, ${chunk.z}]`))
+    head.addEventListener('click', () => this.select({
+      path, type: 'compound', data: () => getNode(this.chunks[path.head()].nbt, path.shift()).value, el: head
+    }))
+    head.addEventListener('dblclick', () => this.clickChunk(path, chunk, head))
+
+    const body = document.createElement('div')
+    body.classList.add('nbt-body')
+    if (expanded) {
+      body.append(this.drawCompound(path, chunk.nbt?.value))
+    }
+    el.append(body)
+
+    return el
   }
 
   private clickChunk(path: NbtPath, chunk: Partial<NbtChunk>, el: Element) {

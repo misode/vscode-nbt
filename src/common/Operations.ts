@@ -116,7 +116,7 @@ export function searchNode(data: NamedNbtTag, query: string): NbtPath[] {
 function searchNodeImpl(path: NbtPath, node: any, type: string, query: string, results: NbtPath[]) {
   switch (type) {
     case 'compound':
-      Object.keys(node).forEach(k => {
+      Object.keys(node).sort().forEach(k => {
         searchNodeImpl(path.push(k), node[k].value, node[k].type, query, results)
       })
       break

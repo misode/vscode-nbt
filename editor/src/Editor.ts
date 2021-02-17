@@ -55,6 +55,7 @@ export interface EditorPanel {
 	onUpdate(file: NbtFile, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
 	onSearch?(query: string): SearchResult[]
+	onHideSearch?(): void
 	menu?(): Element[]
 }
 
@@ -222,6 +223,7 @@ class Editor {
 		if (this.searchResults && this.searchResults.length > 0) {
 			this.showMatch(0)
 		} else {
+			editorPanel.onHideSearch?.()
 			this.findWidget.querySelector('.matches')!.textContent = `No results`
 		}
 		this.findWidget.classList.toggle('no-results', this.searchResults !== null && this.searchResults.length === 0)

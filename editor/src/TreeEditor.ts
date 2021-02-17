@@ -4,7 +4,6 @@ import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { NbtPath } from "../../src/common/NbtPath";
 import { getNode, searchNode } from "../../src/common/Operations";
 import { Snbt } from "./Snbt";
-import { hexId } from "./Util"
 
 export type SelectedTag = {
   path: NbtPath
@@ -14,6 +13,13 @@ export type SelectedTag = {
 }
 
 export type EditingTag = Omit<SelectedTag, 'path'> & { path: NbtPath | null }
+
+type PathToElements = {
+  element?: Element,
+  childs?: {
+    [key in string | number]: PathToElements
+  }
+}
 
 export class TreeEditor implements EditorPanel {
   static readonly EXPANDABLE_TYPES = new Set(['compound', 'list', 'byteArray', 'intArray', 'longArray'])
@@ -53,24 +59,24 @@ export class TreeEditor implements EditorPanel {
     'longArray': () => []
   }
 
-  protected events: Record<string, (el: Element) => void>
   protected expanded: Set<string>
-  protected tempExpanded: Set<string>
   protected content: HTMLDivElement
   protected data: NamedNbtTag
-
+  
+  protected pathToElement: PathToElements
+  protected highlighted: null | NbtPath
   protected selected: null | SelectedTag
   protected editing: null | EditingTag
 
   constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
-    this.events = {}
     this.expanded = new Set()
-    this.tempExpanded = new Set()
     this.expand(new NbtPath())
-
+    
     this.content = document.createElement('div');
     this.content.className = 'nbt-content';
     this.data = { name: '', value: {} }
+    this.pathToElement = {childs: {}}
+    this.highlighted = null
     this.selected = null
     this.editing = null
   }
@@ -105,14 +111,49 @@ export class TreeEditor implements EditorPanel {
 
   onSearch(query: string) {
     const searchResults = searchNode(this.data, query)
-    return searchResults.map(r => ({
-      show: () => {
-        r.subPaths().forEach(p => {
-          this.tempExpanded.add(p.toString())
-        })
-        // TODO: render and highlight match
+    return searchResults.map(path => ({
+      show: async () => {
+        const redrawStart = path.pop().subPaths()
+          .find(p => !this.isExpanded(p))
+        const prevHighlight = this.highlighted
+        this.highlighted = path
+        if (redrawStart) {
+          const { type, value } = getNode(this.data, redrawStart)
+          const el = this.getPathElement(redrawStart)
+          if (el) {
+            await this.openBody(redrawStart, type, value, el)
+          }
+        }
+        this.hidePath(prevHighlight)
+        const resultEl = this.getPathElement(path)
+        if (resultEl) {
+          resultEl.classList.add('highlighted')
+          const bounds = resultEl.getBoundingClientRect()
+          if (bounds.bottom > window.innerHeight || bounds.top < 0) {
+            resultEl.scrollIntoView({ block: 'center' })
+          }
+        }
       }
     }))
+  }
+
+  onHideSearch() {
+    const prevHighlight = this.highlighted
+    this.highlighted = null
+    this.hidePath(prevHighlight)
+  }
+
+  private hidePath(prevHighlight: NbtPath | null) {
+    this.root.querySelectorAll('.nbt-tag.highlighted')
+      .forEach(e => e.classList.remove('highlighted'))
+    const pathToClose = prevHighlight?.subPaths()
+      .find(p => !this.isExpanded(p))
+    if (pathToClose) {
+      const el = this.getPathElement(pathToClose)
+      if (el && el.classList.contains('collapse')) {
+        this.closeBody(pathToClose, el!)
+      }
+    }
   }
 
   menu() {
@@ -152,49 +193,27 @@ export class TreeEditor implements EditorPanel {
     }
   }
 
-  protected onLoad(callback: (el: Element) => void) {
-    const id = hexId()
-    this.events[id] = (el) => {
-      callback(el)
-    }
-    return `data-id="${id}"`
-  }
-
-  protected on(event: string, callback: (el: Element) => void) {
-    return this.onLoad((el) => {
-      el.addEventListener(event, (evt) => {
-        callback(el)
-        evt.stopPropagation()
-      })
-    })
-  }
-
   protected redraw() {
-    this.content.innerHTML = this.drawTag(new NbtPath(), 'compound', this.data.value);
-    this.addEvents()
-  }
-
-  protected addEvents() {
-    Object.keys(this.events).forEach(id => {
-      const el = this.content.querySelector(`[data-id="${id}"]`);
-      if (el !== null) this.events[id](el)
-    })
-    this.events = {}
+    this.pathToElement = { childs: {} }
+    const root = this.drawTag(new NbtPath(), 'compound', this.data.value)
+    this.content.innerHTML = ''
+    this.content.append(root)
   }
 
   protected isExpanded(path: NbtPath) {
     const p = path.toString()
-    return this.expanded.has(p) || this.tempExpanded.has(p)
+    return this.expanded.has(p) || this.highlighted?.startsWith(path)
   }
 
   protected collapse(path: NbtPath) {
     const p = path.toString()
     this.expanded.delete(p)
-    this.tempExpanded.delete(p)
   }
 
   protected expand(path: NbtPath) {
-    this.expanded.add(path.toString())
+    path.subPaths().forEach(p => {
+      this.expanded.add(p.toString())
+    })
   }
 
   protected select(selected: SelectedTag | null) {
@@ -203,6 +222,8 @@ export class TreeEditor implements EditorPanel {
     this.selected = selected
     this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
     if (selected) {
+      this.expand(selected.path)
+      this.root.querySelectorAll('.nbt-tag.highlighted').forEach(e => e.classList.remove('highlighted'))
       selected.el.classList.add('selected')
     }
 
@@ -217,31 +238,64 @@ export class TreeEditor implements EditorPanel {
     btnRemoveTag?.classList.toggle('disabled', !this.selected || this.selected.path.length() === 0)
   }
 
+  protected setPathElement(path: NbtPath, el: Element) {
+    let node = this.pathToElement
+    for (const e of path.arr) {
+      node.childs ??= {}
+      node.childs[e] ??= {}
+      node = node.childs[e]
+    }
+    node.element = el
+  }
+
+  protected getPathElement(path: NbtPath) {
+    let node = this.pathToElement
+    for (const e of path.arr) {
+      if (!node.childs || !node.childs[e]) return undefined
+      node = node.childs[e]
+    }
+    return node.element
+  }
+
   protected drawTag(path: NbtPath, type: string, data: any) {
     const expanded = this.canExpand(type) && this.isExpanded(path)
-    return `<div class="nbt-tag${this.canExpand(type)  ? ' collapse' : ''}" ${this.onLoad(el => {
-      el.addEventListener('click', () => {
-        if (el === this.selected?.el) return
-        this.clearEditing()
-        this.select({path, type, data: () => data, el })
-      })
-      el.addEventListener('dblclick', () => this.clickTag(path, type, data, el))
-    })}>
-      ${this.drawCollapse(path, type, (el) => this.clickTag(path, type, data, el.parentElement!))}
-      ${this.drawIcon(type)}
-      ${this.drawKey(path)}
-      ${this.drawTagHeader(path, type, data)}
-    </div>
-    <div class="nbt-body">
-      ${expanded ? this.drawTagBody(path, type, data) : ''}
-    </div>`
+    const el = document.createElement('div')
+    const head = document.createElement('div')
+    this.setPathElement(path, head)
+    head.classList.add('nbt-tag')
+    if (this.canExpand(type)) {
+      head.classList.add('collapse')
+      head.append(this.drawCollapse(path, () => this.clickTag(path, type, data, head)))
+    }
+    head.append(this.drawIcon(type))
+    if (typeof path.last() === 'string') {
+      head.append(this.drawKey(`${path.last()}: `))
+    }
+    head.append(this.drawTagHeader(path, type, data))
+    head.addEventListener('click', () => {
+      if (head === this.selected?.el) return
+      this.clearEditing()
+      this.select({path, type, data: () => data, el: head })
+    })
+    head.addEventListener('dblclick', () => {
+      this.clickTag(path, type, data, head)
+    })
+    el.append(head)
+
+    const body = expanded
+      ? this.drawTagBody(path, type, data)
+      : document.createElement('div')
+    body.classList.add('nbt-body')
+    el.append(body)
+
+    return el
   }
 
   protected canExpand(type: string) {
     return TreeEditor.EXPANDABLE_TYPES.has(type)
   }
 
-  protected drawTagHeader(path: NbtPath, type: string, data: any) {
+  protected drawTagHeader(path: NbtPath, type: string, data: any): HTMLElement {
     try {
       if (type === 'compound') {
         return this.drawEntries(Object.keys(data))
@@ -254,11 +308,11 @@ export class TreeEditor implements EditorPanel {
       }
     } catch (e) {
       this.vscode.postMessage({ type: 'error', body: e.message })
-      return `<span class="error">Error "${e.message}"</span>`
+      return this.drawError(e.message)
     }
   }
 
-  protected drawTagBody(path: NbtPath, type: string, data: any) {
+  protected drawTagBody(path: NbtPath, type: string, data: any): HTMLElement {
     try {
       switch(type) {
         case 'compound': return this.drawCompound(path, data);
@@ -266,55 +320,81 @@ export class TreeEditor implements EditorPanel {
         case 'byteArray': return this.drawArray(path, data, 'byte');
         case 'intArray': return this.drawArray(path, data, 'int');
         case 'longArray': return this.drawArray(path, data, 'long');
-        default: return '';
+        default: return document.createElement('div');
       }
     } catch (e) {
       this.vscode.postMessage({ type: 'error', body: e.message })
-      return `<span class="error">Error "${e.message}"</span>`
+      return this.drawError(e.message)
     }
   }
 
+  protected drawError(message: string) {
+    const el = document.createElement('span')
+    el.classList.add('error')
+    el.textContent = `Error "${message}"`
+    return el
+  }
+
   protected drawIcon(type: string) {
-    return `<span data-icon="${type}"></span>`
+    const el = document.createElement('span')
+    el.setAttribute('data-icon', type)
+    return el
   }
 
-  protected drawKey(path: NbtPath) {
-    const el = path.last()
-    if (el === undefined || typeof el === 'number') return ''
-    return `<span class="nbt-key">${path.last()}: </span>`
+  protected drawKey(key: string) {
+    const el = document.createElement('span')
+    el.classList.add('nbt-key')
+    el.textContent = key
+    return el
   }
 
-  protected drawCollapse(path: NbtPath, type: string, handler: (el: Element) => void) {
-    if (!this.canExpand(type)) return ''
-    return `<span class="nbt-collapse" ${this.on('click', handler)}>
-      ${this.isExpanded(path) ? '-' : '+'}
-    </span>`;
+  protected drawCollapse(path: NbtPath, handler: () => void) {
+    const el = document.createElement('span')
+    el.classList.add('nbt-collapse')
+    el.textContent = this.isExpanded(path) ? '-' : '+'
+    el.addEventListener('click', () => handler())
+    return el
   }
 
   protected drawEntries(entries: any[]) {
-    return `<span class="nbt-entries">${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}</span>`;
+    const el = document.createElement('span')
+    el.classList.add('nbt-entries')
+    el.textContent = `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`
+    return el
   }
 
   protected drawCompound(path: NbtPath, data: any) {
-    return Object.keys(data).sort().map(k => `<div>
-      ${this.drawTag(path.push(k), data[k].type, data[k].value)}
-    </div>`).join('')
+    const el = document.createElement('div')
+    Object.keys(data).sort().forEach(k => {
+      const child = this.drawTag(path.push(k), data[k].type, data[k].value)
+      el.append(child)
+    })
+    return el
   }
 
   protected drawList(path: NbtPath, data: any) {
-    return data.value.map((v, i) => `<div>
-      ${this.drawTag(path.push(i), data.type, v)}
-    </div>`).join('')
+    const el = document.createElement('div')
+    data.value.forEach((v, i) => {
+      const child = this.drawTag(path.push(i), data.type, v)
+      el.append(child)
+    })
+    return el
   }
 
   protected drawArray(path: NbtPath, data: any, type: string) {
-    return data.map((v, i) => `<div>
-      ${this.drawTag(path.push(i), type, v)}
-    </div>`).join('')
+    const el = document.createElement('div')
+    data.forEach((v, i) => {
+      const child = this.drawTag(path.push(i), type, v)
+      el.append(child)
+    })
+    return el
   }
 
   protected drawPrimitiveTag(type: string, data: any) {
-    return `<span class="nbt-value">${TreeEditor.SERIALIZERS[type](data)}</span>`;
+    const el = document.createElement('span')
+    el.classList.add('nbt-value')
+    el.textContent = TreeEditor.SERIALIZERS[type](data)
+    return el
   }
 
   protected clickTag(path: NbtPath, type: string, data: any, el: Element) {
@@ -326,19 +406,26 @@ export class TreeEditor implements EditorPanel {
   }
 
   protected clickExpandableTag(path: NbtPath, type: string, data: any, el: Element) {
-    const body = el.nextElementSibling!;
-    if (this.isExpanded(path)) {
-      this.collapse(path);
-      body.innerHTML = '';
-      el.querySelector('.nbt-collapse')!.textContent = '+';
+    if (this.expanded.has(path.toString())) {
+      this.collapse(path)
+      this.closeBody(path, el)
     } else {
-      this.expand(path);
-      el.querySelector('.nbt-collapse')!.textContent = '-';
-      setTimeout(() => {
-        body.innerHTML = this.drawTagBody(path, type, data)
-        this.addEvents();
-      })
+      this.expand(path)
+      this.openBody(path, type, data, el)
     }
+  }
+
+  protected closeBody(path: NbtPath, el: Element) {
+    el.nextElementSibling!.innerHTML = ''
+    el.querySelector('.nbt-collapse')!.textContent = '+'
+  }
+
+  protected async openBody(path: NbtPath, type: string, data: any, el: Element) {
+    el.querySelector('.nbt-collapse')!.textContent = '-'
+    const body = el.nextElementSibling!
+    await new Promise((res) => setTimeout(res))
+    body.innerHTML = ''
+    body.append(this.drawTagBody(path, type, data))
   }
 
   protected clickPrimitiveTag(path: NbtPath, type: string, data: any, el: Element) {
@@ -510,13 +597,12 @@ export class TreeEditor implements EditorPanel {
       if (this.editing.path === null) {
         this.editing.el.parentElement.remove()
       } else {
-        const parent = this.editing.el.parentElement
-        parent.innerHTML = this.drawTag(this.editing.path, this.editing.type, this.editing.data())
+        const tag = this.drawTag(this.editing.path, this.editing.type, this.editing.data())
+        this.editing.el.parentElement.replaceWith(tag)
         if (this.selected?.el === this.editing.el) {
-          this.selected.el = parent.querySelector('.nbt-tag')!
+          this.selected.el = tag.firstElementChild!
           this.selected.el.classList.add('selected')
         }
-        this.addEvents()
       }
     }
     this.editing = null

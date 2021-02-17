@@ -51,6 +51,10 @@ input::placeholder {
 	background-color: #094771;
 }
 
+.nbt-tag.highlighted {
+	background-color: #57430f;
+}
+
 .nbt-tag:not(.collapse) {
 	position: relative;
 	padding-left: 13px;
@@ -119,11 +123,6 @@ div:last-child > .nbt-body {
 	font-family: var(--vscode-font-family);
 }
 
-.nbt-tag button:hover {
-	background-color: #3c3c3c;
-	color: #d8b24a;
-}
-
 .nbt-tag > .hidden {
 	display: none;
 }
@@ -160,7 +159,7 @@ span.nbt-value {
 	font-size: 12px;
 	line-height: 12px;
 	font-weight: bold;
-	margin-right: 5px !important;
+	margin-right: 7px !important;
 }
 
 [data-icon] {
@@ -355,12 +354,8 @@ span.nbt-value {
 	padding: 10px 0 0;
 }
 
-.side-panel .nbt-tag:hover {
+.side-panel .nbt-tag:not(.selected):not(.highlighted):hover {
 	background: #333333;
-}
-
-.side-panel .nbt-tag.selected {
-	background-color: #094771;
 }
 
 .block-name {

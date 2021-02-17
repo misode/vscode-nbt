@@ -3,7 +3,7 @@ import { NbtEditOp, NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { NbtPath } from "../../src/common/NbtPath";
 import { getNode, searchNode } from "../../src/common/Operations";
-import { Snbt } from "./Snbt";
+import { Snbt } from "../../src/common/Snbt";
 
 export type SelectedTag = {
   path: NbtPath

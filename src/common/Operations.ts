@@ -1,5 +1,6 @@
 import { NamedNbtTag } from "@webmc/nbt";
 import { NbtPath } from "./NbtPath";
+import { Snbt } from "./Snbt";
 import { NbtEdit, NbtEditOp, NbtFile } from "./types";
 
 export function reverseEdit(edit: NbtEdit): NbtEdit {
@@ -129,6 +130,25 @@ function searchNodeImpl(path: NbtPath, node: any, type: string, query: string, r
       if ((node as string).includes(query)) {
         results.push(path)
       }
+      break
+    case 'byte':
+    case 'short':
+    case 'int':
+    case 'float':
+    case 'double':
+      try {
+        if (node === JSON.parse(query)) {
+          results.push(path)
+        }
+      } catch (e) {}
+      break
+    case 'long':
+      try {
+        const long = Snbt.parseLong(query)
+        if (node[0] === long[0] && node[1] === long[1]) {
+          results.push(path)
+        }
+      } catch (e) {}
       break
   }
 }

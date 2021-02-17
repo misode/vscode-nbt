@@ -1,6 +1,6 @@
 import { NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
-import { Snbt } from "./Snbt";
+import { Snbt } from "../../src/common/Snbt";
 
 export class SnbtEditor implements EditorPanel {
   private snbt: string

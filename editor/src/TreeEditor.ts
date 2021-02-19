@@ -2,7 +2,7 @@ import { NamedNbtTag, tagNames } from "@webmc/nbt";
 import { NbtEditOp, NbtFile } from "../../src/common/types";
 import { EditHandler, EditorPanel, locale, VSCode } from "./Editor";
 import { NbtPath } from "../../src/common/NbtPath";
-import { getNode, searchNode } from "../../src/common/Operations";
+import { getNode, searchNode, SearchQuery } from "../../src/common/Operations";
 import { Snbt } from "../../src/common/Snbt";
 
 export type SelectedTag = {
@@ -109,7 +109,7 @@ export class TreeEditor implements EditorPanel {
     this.onInit(file)
   }
 
-  onSearch(query: string) {
+  onSearch(query: SearchQuery) {
     const searchResults = searchNode(this.data, query)
     return searchResults.map(path => ({
       show: async () => {
@@ -222,7 +222,7 @@ export class TreeEditor implements EditorPanel {
     this.selected = selected
     this.root.querySelectorAll('.nbt-tag.selected').forEach(e => e.classList.remove('selected'))
     if (selected) {
-      this.expand(selected.path)
+      this.expand(selected.path.pop())
       this.root.querySelectorAll('.nbt-tag.highlighted').forEach(e => e.classList.remove('highlighted'))
       selected.el.classList.add('selected')
     }

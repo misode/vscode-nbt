@@ -1,4 +1,4 @@
-import { applyEdit } from "../../src/common/Operations";
+import { applyEdit, SearchQuery } from "../../src/common/Operations";
 import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/common/types"
 import { RegionEditor } from "./RegionEditor";
 import { SnbtEditor } from "./SnbtEditor";
@@ -54,7 +54,7 @@ export interface EditorPanel {
 	onInit(file: NbtFile): void
 	onUpdate(file: NbtFile, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
-	onSearch?(query: string): SearchResult[]
+	onSearch?(query: SearchQuery): SearchResult[]
 	onHideSearch?(): void
 	menu?(): Element[]
 }
@@ -92,7 +92,7 @@ class Editor {
 	private readOnly: boolean
 
 	private findWidget: HTMLElement
-	private searchQuery: string = ''
+	private searchQuery: SearchQuery = {}
 	private searchResults: null | SearchResult[] = null
 	private searchIndex: number = 0
 
@@ -102,8 +102,9 @@ class Editor {
 		});
 
 		this.findWidget = document.querySelector('.find-widget') as HTMLElement
-		const findInput = this.findWidget.querySelector('input') as HTMLInputElement
-		findInput.addEventListener('keyup', evt => {
+		const findNameInput = this.findWidget.querySelector('.name-input') as HTMLInputElement
+		const findValueInput = this.findWidget.querySelector('.value-input') as HTMLInputElement
+		this.findWidget.addEventListener('keyup', evt => {
 			if (evt.key === 'Enter') {
 				if (evt.shiftKey) {
 					this.showMatch(this.searchIndex - 1)
@@ -127,8 +128,13 @@ class Editor {
 		document.addEventListener('keydown', evt => {
 			if (evt.ctrlKey && evt.code === 'KeyF') {
 				this.findWidget.classList.add('visible')
-				findInput.focus()
-				findInput.setSelectionRange(0, findInput.value.length)
+				if (this.searchQuery.name) {
+					findNameInput.focus()
+					findNameInput.setSelectionRange(0, findNameInput.value.length)
+				} else {
+					findValueInput.focus()
+					findValueInput.setSelectionRange(0, findValueInput.value.length)
+				}
 			} else if (evt.key === 'Escape') {
 				this.findWidget.classList.remove('visible')
 			}
@@ -208,12 +214,19 @@ class Editor {
 	}
 
 	private doSearch() {
-		const query = this.findWidget.querySelector('input')!.value
-		if (this.searchQuery === query) return
+		const nameQuery = (this.findWidget.querySelector('.name-input') as HTMLInputElement).value
+		const valueQuery = (this.findWidget.querySelector('.value-input') as HTMLInputElement).value
+		const query = {
+			name: nameQuery || undefined,
+			value: valueQuery || undefined
+		}
+		if (this.searchQuery.name === query.name && this.searchQuery.value === query.value) {
+			return
+		}
 		this.searchQuery = query
 
 		const editorPanel = this.panels[this.activePanel]?.editor()
-		if (editorPanel?.onSearch && query) {
+		if (editorPanel?.onSearch && (query.name || query.value)) {
 			this.searchResults = editorPanel.onSearch(query)
 			this.searchIndex = 0
 		} else {

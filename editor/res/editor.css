@@ -385,15 +385,10 @@ span.nbt-value {
 	margin-bottom: 2px;
 }
 
-.find-widget input,
-.structure-size input {
-	width: 200px;
-	height: 25px;
-	margin-left: 7px;
-}
-
 .structure-size input {
 	width: 70px;
+	height: 25px;
+	margin-left: 7px;
 }
 
 .find-widget {
@@ -401,8 +396,8 @@ span.nbt-value {
 	display: flex;
 	align-items: center;
 	top: 0px;
-	right: 28px;
-	width: 352px;
+	right: 18px;
+	width: 450px;
 	height: 33px;
 	background: #252526;
 	color: var(--vscode-foreground);
@@ -413,6 +408,12 @@ span.nbt-value {
 
 .find-widget.visible {
 	transform: translateY(0);
+}
+
+.find-widget input {
+	width: 150px;
+	height: 25px;
+	margin-left: 7px;
 }
 
 .find-widget .button {
@@ -426,7 +427,7 @@ span.nbt-value {
 }
 
 .find-widget .matches {
-	min-width: 69px;
+	min-width: 60px;
 	height: 25px;
 	margin-left: 3px;
 	padding: 2px 0 0 2px;

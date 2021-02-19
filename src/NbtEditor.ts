@@ -131,7 +131,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 <div class="nbt-editor"></div>
                 <div class="panel-menu"></div>
                 <div class="find-widget">
-                    <input placeholder="Find">
+                    <input class="name-input" placeholder="Name">
+                    <input class="value-input" placeholder="Value">
                     <div class="matches">No results</div>
                     <div class="button previous-match" title="Previous match (Shift+Enter)">
                         <i class="codicon codicon-arrow-up"></i>

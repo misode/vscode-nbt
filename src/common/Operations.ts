@@ -108,26 +108,43 @@ function removeValue(node: any, type: string, last: number | string) {
   }
 }
 
-export function searchNode(data: NamedNbtTag, query: string): NbtPath[] {
+export type SearchQuery = {
+	name?: string
+	value?: string
+}
+
+export function searchNode(data: NamedNbtTag, query: SearchQuery): NbtPath[] {
   const results: NbtPath[] = []
-  searchNodeImpl(new NbtPath(), data.value as any, 'compound', query, results)
+  searchNodeImpl(new NbtPath(), data.value as any, 'compound', query, !query.name, results)
   return results
 }
 
-function searchNodeImpl(path: NbtPath, node: any, type: string, query: string, results: NbtPath[]) {
+function searchNodeImpl(path: NbtPath, node: any, type: string, query: SearchQuery, nameMatches: boolean, results: NbtPath[]) {
   switch (type) {
     case 'compound':
       Object.keys(node).sort().forEach(k => {
-        searchNodeImpl(path.push(k), node[k].value, node[k].type, query, results)
+        const newNameMatches = !query.name || k.includes(query.name)
+        if (newNameMatches && query.name && !query.value) {
+          results.push(path.push(k))
+        }
+        searchNodeImpl(path.push(k), node[k].value, node[k].type, query, newNameMatches, results)
       })
       break
     case 'list':
       (node.value as any[]).forEach((v, i) => {
-        searchNodeImpl(path.push(i), v, node.type, query, results)
+        searchNodeImpl(path.push(i), v, node.type, query, nameMatches, results)
+      })
+      break
+    case 'byteArray':
+    case 'intArray':
+    case 'longArray':
+      (node as any[]).forEach((v, i) => {
+        searchNodeImpl(path.push(i), v, type.slice(0, -5), query, nameMatches, results)
       })
       break
     case 'string':
-      if ((node as string).includes(query)) {
+      if (!nameMatches) break
+      if ((node as string).includes(query.value!)) {
         results.push(path)
       }
       break
@@ -136,15 +153,17 @@ function searchNodeImpl(path: NbtPath, node: any, type: string, query: string, r
     case 'int':
     case 'float':
     case 'double':
+      if (!nameMatches) break
       try {
-        if (node === JSON.parse(query)) {
+        if (node === JSON.parse(query.value!)) {
           results.push(path)
         }
       } catch (e) {}
       break
     case 'long':
+      if (!nameMatches) break
       try {
-        const long = Snbt.parseLong(query)
+        const long = Snbt.parseLong(query.value!)
         if (node[0] === long[0] && node[1] === long[1]) {
           results.push(path)
         }

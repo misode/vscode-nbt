@@ -16,6 +16,7 @@ input {
 	padding: 2px 4px;
 }
 
+select:focus,
 input:focus {
 	outline-color: var(--vscode-focusBorder);
 }
@@ -162,6 +163,7 @@ span.nbt-value {
 	margin-right: 7px !important;
 }
 
+.type-select,
 [data-icon] {
 	display: inline-block;
 	background-image: url('./icons.png');
@@ -186,6 +188,9 @@ span.nbt-value {
 [data-icon=chunk] { background-position: -16px -48px; }
 [data-icon=number] { background-position: -32px -48px; }
 [data-icon=null] { background-position: -48px -48px; }
+[data-icon=any] {
+	background: var(--vscode-input-background);
+}
 
 .type-select {
 	position: relative;
@@ -397,7 +402,7 @@ span.nbt-value {
 	align-items: center;
 	top: 0px;
 	right: 18px;
-	width: 450px;
+	width: 482px;
 	height: 33px;
 	background: #252526;
 	color: var(--vscode-foreground);
@@ -408,6 +413,10 @@ span.nbt-value {
 
 .find-widget.visible {
 	transform: translateY(0);
+}
+
+.find-widget .type-select {
+	margin-left: 4px;
 }
 
 .find-widget input {

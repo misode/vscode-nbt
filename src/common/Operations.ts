@@ -109,65 +109,65 @@ function removeValue(node: any, type: string, last: number | string) {
 }
 
 export type SearchQuery = {
+  type?: string
 	name?: string
 	value?: string
 }
 
 export function searchNode(data: NamedNbtTag, query: SearchQuery): NbtPath[] {
   const results: NbtPath[] = []
-  searchNodeImpl(new NbtPath(), data.value as any, 'compound', query, !query.name, results)
+  searchNodeImpl(new NbtPath(), data.value as any, 'compound', query, results)
   return results
 }
 
-function searchNodeImpl(path: NbtPath, node: any, type: string, query: SearchQuery, nameMatches: boolean, results: NbtPath[]) {
+function searchNodeImpl(path: NbtPath, node: any, type: string, query: SearchQuery, results: NbtPath[]) {
+  const typeMatches = !query.type || type === query.type
+  const last = path.last()
+  const nameMatches = !query.name || (typeof last === 'string' && last.includes(query.name))
+  if (typeMatches && nameMatches) {
+    let valueMatches = false
+    if (query.value) {
+      try {
+        switch (type) {
+          case 'string':
+            valueMatches = node.includes(query.value)
+            break
+          case 'byte':
+          case 'short':
+          case 'int':
+          case 'float':
+          case 'double':
+            valueMatches = node === JSON.parse(query.value)
+            break
+          case 'long':
+            const long = Snbt.parseLong(query.value)
+            valueMatches = node[0] === long[0] && node[1] === long[1]
+            break
+        }
+      } catch (e) {}
+    }
+    if (!query.value || valueMatches) {
+      results.push(path)
+    }
+  }
+
   switch (type) {
     case 'compound':
       Object.keys(node).sort().forEach(k => {
-        const newNameMatches = !query.name || k.includes(query.name)
-        if (newNameMatches && query.name && !query.value) {
-          results.push(path.push(k))
-        }
-        searchNodeImpl(path.push(k), node[k].value, node[k].type, query, newNameMatches, results)
+        searchNodeImpl(path.push(k), node[k].value, node[k].type, query, results)
       })
       break
     case 'list':
       (node.value as any[]).forEach((v, i) => {
-        searchNodeImpl(path.push(i), v, node.type, query, nameMatches, results)
+        searchNodeImpl(path.push(i), v, node.type, query, results)
       })
       break
     case 'byteArray':
     case 'intArray':
     case 'longArray':
       (node as any[]).forEach((v, i) => {
-        searchNodeImpl(path.push(i), v, type.slice(0, -5), query, nameMatches, results)
+        searchNodeImpl(path.push(i), v, type.slice(0, -5), query, results)
       })
-      break
-    case 'string':
-      if (!nameMatches) break
-      if ((node as string).includes(query.value!)) {
-        results.push(path)
-      }
-      break
-    case 'byte':
-    case 'short':
-    case 'int':
-    case 'float':
-    case 'double':
-      if (!nameMatches) break
-      try {
-        if (node === JSON.parse(query.value!)) {
-          results.push(path)
-        }
-      } catch (e) {}
-      break
-    case 'long':
-      if (!nameMatches) break
-      try {
-        const long = Snbt.parseLong(query.value!)
-        if (node[0] === long[0] && node[1] === long[1]) {
-          results.push(path)
-        }
-      } catch (e) {}
       break
   }
 }

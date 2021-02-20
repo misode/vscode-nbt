@@ -112,28 +112,7 @@ export class TreeEditor implements EditorPanel {
   onSearch(query: SearchQuery) {
     const searchResults = searchNode(this.data, query)
     return searchResults.map(path => ({
-      show: async () => {
-        const redrawStart = path.pop().subPaths()
-          .find(p => !this.isExpanded(p))
-        const prevHighlight = this.highlighted
-        this.highlighted = path
-        if (redrawStart) {
-          const { type, value } = getNode(this.data, redrawStart)
-          const el = this.getPathElement(redrawStart)
-          if (el) {
-            await this.openBody(redrawStart, type, value, el)
-          }
-        }
-        this.hidePath(prevHighlight)
-        const resultEl = this.getPathElement(path)
-        if (resultEl) {
-          resultEl.classList.add('highlighted')
-          const bounds = resultEl.getBoundingClientRect()
-          if (bounds.bottom > window.innerHeight || bounds.top < 0) {
-            resultEl.scrollIntoView({ block: 'center' })
-          }
-        }
-      }
+      show: () => this.showPath(path)
     }))
   }
 
@@ -141,6 +120,32 @@ export class TreeEditor implements EditorPanel {
     const prevHighlight = this.highlighted
     this.highlighted = null
     this.hidePath(prevHighlight)
+  }
+
+  private async showPath(path: NbtPath) {
+    if (this.highlighted?.equals(path)) {
+      return
+    }
+    const redrawStart = path.pop().subPaths()
+      .find(p => !this.expanded.has(p.toString()))
+    const prevHighlight = this.highlighted
+    this.highlighted = path
+    if (redrawStart) {
+      const { type, value } = getNode(this.data, redrawStart)
+      const el = this.getPathElement(redrawStart)
+      if (el) {
+        await this.openBody(redrawStart, type, value, el)
+      }
+    }
+    this.hidePath(prevHighlight)
+    const resultEl = this.getPathElement(path)
+    if (resultEl) {
+      resultEl.classList.add('highlighted')
+      const bounds = resultEl.getBoundingClientRect()
+      if (bounds.bottom > window.innerHeight || bounds.top < 0) {
+        resultEl.scrollIntoView({ block: 'center' })
+      }
+    }
   }
 
   private hidePath(prevHighlight: NbtPath | null) {
@@ -202,7 +207,7 @@ export class TreeEditor implements EditorPanel {
 
   protected isExpanded(path: NbtPath) {
     const p = path.toString()
-    return this.expanded.has(p) || this.highlighted?.startsWith(path)
+    return this.expanded.has(p) || this.highlighted?.pop().startsWith(path)
   }
 
   protected collapse(path: NbtPath) {

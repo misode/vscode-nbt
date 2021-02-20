@@ -1,3 +1,4 @@
+import { tagNames } from "@webmc/nbt";
 import { applyEdit, SearchQuery } from "../../src/common/Operations";
 import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/common/types"
 import { RegionEditor } from "./RegionEditor";
@@ -102,17 +103,32 @@ class Editor {
 		});
 
 		this.findWidget = document.querySelector('.find-widget') as HTMLElement
+		const findTypeSelect = this.findWidget.querySelector('.type-select > select') as HTMLSelectElement
 		const findNameInput = this.findWidget.querySelector('.name-input') as HTMLInputElement
 		const findValueInput = this.findWidget.querySelector('.value-input') as HTMLInputElement
+		findTypeSelect.addEventListener('change', () => {
+			findTypeSelect.parentElement!.setAttribute('data-icon', findTypeSelect.value)
+			this.doSearch()
+		})
+		;['any', ...tagNames.filter(t => t !== 'end')].forEach(t => {
+			const option = document.createElement('option')
+			option.value = t
+			option.textContent = t.charAt(0).toUpperCase() + t.slice(1).split(/(?=[A-Z])/).join(' ')
+			findTypeSelect.append(option)
+		})
+		findTypeSelect.parentElement!.setAttribute('data-icon', 'any')
 		this.findWidget.addEventListener('keyup', evt => {
+			if (evt.key !== 'Enter') {
+				this.doSearch()
+			}
+		})
+		this.findWidget.addEventListener('keydown', evt => {
 			if (evt.key === 'Enter') {
 				if (evt.shiftKey) {
 					this.showMatch(this.searchIndex - 1)
 				} else {
 					this.showMatch(this.searchIndex + 1)
 				}
-			} else {
-				this.doSearch()
 			}
 		})
 		this.findWidget.querySelector('.previous-match')?.addEventListener('click', () => {
@@ -135,8 +151,12 @@ class Editor {
 					findValueInput.focus()
 					findValueInput.setSelectionRange(0, findValueInput.value.length)
 				}
+				if (this.searchResults && this.searchResults.length > 0) {
+					this.searchResults[this.searchIndex].show()
+				}
 			} else if (evt.key === 'Escape') {
 				this.findWidget.classList.remove('visible')
+				this.panels[this.activePanel]?.editor().onHideSearch?.()
 			}
 		})
 
@@ -214,19 +234,23 @@ class Editor {
 	}
 
 	private doSearch() {
+		const typeQuery = (this.findWidget.querySelector('.type-select > select') as HTMLSelectElement).value
 		const nameQuery = (this.findWidget.querySelector('.name-input') as HTMLInputElement).value
 		const valueQuery = (this.findWidget.querySelector('.value-input') as HTMLInputElement).value
 		const query = {
+			type: typeQuery === 'any' ? undefined : typeQuery,
 			name: nameQuery || undefined,
 			value: valueQuery || undefined
 		}
-		if (this.searchQuery.name === query.name && this.searchQuery.value === query.value) {
-			return
+		if (this.searchQuery.type === query.type
+			&& this.searchQuery.name === query.name
+			&& this.searchQuery.value === query.value) {
+				return
 		}
 		this.searchQuery = query
 
 		const editorPanel = this.panels[this.activePanel]?.editor()
-		if (editorPanel?.onSearch && (query.name || query.value)) {
+		if (editorPanel?.onSearch && (query.name || query.value || query.type)) {
 			this.searchResults = editorPanel.onSearch(query)
 			this.searchIndex = 0
 		} else {

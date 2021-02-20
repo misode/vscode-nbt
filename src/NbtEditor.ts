@@ -131,6 +131,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 <div class="nbt-editor"></div>
                 <div class="panel-menu"></div>
                 <div class="find-widget">
+                    <div class="type-select"><select></select></div>
                     <input class="name-input" placeholder="Name">
                     <input class="value-input" placeholder="Value">
                     <div class="matches">No results</div>

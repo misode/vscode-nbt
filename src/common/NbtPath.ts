@@ -34,6 +34,11 @@ export class NbtPath {
     return [...Array(this.arr.length + 1)].map((_, i) => this.pop(this.arr.length - i))
   }
 
+  public equals(other: NbtPath) {
+    return other.length() === this.length()
+      && other.arr.every((e, i) => this.arr[i] === e)
+  }
+
   public toString() {
     return this.arr
       .map(e => (typeof e === 'string') ? `.${e}` : `[${e}]`)

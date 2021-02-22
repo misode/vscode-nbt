@@ -18,7 +18,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
-        let array = await vscode.workspace.fs.readFile(uri);
+        const array = await vscode.workspace.fs.readFile(uri)
 
         output.appendLine(`Read file [length=${array.length}, scheme=${uri.scheme}, extension=${uri.path.match(/(?:\.([^.]+))?$/)?.[1]}]`)
 
@@ -37,7 +37,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             }
         }
 
-        const { compressed, result } = nbt.read(array)
+        const littleEndian = uri.fsPath.endsWith('.mcstructure')
+        const { compressed, result } = nbt.read(array, littleEndian)
 
         output.appendLine(`Parsed NBT [compressed=${compressed}]`)
 

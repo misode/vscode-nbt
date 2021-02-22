@@ -45,6 +45,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         return {
             region: false,
             gzipped: compressed,
+            littleEndian,
             data: result
         }
     }
@@ -164,7 +165,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
         const fileData = nbtFile.region
             ? nbt.writeRegion(nbtFile.chunks)
-            : nbt.write(nbtFile.data, nbtFile.gzipped)
+            : nbt.write(nbtFile.data, nbtFile.gzipped, nbtFile.littleEndian)
 
         await vscode.workspace.fs.writeFile(targetResource, fileData);
     }

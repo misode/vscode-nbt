@@ -3,6 +3,7 @@ import { NamedNbtTag, NbtChunk } from '@webmc/nbt';
 export type SimpleNbtFile = {
 	region: false
 	gzipped: boolean
+	littleEndian?: boolean
 	data: NamedNbtTag
 }
 

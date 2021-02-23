@@ -26,6 +26,7 @@ export class StructureEditor implements EditorPanel {
   private cDist: number
 
   private gridActive: boolean
+  private invisibleBlocksActive: boolean
   private selectedBlock: BlockPos | null
 
   constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler, private readOnly: boolean) {
@@ -60,6 +61,7 @@ export class StructureEditor implements EditorPanel {
     this.cDist = 10
 
     this.gridActive = true
+    this.invisibleBlocksActive = false
     this.selectedBlock = null
 
     let dragTime: number
@@ -125,6 +127,10 @@ export class StructureEditor implements EditorPanel {
         this.renderer.drawGrid(viewMatrix);
       }
 
+      if (this.invisibleBlocksActive) {
+        this.renderer.drawInvisibleBlocks(viewMatrix);
+      }
+
       this.renderer.drawStructure(viewMatrix);
 
       if (this.selectedBlock) {
@@ -177,6 +183,7 @@ export class StructureEditor implements EditorPanel {
     if (edit.ops.length === 1 && new NbtPath(edit.ops[0].path).startsWith(new NbtPath(['size']))) {
       this.structure['size'] = getListTag(file.data.value, 'size', 'int', 3)
       this.renderer['gridBuffers'] = this.renderer['getGridBuffers']()
+      this.renderer['invisibleBlockBuffers'] = this.renderer['getInvisibleBlockBuffers']()
       this.showSidePanel()
       this.render()
     } else {
@@ -209,7 +216,17 @@ export class StructureEditor implements EditorPanel {
       this.render()
     })
 
-    return [gridToggle]
+    const invisibleBlocksToggle = document.createElement('div')
+    invisibleBlocksToggle.classList.add('btn')
+    invisibleBlocksToggle.textContent = locale('invisibleBlocks')
+    invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
+    invisibleBlocksToggle.addEventListener('click', () => {
+      this.invisibleBlocksActive = !this.invisibleBlocksActive
+      invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
+      this.render()
+    })
+
+    return [gridToggle, invisibleBlocksToggle]
   }
 
   private getViewMatrix() {

@@ -25,6 +25,7 @@ const LOCALES = {
 	'removeTag': 'Remove',
 	'renameTag': 'Rename',
 	'grid': 'Show Grid',
+	'invisibleBlocks': 'Show Invisible Blocks',
   'panel.structure': '3D',
   'panel.region': 'Region',
 	'panel.tree': 'Tree',

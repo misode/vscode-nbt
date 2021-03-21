@@ -1,6 +1,7 @@
 import { tagNames } from "@webmc/nbt";
 import { applyEdit, SearchQuery } from "../../src/common/Operations";
 import { NbtFile, NbtEdit, EditorMessage, ViewMessage } from "../../src/common/types"
+import { MapEditor } from './MapEditor';
 import { RegionEditor } from "./RegionEditor";
 import { SnbtEditor } from "./SnbtEditor";
 import { StructureEditor } from "./StructureEditor";
@@ -27,8 +28,9 @@ const LOCALES = {
 	'grid': 'Show Grid',
 	'invisibleBlocks': 'Show Invisible Blocks',
   'panel.structure': '3D',
+  'panel.map': 'Map',
   'panel.region': 'Region',
-	'panel.tree': 'Tree',
+	'panel.default': 'Default',
 	'panel.snbt': 'SNBT',
 }
 
@@ -73,15 +75,19 @@ class Editor {
 	} = {
 		'structure': {
 			editor: lazy(() => new StructureEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['structure', 'tree', 'snbt']
+			options: ['structure', 'default', 'snbt']
+		},
+		'map': {
+			editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+			options: ['map', 'default', 'snbt']
 		},
 		'region': {
 			editor: lazy(() => new RegionEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['region']
 		},
-		'tree': {
+		'default': {
 			editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['tree', 'snbt']
+			options: ['default', 'snbt']
 		},
 		'snbt': {
 			editor: lazy(() => new SnbtEditor(root, vscode, e => this.makeEdit(e), this.readOnly))
@@ -167,13 +173,8 @@ class Editor {
 	onMessage(m: ViewMessage) {
 		switch (m.type) {
 			case 'init':
-				if (m.body.type === 'structure') {
-					this.type = 'structure'
-				} else if (m.body.type === 'region') {
-					this.type = 'region'
-				} else {
-					this.type = 'tree'
-				}
+				console.log(m.body)
+				this.type = m.body.type
 				this.nbtFile = m.body.content
 				this.readOnly = m.body.readOnly
 				this.setPanel(this.type)

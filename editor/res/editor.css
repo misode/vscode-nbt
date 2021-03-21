@@ -453,3 +453,9 @@ span.nbt-value {
 	opacity: 0.3;
 	cursor: default;
 }
+
+.nbt-map {
+	width: 512px;
+	height: 512px;
+	image-rendering: pixelated;
+}

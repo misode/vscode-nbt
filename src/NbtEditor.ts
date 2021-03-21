@@ -187,7 +187,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                     this.postMessage(panel, {
                         type: 'init',
                         body: {
-                            type: document.isStructure ? 'structure' : 'default',
+                            type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
                             readOnly: document.isReadOnly,
                             content: document.documentData
                         }

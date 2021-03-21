@@ -55,6 +55,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
     private _documentData: NbtFile;
     private _isStructure: boolean;
+    private _isMap: boolean;
     private _isReadOnly: boolean;
 	private _edits: NbtEdit[] = [];
 	private _savedEdits: NbtEdit[] = [];
@@ -67,6 +68,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         this._uri = uri;
         this._documentData = initialContent;
         this._isStructure = this.isStructureData();
+        this._isMap = this.isMapData();
+
         this._isReadOnly = uri.scheme === 'git' || this._documentData.region;
     }
 
@@ -75,6 +78,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     public get documentData() { return this._documentData; }
 
     public get isStructure() { return this._isStructure; }
+
+    public get isMap() { return this._isMap; }
 
     public get isReadOnly() { return this._isReadOnly; }
 
@@ -131,6 +136,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
             && root['size'].value.value.length === 3
             && root['blocks']?.type === 'list'
             && root['palette']?.type === 'list'
+    }
+
+    private isMapData() {
+        return this._uri.fsPath.match(/(?:\\|\/)map_\d+\.dat$/) !== null
     }
 
     async getChunkData(x: number, z: number): Promise<nbt.NbtChunk> {

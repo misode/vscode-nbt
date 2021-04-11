@@ -36,6 +36,12 @@
 					},
 					{
 						"filenamePattern": "*.mcstructure"
+					},
+					{
+						"filenamePattern": "*.schematic"
+					},
+					{
+						"filenamePattern": "*.litematic"
 					}
 				],
 				"priority": "default"

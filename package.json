@@ -42,6 +42,9 @@
 					},
 					{
 						"filenamePattern": "*.litematic"
+					},
+					{
+						"filenamePattern": "*.schem"
 					}
 				],
 				"priority": "default"

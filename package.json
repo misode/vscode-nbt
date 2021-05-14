@@ -19,6 +19,11 @@
 		"onCustomEditor:nbtEditor.nbt"
 	],
 	"main": "./out/extension.js",
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
 	"contributes": {
 		"customEditors": [
 			{

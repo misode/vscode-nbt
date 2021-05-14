@@ -157,6 +157,9 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
     }
 
     async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+        if (this._savedEdits.length === this._edits.length) {
+            return;
+        }
         if (this._isReadOnly) {
             return;
         }

@@ -1,15 +1,23 @@
-import { BlockAtlas, BlockDefinition, BlockDefinitionProvider, BlockModel, BlockModelProvider, BlockProperties } from '@webmc/render'
+import { TextureAtlas, BlockDefinition, BlockDefinitionProvider, BlockModel, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider } from '@webmc/render'
 import { isOpaque } from './OpaqueHelper'
 
-export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider {
+export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider {
   private blockDefinitions: { [id: string]: BlockDefinition }
   private blockModels: { [id: string]: BlockModel }
-  private blockAtlas: BlockAtlas
+  private textureAtlas: TextureAtlas
+  private blocks: Record<string, {
+    default: Record<string, string>,
+    properties: Record<string, string[]>
+  }>
 
-  constructor() {
+  constructor(blocks: any, assets: any, textureAtlas: HTMLImageElement) {
+    this.blocks = blocks
     this.blockDefinitions = {}
     this.blockModels = {}
-    this.blockAtlas = BlockAtlas.empty()
+    this.textureAtlas = TextureAtlas.empty()
+    this.loadBlockDefinitions(assets.blockstates)
+    this.loadBlockModels(assets.models)
+    this.loadBlockAtlas(textureAtlas, assets.textures)
   }
 
   public getBlockDefinition(id: string) {
@@ -21,17 +29,25 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
   }
 
   public getTextureUV(id: string) {
-    return this.blockAtlas.getUV(id)
+    return this.textureAtlas.getTextureUV(id)
   }
 
-  public getBlockAtlas() {
-    return this.blockAtlas
+  public getTextureAtlas() {
+    return this.textureAtlas.getTextureAtlas()
   }
 
-  public getBlockProperties(id: string | undefined): BlockProperties | null {
+  public getBlockFlags(id: string) {
     return {
       opaque: isOpaque(id)
     }
+  }
+
+  public getBlockProperties(id: string) {
+    return this.blocks[id]?.properties ?? null
+  }
+
+  public getDefaultBlockProperties(id: string) {
+    return this.blocks[id]?.default ?? null
   }
 
   public loadBlockDefinitions(definitions: any) {
@@ -54,10 +70,12 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
     const atlasCtx = atlasCanvas.getContext('2d')!
     atlasCtx.drawImage(image, 0, 0)
     const atlasData = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height)
+    const part = 16 / atlasData.width
     const idMap = {}
     Object.keys(textures).forEach(t => {
-      idMap['minecraft:' + t] = textures[t]
+      const [u, v] = textures[t]
+      idMap['minecraft:' + t] = [u, v, u + part, v + part]
     })
-    this.blockAtlas = new BlockAtlas(atlasData, idMap)
+    this.textureAtlas = new TextureAtlas(atlasData, idMap)
   }
 }

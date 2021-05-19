@@ -103,6 +103,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         const styleUri = uri('res', 'editor.css');
         const atlasUrl = uri('res', 'generated', 'atlas.png');
         const assetsUrl = uri('res', 'generated', 'assets.js');
+        const blocksUrl = uri('res', 'generated', 'blocks.js');
 		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
 		const codiconsFontUri =uri('node_modules', 'vscode-codicons', 'dist', 'codicon.ttf');
 
@@ -147,8 +148,9 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 </div>
 
                 ${isStructure ? `
-                    <img class="block-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
+                    <img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
                     <script nonce="${nonce}" src="${assetsUrl}"></script>
+                    <script nonce="${nonce}" src="${blocksUrl}"></script>
                 ` : ''}
 
 				<script nonce="${nonce}" src="${scriptUri}"></script>

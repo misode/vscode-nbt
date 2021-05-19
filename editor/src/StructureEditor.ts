@@ -10,6 +10,7 @@ import { TreeEditor } from "./TreeEditor";
 import { NbtPath } from "../../src/common/NbtPath";
 
 declare const stringifiedAssets: string
+declare const stringifiedBlocks: string
 
 export class StructureEditor implements EditorPanel {
   private canvas: HTMLCanvasElement
@@ -31,30 +32,20 @@ export class StructureEditor implements EditorPanel {
 
   constructor(private root: Element, private vscode: VSCode, private editHandler: EditHandler, private readOnly: boolean) {
     const assets = JSON.parse(stringifiedAssets)
-    this.resources = new ResourceManager()
-    const img = (document.querySelector('.block-atlas') as HTMLImageElement)
-    this.resources.loadBlockDefinitions(assets.blockstates)
-    this.resources.loadBlockModels(assets.models)
-    this.resources.loadBlockAtlas(img, assets.textures)
-    const blockAtlas = this.resources.getBlockAtlas()
-
-    const structureResources = {
-      blockDefinitions: this.resources,
-      blockModels: this.resources,
-      blockAtlas: blockAtlas,
-      blockProperties: this.resources
-    }
+    const blocks = JSON.parse(stringifiedBlocks)
+    const img = (document.querySelector('.texture-atlas') as HTMLImageElement)
+    this.resources = new ResourceManager(blocks, assets, img)
 
     this.canvas = document.createElement('canvas')
     this.canvas.className = 'structure-3d'
     const gl = this.canvas.getContext('webgl')!
     this.structure = new Structure([0, 0, 0])
-    this.renderer = new StructureRenderer(gl, this.structure, structureResources)
+    this.renderer = new StructureRenderer(gl, this.structure, this.resources)
 
     this.canvas2 = document.createElement('canvas')
     this.canvas2.className = 'structure-3d click-detection'
     this.gl2 = this.canvas2.getContext('webgl')!
-    this.renderer2 = new StructureRenderer(this.gl2, this.structure, structureResources)
+    this.renderer2 = new StructureRenderer(this.gl2, this.structure, this.resources)
 
     this.cPos = vec3.create()
     this.cRot = vec2.fromValues(0.4, 0.6)

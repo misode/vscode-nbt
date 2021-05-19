@@ -251,7 +251,7 @@ span.nbt-value {
 	image-rendering: pixelated;
 }
 
-.block-atlas {
+.texture-atlas {
   display: none;
 }
 

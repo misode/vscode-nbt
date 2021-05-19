@@ -73,8 +73,17 @@ async function generate() {
     })
   }))
 
+  const blocksReport = await (await fetch('https://raw.githubusercontent.com/Arcensoth/mcdata/branch-1.16/processed/reports/blocks/data.min.json')).json()
+  const blocks: Record<string, any> = {}
+  Object.entries<any>(blocksReport).forEach(([k, v]) => {
+    blocks[k] = {}
+    blocks[k].properties = v.properties ?? {}
+    blocks[k].default = v.states.find((s: any) => s.default)?.properties
+  })
+
   const root = './editor/res/generated'
   await fs.promises.mkdir(root, { recursive: true })
   await fs.promises.writeFile(root + '/assets.js', `const stringifiedAssets = '${JSON.stringify(out)}'`)
+  await fs.promises.writeFile(root + '/blocks.js', `const stringifiedBlocks = '${JSON.stringify(blocks)}'`)
   atlas.pack().pipe(fs.createWriteStream(root + '/atlas.png'))
 }

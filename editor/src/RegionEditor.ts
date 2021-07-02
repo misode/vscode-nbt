@@ -58,6 +58,7 @@ export class RegionEditor extends TreeEditor {
       path, type: 'compound', data: () => getNode(this.chunks[path.head()].nbt, path.shift()).value, el: head
     }))
     head.addEventListener('dblclick', () => this.clickChunk(path, chunk, head))
+    el.append(head)
 
     const body = document.createElement('div')
     body.classList.add('nbt-body')

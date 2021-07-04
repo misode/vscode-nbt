@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@webmc/core": "^0.2.1",
-    "@webmc/nbt": "^0.2.2",
+    "@webmc/nbt": "^0.2.3",
     "@webmc/render": "^0.6.1",
     "vscode-codicons": "0.0.14"
   }

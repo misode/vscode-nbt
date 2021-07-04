@@ -47,8 +47,10 @@ export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string)
 
 function getRoot(file: NbtFile, path: NbtPath) {
   if (file.region === true) {
+    const chunk = file.chunks[path.head() as number]
+    chunk.dirty = true
     return {
-      data: file.chunks[path.head() as number].nbt!,
+      data: chunk.nbt!,
       path: path.shift()
     }
   }

@@ -70,7 +70,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         this._isStructure = this.isStructureData();
         this._isMap = this.isMapData();
 
-        this._isReadOnly = uri.scheme === 'git' || this._documentData.region;
+        this._isReadOnly = uri.scheme === 'git';
     }
 
     public get uri() { return this._uri; }
@@ -172,6 +172,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
         if (nbtFile.region) {
             nbtFile.chunks.filter(c => c.dirty).forEach(c => {
                 nbt.writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
+                c.dirty = false
             })
         }
 

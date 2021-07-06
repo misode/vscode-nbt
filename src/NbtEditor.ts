@@ -105,7 +105,6 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
         const assetsUrl = uri('res', 'generated', 'assets.js');
         const blocksUrl = uri('res', 'generated', 'blocks.js');
 		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
-		const codiconsFontUri =uri('node_modules', 'vscode-codicons', 'dist', 'codicon.ttf');
 
         const nonce = this.getNonce();
 
@@ -119,7 +118,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				Use a content security policy to only allow loading images from https or from our extension directory,
 				and only allow scripts that have a specific nonce.
 				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${codiconsFontUri}; img-src ${webview.cspSource} blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; img-src ${webview.cspSource} blob:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 

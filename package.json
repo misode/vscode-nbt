@@ -2,7 +2,7 @@
 	"name": "vscode-nbt",
 	"displayName": "NBT Viewer",
 	"description": "View Minecraft NBT and 3D structures",
-	"version": "0.5.6",
+	"version": "0.5.7",
 	"preview": true,
 	"publisher": "Misodee",
 	"repository": {

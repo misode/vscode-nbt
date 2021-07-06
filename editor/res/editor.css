@@ -1,5 +1,6 @@
 * {
 	box-sizing: border-box;
+	--tree-border: var(--vscode-descriptionForeground);
 	--monospace: 'Monaco', 'Menlo', 'Consolas', 'Droid Sans Mono', 'Inconsolata', 'Courier New', 'monospace';
 }
 
@@ -10,19 +11,25 @@ html, body {
 
 input {
 	background: var(--vscode-input-background);
-	color: var(--vscode-foreground);
-	border: none;
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
 	font-family: Segoe WPC, Segoe UI, sans-serif;
 	padding: 2px 4px;
 }
 
+button:focus,
 select:focus,
 input:focus {
 	outline-color: var(--vscode-focusBorder);
+	outline-style: solid;
 }
 
 input::placeholder {
 	color: var(--vscode-input-placeholderForeground)
+}
+
+input::selection {
+	background: var(--vscode-selection-background);
 }
 
 .nbt-editor {
@@ -45,22 +52,22 @@ input::placeholder {
 }
 
 .nbt-tag:hover {
-	background: #252526;
+	background: var(--vscode-list-hoverBackground);
 }
 
 .nbt-tag.selected {
-	background-color: #094771;
+	background-color: var(--vscode-list-activeSelectionBackground);
 }
 
 .nbt-tag.highlighted {
-	background-color: #57430f;
+	background-color: var(--vscode-editor-findMatchBackground);
 }
 
 .nbt-tag:not(.collapse) {
 	position: relative;
 	padding-left: 13px;
 	margin-left: 7px;
-	border-left: 1px #777 solid;
+	border-left: 1px solid var(--tree-border);
 }
 
 div:last-child > .nbt-tag {
@@ -78,17 +85,17 @@ div:last-child > .nbt-tag:not(.collapse) > [data-icon] {
 	height: 10px;
 	top: 0;
 	left: 0;
-	border-bottom: 1px #777 solid;
+	border-bottom: 1px solid var(--tree-border);
 }
 
 div:last-child > .nbt-tag:not(.collapse)::before {
-	border-left: 1px #777 solid;
+	border-left: 1px solid var(--tree-border);
 }
 
 .nbt-body {
 	padding-left: 12px;
 	margin-left: 7px;
-	border-left: 1px #777 solid;
+	border-left: 1px solid var(--tree-border);
 }
 
 div:last-child > .nbt-body {
@@ -108,10 +115,7 @@ div:last-child > .nbt-body {
 }
 
 .nbt-tag input {
-	background-color: #3c3c3c;
-	border: none;
 	padding: 1px 2px;
-	color: var(--vscode-editor-foreground);
 	width: 250px;
 	font-family: var(--monospace);
 	font-size: 14px;
@@ -119,8 +123,8 @@ div:last-child > .nbt-body {
 
 .nbt-tag button {
 	border: none;
-	background-color: #333333;
-	color: #dddddd;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 	font-family: var(--vscode-font-family);
 }
 
@@ -154,8 +158,8 @@ span.nbt-value {
 	height: 12px;
 	margin: 2px;
 	text-align: center;
-	border: 1px #777 solid;
-	color: #777;
+	border: 1px solid var(--tree-border);
+	color: var(--tree-border);
 	font-family: monospace;
 	font-size: 12px;
 	line-height: 12px;
@@ -200,17 +204,17 @@ span.nbt-value {
 }
 
 .type-select select {
-	border: none;
   position: absolute;
   z-index: 1;
 	width: 28px;
 	color: transparent;
   background: transparent;
+	border: 1px solid var(--vscode-input-border);
 }
 
 .type-select option {
-	color: var(--vscode-editor-foreground);
-	background: #333333;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
 }
 
 .type-select::before {
@@ -220,7 +224,7 @@ span.nbt-value {
 	right: 0;
 	width: 12px;
 	height: 16px;
-	background: #333333;
+	background: var(--vscode-input-background);
 }
 
 .type-select::after {
@@ -232,7 +236,7 @@ span.nbt-value {
 	height: 0;
 	border-left: 4px solid transparent;
 	border-right: 4px solid transparent;
-	border-top: 4px solid white;
+	border-top: 4px solid var(--vscode-input-foreground);
 }
 
 .structure-3d {
@@ -242,7 +246,7 @@ span.nbt-value {
 	left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: #1e1e1e;
+  background-color: var(--vscode-editor-background);
   border: none;
 }
 
@@ -267,8 +271,8 @@ span.nbt-value {
 }
 
 .btn {
-	background-color: #252526;
-	color: #dddddd;
+	background-color: var(--vscode-sideBar-background);
+	color: var(--vscode-sideBar-foreground);
 	padding: 2px 8px;
 	cursor: pointer;
 	user-select: none;
@@ -276,8 +280,10 @@ span.nbt-value {
 }
 
 .btn.active {
-	background-color: #333333;
-	color: #d8b24a;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	outline: 1px solid var(--vscode-button-border);
+	z-index: 1;
 }
 
 .btn.disabled {
@@ -328,8 +334,8 @@ span.nbt-value {
 }
 
 .snbt-editor {
-	background-color: #1e1e1e;
-	color: #d4d4d4;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
 	font-family: var(--monospace);
 	font-size: 14px;
 	width: 100%;
@@ -342,11 +348,12 @@ span.nbt-value {
 }
 
 .snbt-editor::selection {
-	background-color: #285b8dbe;
+	background-color: var(--vscode-editor-selectionBackground);
 }
 
 .side-panel {
-	background-color: #252526be;
+	background-color: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-sideBar-border);
 	position: absolute;
 	left: 20px;
 	top: 37px;
@@ -359,12 +366,8 @@ span.nbt-value {
 	padding: 10px 0 0;
 }
 
-.side-panel .nbt-tag:not(.selected):not(.highlighted):hover {
-	background: #333333;
-}
-
 .block-name {
-	color: #d8b24a;
+	color: var(--vscode-textLink-foreground);
 	font-size: large;
 }
 
@@ -376,17 +379,17 @@ span.nbt-value {
 
 .prop-key {
 	grid-column: 1;
-	color: #fff;
+	color: var(--vscode-list-activeSelectionForeground);
 }
 
 .prop-value {
 	grid-column: 2;
-	color: #dddddd;
+	color: var(--vscode-foreground);
 	padding-left: 9px;
 }
 
 .block-props > * {
-	border-bottom: 1px solid #333333;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
 	margin-bottom: 2px;
 }
 
@@ -404,9 +407,10 @@ span.nbt-value {
 	right: 18px;
 	width: 482px;
 	height: 33px;
-	background: #252526;
-	color: var(--vscode-foreground);
-	box-shadow: 0 0 8px 2px rgba(0, 0, 0, 0.36);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
 	transform: translateY(calc(-100% - 10px));
 	transition: transform 0.2s linear;
 }
@@ -446,7 +450,7 @@ span.nbt-value {
 }
 
 .find-widget.no-results .matches {
-	color: #f48771;
+	color: var(--vscode-errorForeground);
 }
 
 .find-widget .button.disabled {

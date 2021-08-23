@@ -6,26 +6,22 @@
 		{
 			"label": "Watch Extension",
 			"type": "npm",
-			"script": "watch",
-			"problemMatcher": "$tsc-watch",
+			"script": "dev",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
 			},
-			"dependsOn": "Watch Editor",
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			}
-		},
-		{
-			"label": "Watch Editor",
-			"type": "npm",
-			"script": "watchEditor",
-			"problemMatcher": "$ts-webpack-watch",
-			"isBackground": true,
-			"presentation": {
-				"reveal": "never"
+			},
+			"problemMatcher": {
+				"base": "$tsc-watch",
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^bundles ",
+					"endsPattern": "waiting for changes\\.\\.\\.$"
+				}
 			}
 		}
 	]

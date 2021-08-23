@@ -20,8 +20,8 @@ input {
 button:focus,
 select:focus,
 input:focus {
-	outline-color: var(--vscode-focusBorder);
-	outline-style: solid;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 input::placeholder {
@@ -29,7 +29,7 @@ input::placeholder {
 }
 
 input::selection {
-	background: var(--vscode-selection-background);
+	background: var(--vscode-selection-background, var(--vscode-editor-selectionBackground));
 }
 
 .nbt-editor {
@@ -275,6 +275,7 @@ span.nbt-value {
 	color: var(--vscode-sideBar-foreground);
 	padding: 2px 8px;
 	cursor: pointer;
+	box-shadow: 0 0 4px 2px var(--vscode-widget-shadow);
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -296,10 +297,12 @@ span.nbt-value {
 
 .btn-group {
 	display: flex;
+	box-shadow: 0 0 4px 2px var(--vscode-widget-shadow);
 }
 
 .btn-group > .btn {
 	margin-right: 0;
+	box-shadow: none;
 }
 
 .spinner {
@@ -401,11 +404,9 @@ span.nbt-value {
 
 .find-widget {
 	position: fixed;
-	display: flex;
-	align-items: center;
 	top: 0px;
-	right: 18px;
-	width: 482px;
+	right: 14px;
+	width: 500px;
 	height: 33px;
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-editorWidget-foreground);
@@ -415,12 +416,44 @@ span.nbt-value {
 	transition: transform 0.2s linear;
 }
 
+.find-widget.expanded {
+	height: 62px;
+}
+
 .find-widget.visible {
 	transform: translateY(0);
 }
 
+.find-widget .button.replace-expand {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 18px;
+	height: 100%;
+	margin-left: 0;
+	margin-right: 3px;
+	box-sizing: border-box;
+}
+
+.find-widget > .find-part,
+.find-widget > .replace-part {
+	margin: 4px 0 0 17px;
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+}
+
+.find-widget:not(.expanded) > .replace-part {
+	display: none;
+}
+
 .find-widget .type-select {
 	margin-left: 4px;
+	align-self: center;
+}
+
+.find-widget > .replace-part .type-select {
+	visibility: hidden;
 }
 
 .find-widget input {

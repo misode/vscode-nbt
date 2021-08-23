@@ -1,114 +1,114 @@
-import { NbtChunk } from '@webmc/nbt';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { disposeAll } from './dispose';
-import { NbtDocument } from './NbtDocument';
-import { EditorMessage, ViewMessage } from './common/types';
-import { WebviewCollection } from './WebviewCollection';
+import type { NbtChunk } from 'deepslate'
+import * as path from 'path'
+import * as vscode from 'vscode'
+import type { EditorMessage, ViewMessage } from './common/types'
+import { disposeAll } from './dispose'
+import { NbtDocument } from './NbtDocument'
+import { WebviewCollection } from './WebviewCollection'
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-    public static register(context: vscode.ExtensionContext): vscode.Disposable {
-        return vscode.window.registerCustomEditorProvider(
-            'nbtEditor.nbt',
-            new NbtEditorProvider(context),
-            {
-                webviewOptions: {
-                    retainContextWhenHidden: true
-                },
-                supportsMultipleEditorsPerDocument: true,
-            });
-    }
+	public static register(context: vscode.ExtensionContext): vscode.Disposable {
+		return vscode.window.registerCustomEditorProvider(
+			'nbtEditor.nbt',
+			new NbtEditorProvider(context),
+			{
+				webviewOptions: {
+					retainContextWhenHidden: true,
+				},
+				supportsMultipleEditorsPerDocument: true,
+			})
+	}
 
-    private readonly webviews = new WebviewCollection();
+	private readonly webviews = new WebviewCollection()
 
-    constructor(
-        private readonly _context: vscode.ExtensionContext
-    ) { }
+	constructor(
+		private readonly _context: vscode.ExtensionContext
+	) { }
 
-    //#region CustomEditorProvider
+	//#region CustomEditorProvider
 
-    async openCustomDocument(
-        uri: vscode.Uri,
-        openContext: vscode.CustomDocumentOpenContext,
-        _token: vscode.CancellationToken
-    ): Promise<NbtDocument> {
-        const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId);
+	async openCustomDocument(
+		uri: vscode.Uri,
+		openContext: vscode.CustomDocumentOpenContext,
+		_token: vscode.CancellationToken
+	): Promise<NbtDocument> {
+		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId)
 
-        const listeners: vscode.Disposable[] = [];
+		const listeners: vscode.Disposable[] = []
 
-        listeners.push(document.onDidChange(e => {
-            this._onDidChangeCustomDocument.fire({ document, ...e });
-        }));
+		listeners.push(document.onDidChange(e => {
+			this._onDidChangeCustomDocument.fire({ document, ...e })
+		}))
 
-        listeners.push(document.onDidChangeContent(e => {
-            this.broadcastMessage(document, { type: 'update', body: e })
-        }));
+		listeners.push(document.onDidChangeContent(e => {
+			this.broadcastMessage(document, { type: 'update', body: e })
+		}))
 
-        document.onDidDispose(() => disposeAll(listeners));
+		document.onDidDispose(() => disposeAll(listeners))
 
-        return document;
-    }
+		return document
+	}
 
-    async resolveCustomEditor(
-        document: NbtDocument,
-        webviewPanel: vscode.WebviewPanel,
-        _token: vscode.CancellationToken
-    ): Promise<void> {
-        this.webviews.add(document.uri, webviewPanel);
+	async resolveCustomEditor(
+		document: NbtDocument,
+		webviewPanel: vscode.WebviewPanel,
+		_token: vscode.CancellationToken
+	): Promise<void> {
+		this.webviews.add(document.uri, webviewPanel)
 
-        webviewPanel.webview.options = {
-            enableScripts: true,
-        };
-        webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure);
+		webviewPanel.webview.options = {
+			enableScripts: true,
+		}
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure)
 
-        webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel));
-    }
+		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
+	}
 
-    private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>();
-    public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>()
+	public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event
 
-    public saveCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return document.save(cancellation);
-    }
+	public saveCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.save(cancellation)
+	}
 
-    public saveCustomDocumentAs(document: NbtDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
-        return document.saveAs(destination, cancellation);
-    }
+	public saveCustomDocumentAs(document: NbtDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.saveAs(destination, cancellation)
+	}
 
-    public revertCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-        return document.revert(cancellation);
-    }
+	public revertCustomDocument(document: NbtDocument, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.revert(cancellation)
+	}
 
-    public backupCustomDocument(document: NbtDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
-        return document.backup(context.destination, cancellation);
-    }
+	public backupCustomDocument(document: NbtDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
+		return document.backup(context.destination, cancellation)
+	}
 
-    //#endregion
+	//#endregion
 
-    private getNonce() {
-        let text = '';
-        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        for (let i = 0; i < 32; i++) {
-            text += possible.charAt(Math.floor(Math.random() * possible.length));
-        }
-        return text;
-    }
+	private getNonce() {
+		let text = ''
+		const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+		for (let i = 0; i < 32; i++) {
+			text += possible.charAt(Math.floor(Math.random() * possible.length))
+		}
+		return text
+	}
 
-    private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
-        const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
-            path.join(this._context.extensionPath, 'editor', ...folders)
-        ));
-        const scriptUri = uri('out', 'editor.js');
-        const styleUri = uri('res', 'editor.css');
-        const atlasUrl = uri('res', 'generated', 'atlas.png');
-        const assetsUrl = uri('res', 'generated', 'assets.js');
-        const blocksUrl = uri('res', 'generated', 'blocks.js');
-		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
+	private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
+		const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
+			path.join(this._context.extensionPath, ...folders)
+		))
+		const scriptUri = uri('out', 'editor.js')
+		const styleUri = uri('res', 'editor.css')
+		const atlasUrl = uri('res', 'generated', 'atlas.png')
+		const assetsUrl = uri('res', 'generated', 'assets.js')
+		const blocksUrl = uri('res', 'generated', 'blocks.js')
+		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css')
 
-        const nonce = this.getNonce();
+		const nonce = this.getNonce()
 
-        return `
+		return `
 			<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -122,8 +122,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-				<link href="${styleUri}" rel="stylesheet" />
 				<link href="${codiconsUri}" rel="stylesheet" />
+				<link href="${styleUri}" rel="stylesheet" />
 
 				<title>NBT Editor</title>
 			</head>
@@ -131,18 +131,32 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
                 <div class="nbt-editor"></div>
                 <div class="panel-menu"></div>
                 <div class="find-widget">
-                    <div class="type-select"><select></select></div>
-                    <input class="name-input" placeholder="Name">
-                    <input class="value-input" placeholder="Value">
-                    <div class="matches">No results</div>
-                    <div class="button previous-match" title="Previous match (Shift+Enter)">
-                        <i class="codicon codicon-arrow-up"></i>
+                    <div class="button replace-expand codicon codicon-chevron-right" title="Toggle Replace mode"></div>
+                    <div class="find-part">
+                        <div class="type-select"><select></select></div>
+                        <input class="name-input" placeholder="Find Name">
+                        <input class="value-input" placeholder="Find Value">
+                        <div class="matches">No results</div>
+                        <div class="button previous-match disabled" title="Previous match (Shif+Enter)">
+                            <i class="codicon codicon-arrow-up"></i>
+                        </div>
+                        <div class="button next-match disabled" title="Next match (Enter)">
+                            <i class="codicon codicon-arrow-down"></i>
+                        </div>
+                        <div class="button close-widget" title="Close (Escape)">
+                            <i class="codicon codicon-close"></i>
+                        </div>
                     </div>
-                    <div class="button next-match" title="Next match (Enter)">
-                        <i class="codicon codicon-arrow-down"></i>
-                    </div>
-                    <div class="button close-widget" title="Close (Escape)">
-                        <i class="codicon codicon-close"></i>
+                    <div class="replace-part">
+                        <div class="type-select"><select></select></div>
+                        <input class="name-input" placeholder="Replace Name">
+                        <input class="value-input" placeholder="Replace Value">
+                        <div class="button replace disabled" title="Replace (Enter)">
+                            <i class="codicon codicon-replace"></i>
+                        </div>
+                        <div class="button replace-all disabled" title="Replace All (Ctrl+Alt+Enter">
+                            <i class="codicon codicon-replace-all"></i>
+                        </div>
                     </div>
                 </div>
 
@@ -154,65 +168,65 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
-			</html>`;
-    }
+			</html>`
+	}
 
-    private postMessage(panel: vscode.WebviewPanel, message: ViewMessage): void {
-        panel.webview.postMessage(message);
-    }
+	private postMessage(panel: vscode.WebviewPanel, message: ViewMessage): void {
+		panel.webview.postMessage(message)
+	}
 
-    private broadcastMessage(document: NbtDocument, message: ViewMessage): void {
-        for (const webviewPanel of this.webviews.get(document.uri)) {
-            this.postMessage(webviewPanel, message);
-        }
-    }
+	private broadcastMessage(document: NbtDocument, message: ViewMessage): void {
+		for (const webviewPanel of this.webviews.get(document.uri)) {
+			this.postMessage(webviewPanel, message)
+		}
+	}
 
-    private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
-        switch (message.type) {
-            case 'ready':
-                if (document.documentData.region) {
-                    const chunks = document.documentData.chunks
-                        .map(c => ({ x: c.x, z: c.z } as NbtChunk))
-                    this.postMessage(panel, {
-                        type: 'init',
-                        body: {
-                            type: 'region',
-                            readOnly: document.isReadOnly,
-                            content: {
-                                region: true,
-                                chunks: chunks
-                            }
-                        }                      
-                    });
-                } else {
-                    this.postMessage(panel, {
-                        type: 'init',
-                        body: {
-                            type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
-                            readOnly: document.isReadOnly,
-                            content: document.documentData
-                        }
-                    });
-                }
-                return;
+	private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
+		switch (message.type) {
+			case 'ready':
+				if (document.documentData.region) {
+					const chunks = document.documentData.chunks
+						.map(c => ({ x: c.x, z: c.z } as NbtChunk))
+					this.postMessage(panel, {
+						type: 'init',
+						body: {
+							type: 'region',
+							readOnly: document.isReadOnly,
+							content: {
+								region: true,
+								chunks: chunks,
+							},
+						},                      
+					})
+				} else {
+					this.postMessage(panel, {
+						type: 'init',
+						body: {
+							type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
+							readOnly: document.isReadOnly,
+							content: document.documentData,
+						},
+					})
+				}
+				return
 
-            case 'edit':
-                try {
-                    document.makeEdit(message.body)
-                } catch (e) {
-                    vscode.window.showErrorMessage(`Failed to apply edit: ${e.message}`)
-                }
-                return;
+			case 'edit':
+				try {
+					document.makeEdit(message.body)
+				} catch (e) {
+					vscode.window.showErrorMessage(`Failed to apply edit: ${e.message}`)
+				}
+				return
 
-            case 'getChunkData':
-                document.getChunkData(message.body.x, message.body.z).then(data => {
-                    this.postMessage(panel, { type: 'chunk', body: data } );
-                });
-                return;
+			case 'getChunkData':
+				document.getChunkData(message.body.x, message.body.z).then(data => {
+					this.postMessage(panel, { type: 'chunk', body: data } )
+				})
+				return
 
-            case 'error':
-                vscode.window.showErrorMessage(`Error in webview: ${message.body}`)
-                return;
-        }
-    }
+			case 'error':
+				vscode.window.showErrorMessage(`Error in webview: ${message.body}`)
+				return
+		}
+	}
 }

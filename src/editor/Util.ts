@@ -1,4 +1,4 @@
-import { vec3 } from "gl-matrix"
+import { vec3 } from 'gl-matrix'
 
 const dec2hex = (dec: number) => ('0' + dec.toString(16)).substr(-2)
 

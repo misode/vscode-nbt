@@ -1,17 +1,22 @@
 {
 	"compilerOptions": {
 		"target": "es2017",
-		"module": "commonjs",
+		"module": "ESNext",
+		"moduleResolution": "node",
+		"esModuleInterop": true,
+		"lib": ["dom", "esnext"],
 		"outDir": "out",
 		"sourceMap": true,
 		"rootDir": "src",
-		"strict": true,
+		"strict": false,
 		"strictNullChecks": true
 	},
+	"ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
 	"include": [
 		"src"
-  ],
-  "exclude": [
-    "GenerateAssets.ts"
-  ]
+	]
 }

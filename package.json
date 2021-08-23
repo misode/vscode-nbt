@@ -57,26 +57,34 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run genAssets && npm run buildEditor && npm run build",
-		"genAssets": "ts-node src/GenerateAssets.ts",
-		"build": "tsc -p ./",
-		"watch": "tsc -w -p ./",
-		"buildEditor": "cd editor && npm run build && cd ..",
-		"watchEditor": "cd editor && npm run watch"
+		"vscode:prepublish": "npm run genAssets && npm run build",
+		"genAssets": "ts-node scripts/GenerateAssets.ts",
+		"build": "rollup --config",
+		"dev": "rollup --config --watch",
+		"lint": "eslint . --ext .ts"
+	},
+	"dependencies": {
+		"deepslate": "^0.7.11",
+		"gl-matrix": "^3.3.0",
+		"vscode-codicons": "0.0.14"
 	},
 	"devDependencies": {
+		"@rollup/plugin-commonjs": "^20.0.0",
+		"@rollup/plugin-node-resolve": "^13.0.4",
+		"@rollup/plugin-typescript": "^8.2.5",
 		"@types/adm-zip": "^0.4.33",
 		"@types/node": "^12.12.0",
 		"@types/node-fetch": "^2.5.7",
 		"@types/pngjs": "^3.4.2",
 		"@types/vscode": "^1.46.0",
+		"@typescript-eslint/eslint-plugin": "^4.25.0",
+		"@typescript-eslint/parser": "^4.25.0",
 		"adm-zip": "^0.5.1",
+		"eslint": "^7.27.0",
 		"node-fetch": "^2.6.1",
 		"pngjs": "^6.0.0",
+		"rollup": "^2.56.2",
 		"ts-node": "^9.1.1",
 		"typescript": "^3.9.4"
-	},
-	"dependencies": {
-		"@webmc/nbt": "^0.2.4"
 	}
 }

@@ -65,7 +65,7 @@ export class TreeEditor implements EditorPanel {
 	protected expanded: Set<string>
 	protected content: HTMLDivElement
 	protected data: NamedNbtTag
-  
+
 	protected pathToElement: PathToElements
 	protected highlighted: null | NbtPath
 	protected selected: null | SelectedTag
@@ -74,7 +74,7 @@ export class TreeEditor implements EditorPanel {
 	constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
 		this.expanded = new Set()
 		this.expand(new NbtPath())
-    
+
 		this.content = document.createElement('div')
 		this.content.className = 'nbt-content'
 		this.data = { name: '', value: {} }
@@ -113,7 +113,7 @@ export class TreeEditor implements EditorPanel {
 	}
 
 	onSearch(query: SearchQuery | null): SearchResult[] {
-		if (query === null) {  
+		if (query === null) {
 			const prevHighlight = this.highlighted
 			this.highlighted = null
 			this.hidePath(prevHighlight)

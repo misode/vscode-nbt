@@ -2,13 +2,13 @@ import { tagNames } from 'deepslate'
 import type { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { applyEdit } from '../common/Operations'
-import type { EditorMessage, NbtEdit, NbtFile, ViewMessage } from '../common/types'
+import type { EditorMessage, NbtEdit, NbtEditOp, NbtFile, ViewMessage } from '../common/types'
 import { locale } from './Locale'
 import { MapEditor } from './MapEditor'
-import { RegionEditor } from './RegionEditor'
 import { SnbtEditor } from './SnbtEditor'
 import { StructureEditor } from './StructureEditor'
 import { TreeEditor } from './TreeEditor'
+import { getInt } from './Util'
 
 export type VSCode = {
 	postMessage(message: EditorMessage): void,
@@ -63,10 +63,6 @@ class Editor {
 			editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['map', 'default', 'snbt'],
 		},
-		region: {
-			editor: lazy(() => new RegionEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['region'],
-		},
 		default: {
 			editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['default', 'snbt'],
@@ -86,6 +82,8 @@ class Editor {
 	private searchResults: SearchResult[] | null = null
 	private searchIndex: number = 0
 	private lastReplace: NbtPath | null = null
+
+	private selectedChunk: { x: number, z: number } = { x: 0, z: 0 }
 
 	constructor() {
 		window.addEventListener('message', async e => {
@@ -154,6 +152,17 @@ class Editor {
 			this.doReplaceAll()
 		})
 
+		document.querySelectorAll('.region-menu input').forEach(el => {
+			el.addEventListener('change', () => {
+				this.refreshChunk()
+			})
+			el.addEventListener('keydown', evt => {
+				if ((evt as KeyboardEvent).key === 'Enter') {
+					this.refreshChunk()
+				}
+			})
+		})
+
 		document.addEventListener('keydown', evt => {
 			if (evt.ctrlKey && (evt.code === 'KeyF' || evt.code === 'KeyH')) {
 				this.findWidget.classList.add('visible')
@@ -190,6 +199,9 @@ class Editor {
 				this.nbtFile = m.body.content
 				this.readOnly = m.body.readOnly
 				this.setPanel(this.type)
+				if (this.nbtFile.region) {
+					this.refreshChunk()
+				}
 				return
 
 			case 'update':
@@ -197,10 +209,31 @@ class Editor {
 					applyEdit(this.nbtFile, m.body)
 					this.refreshSearch()
 					Object.values(this.panels).forEach(p => p.updated = false)
-					this.getPanel()?.onUpdate(this.nbtFile, m.body)
+					if (this.nbtFile.region) {
+						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
+						if (chunk?.nbt) {
+							const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
+							const ops = m.body.ops.map<NbtEditOp>(op => ({ ...op, path: op.path.slice(1) }))
+							this.getPanel()?.onUpdate(file, { ops })
+						}
+					} else {
+						this.getPanel()?.onUpdate(this.nbtFile, m.body)
+					}
 					this.panels[this.activePanel].updated = true
 				} catch (e) {
 					vscode.postMessage({ type: 'error', body: e.message })
+				}
+				return
+			
+			case 'chunk':
+				if (!this.nbtFile.region) {
+					return
+				}
+				const index = this.nbtFile.chunks.findIndex(c => c.x === m.body.x && c.z === m.body.z)
+				this.nbtFile.chunks[index] = m.body
+				if (m.body.nbt && this.selectedChunk.x === m.body.x && this.selectedChunk.z === m.body.z) {
+					const file: NbtFile = { region: false, data: m.body.nbt!, gzipped: true }
+					this.getPanel()?.onInit(file)
 				}
 				return
 
@@ -221,7 +254,15 @@ class Editor {
 		this.setPanelMenu(editorPanel)
 		setTimeout(() => {
 			if (!this.panels[panel].updated) {
-				editorPanel.onInit(this.nbtFile)
+				if (this.nbtFile.region) {
+					const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
+					if (chunk?.nbt) {
+						const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
+						editorPanel.onInit(file)
+					}
+				} else {
+					editorPanel.onInit(this.nbtFile)
+				}
 				this.panels[panel].updated = true
 			}
 			root.innerHTML = ''
@@ -249,6 +290,29 @@ class Editor {
 		if (panel.menu) {
 			el.insertAdjacentHTML('beforeend', '<div class="menu-spacer"></div>')
 			panel.menu().forEach(e => el.append(e))
+		}
+	}
+
+	private refreshChunk() {
+		if (!this.nbtFile?.region) {
+			return
+		}
+		const x = getInt(document.getElementById('chunk-x')) ?? 0
+		const z = getInt(document.getElementById('chunk-z')) ?? 0
+		const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
+		document.querySelector('.region-menu')?.classList.toggle('invalid', !chunk)
+		if (!chunk) {
+			return
+		}
+		this.selectedChunk = { x, z };
+		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
+		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
+		if (chunk.nbt) {
+			const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
+			this.getPanel()?.onInit(file)
+		} else {
+			console.log('Send message')
+			vscode.postMessage({ type: 'getChunkData', body: { x, z } })
 		}
 	}
 

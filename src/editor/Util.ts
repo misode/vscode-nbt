@@ -21,3 +21,8 @@ export function clampVec3(a: vec3, b: vec3, c: vec3) {
 export function negVec3(a: vec3) {
 	return vec3.fromValues(-a[0], -a[1], -a[2])
 }
+
+export function getInt(el: HTMLElement | null) {
+	const value = parseInt((el as HTMLInputElement)?.value)
+	return isNaN(value) ? undefined : value
+}

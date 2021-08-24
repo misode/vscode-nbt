@@ -60,7 +60,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		webviewPanel.webview.options = {
 			enableScripts: true,
 		}
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure)
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure, document.documentData.region)
 
 		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
 	}
@@ -95,7 +95,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		return text
 	}
 
-	private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean): string {
+	private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean, isRegion: boolean): string {
 		const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
 			path.join(this._context.extensionPath, ...folders)
 		))
@@ -127,44 +127,53 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
 				<title>NBT Editor</title>
 			</head>
-            <body>
-                <div class="nbt-editor"></div>
-                <div class="panel-menu"></div>
-                <div class="find-widget">
-                    <div class="button replace-expand codicon codicon-chevron-right" title="Toggle Replace mode"></div>
-                    <div class="find-part">
-                        <div class="type-select"><select></select></div>
-                        <input class="name-input" placeholder="Find Name">
-                        <input class="value-input" placeholder="Find Value">
-                        <div class="matches">No results</div>
-                        <div class="button previous-match disabled" title="Previous match (Shif+Enter)">
-                            <i class="codicon codicon-arrow-up"></i>
-                        </div>
-                        <div class="button next-match disabled" title="Next match (Enter)">
-                            <i class="codicon codicon-arrow-down"></i>
-                        </div>
-                        <div class="button close-widget" title="Close (Escape)">
-                            <i class="codicon codicon-close"></i>
-                        </div>
-                    </div>
-                    <div class="replace-part">
-                        <div class="type-select"><select></select></div>
-                        <input class="name-input" placeholder="Replace Name">
-                        <input class="value-input" placeholder="Replace Value">
-                        <div class="button replace disabled" title="Replace (Enter)">
-                            <i class="codicon codicon-replace"></i>
-                        </div>
-                        <div class="button replace-all disabled" title="Replace All (Ctrl+Alt+Enter">
-                            <i class="codicon codicon-replace-all"></i>
-                        </div>
-                    </div>
-                </div>
-
-                ${isStructure ? `
-                    <img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
-                    <script nonce="${nonce}" src="${assetsUrl}"></script>
-                    <script nonce="${nonce}" src="${blocksUrl}"></script>
-                ` : ''}
+				<body>
+					${isRegion ? `
+					<div class="region-menu">
+						Select Chunk:
+						<label for="chunk-x">X</label>
+						<input id="chunk-x" type="number">
+						<label for="chunk-z">Z</label>
+						<input id="chunk-z" type="number">
+					</div>
+					` : ''}
+					<div class="panel-menu"></div>
+					<div class="find-widget">
+						<div class="button replace-expand codicon codicon-chevron-right" 	title="Toggle Replace mode"></div>
+						<div class="find-part">
+							<div class="type-select"><select></select></div>
+							<input class="name-input" placeholder="Find Name">
+							<input class="value-input" placeholder="Find Value">
+							<div class="matches">No results</div>
+							<div class="button previous-match disabled" title="Previous match (Shif+Enter)">
+								<i class="codicon codicon-arrow-up"></i>
+							</div>
+							<div class="button next-match disabled" title="Next match (Enter)">
+								<i class="codicon codicon-arrow-down"></i>
+							</div>
+							<div class="button close-widget" title="Close (Escape)">
+								<i class="codicon codicon-close"></i>
+							</div>
+						</div>
+						<div class="replace-part">
+							<div class="type-select"><select></select></div>
+							<input class="name-input" placeholder="Replace Name">
+							<input class="value-input" placeholder="Replace Value">
+							<div class="button replace disabled" title="Replace (Enter)">
+								<i class="codicon codicon-replace"></i>
+							</div>
+							<div class="button replace-all disabled" title="Replace All (Ctrl+Alt+Enter">
+								<i class="codicon codicon-replace-all"></i>
+							</div>
+						</div>
+					</div>
+					<div class="nbt-editor"></div>
+							
+					${isStructure || isRegion ? `
+						<img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
+						<script nonce="${nonce}" src="${assetsUrl}"></script>
+						<script nonce="${nonce}" src="${blocksUrl}"></script>
+					` : ''}
 
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
@@ -184,30 +193,20 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
 		switch (message.type) {
 			case 'ready':
-				if (document.documentData.region) {
-					const chunks = document.documentData.chunks
-						.map(c => ({ x: c.x, z: c.z } as NbtChunk))
-					this.postMessage(panel, {
-						type: 'init',
-						body: {
-							type: 'region',
-							readOnly: document.isReadOnly,
-							content: {
+				this.postMessage(panel, {
+					type: 'init',
+					body: {
+						type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
+						readOnly: document.isReadOnly,
+						content: document.documentData.region
+							? {
 								region: true,
-								chunks: chunks,
-							},
-						},                      
-					})
-				} else {
-					this.postMessage(panel, {
-						type: 'init',
-						body: {
-							type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
-							readOnly: document.isReadOnly,
-							content: document.documentData,
-						},
-					})
-				}
+								chunks: document.documentData.chunks
+									.map(c => ({ x: c.x, z: c.z } as NbtChunk)),
+							}
+							: document.documentData,
+					},
+				})
 				return
 
 			case 'edit':

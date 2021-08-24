@@ -247,16 +247,16 @@ export class StructureEditor implements EditorPanel {
 		if (block) {
 			const properties = block.state.getProperties()
 			sidePanel.innerHTML = `
-        <div class="block-name">${block.state.getName()}</div>
-        ${Object.keys(properties).length === 0 ? '' : `
-          <div class="block-props">
-          ${Object.entries(properties).map(([k, v]) => `
-            <span class="prop-key">${k}</span>
-            <span class="prop-value">${v}</span>
-          `).join('')}
-          </div>
-        `}
-      `
+				<div class="block-name">${block.state.getName()}</div>
+				${Object.keys(properties).length === 0 ? '' : `
+					<div class="block-props">
+					${Object.entries(properties).map(([k, v]) => `
+						<span class="prop-key">${k}</span>
+						<span class="prop-value">${v}</span>
+					`).join('')}
+					</div>
+				`}
+			`
 			if (block.nbt) {
 				const nbtTree = document.createElement('div')
 				sidePanel.append(nbtTree)
@@ -272,13 +272,13 @@ export class StructureEditor implements EditorPanel {
 			}
 		} else {
 			sidePanel.innerHTML = `
-        <div class="structure-size">
-          <label>Size</label><input type="number"><input type="number"><input type="number">
-        </div>
-      `
+				<div class="structure-size">
+					<label>Size</label><input type="number"><input type="number"><input type="number">
+				</div>
+			`
 			sidePanel.querySelectorAll('.structure-size input').forEach((el, i) => {
-				const original = this.structure.getSize()[i]
-        ;(el as HTMLInputElement).value = original.toString()
+				const original = this.structure.getSize()[i];
+				(el as HTMLInputElement).value = original.toString()
 				if (this.readOnly) return
 
 				el.addEventListener('change', () => {

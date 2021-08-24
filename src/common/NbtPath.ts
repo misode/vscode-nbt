@@ -36,7 +36,7 @@ export class NbtPath {
 
 	public equals(other: NbtPath) {
 		return other.length() === this.length()
-      && other.arr.every((e, i) => this.arr[i] === e)
+			&& other.arr.every((e, i) => this.arr[i] === e)
 	}
 
 	public toString() {

@@ -40,6 +40,7 @@ input::selection {
 }
 
 .nbt-content {
+	min-height: 100vh;
 	padding: 30px 0;
 }
 
@@ -261,9 +262,53 @@ span.nbt-value {
 
 .panel-menu {
 	position: fixed;
+	z-index: 1;
 	top: 5px;
 	left: 20px;
 	display: flex;
+}
+
+.region-menu {
+	position: fixed;
+	z-index: 2;
+	width: 100%;
+	height: 35px;
+	top: 0;
+	left: 0;
+	background-color: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-sideBarSectionHeader-border);
+	border-left: transparent;
+	border-right: transparent;
+	display: flex;
+	align-items: center;
+	padding: 0 20px;
+	white-space: nowrap;
+}
+
+.region-menu ~ .panel-menu {
+	top: 40px;
+}
+
+.region-menu ~ .find-widget {
+	top: 35px;
+}
+
+.region-menu ~ .nbt-editor > .nbt-content {
+	padding-top: 65px;
+}
+
+.region-menu input {
+	margin-left: 3px;
+	width: 50px;
+}
+
+.region-menu.invalid input {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.region-menu label {
+	margin-left: 10px;
 }
 
 .menu-spacer {
@@ -348,6 +393,7 @@ span.nbt-value {
 	white-space: pre;
   overflow-wrap: normal;
   overflow-x: scroll;
+	overflow-y: hidden;
 }
 
 .snbt-editor::selection {
@@ -404,6 +450,7 @@ span.nbt-value {
 
 .find-widget {
 	position: fixed;
+	z-index: 1;
 	top: 0px;
 	right: 14px;
 	width: 500px;

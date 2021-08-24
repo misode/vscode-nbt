@@ -59,7 +59,7 @@ export type EditorMessage = {
 export type ViewMessage = {
 	type: 'init',
 	body: {
-		type: 'default' | 'region' | 'structure' | 'map',
+		type: 'default' | 'structure' | 'map',
 		readOnly: boolean,
 		content: NbtFile,
 	},

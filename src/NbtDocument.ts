@@ -133,10 +133,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		if (this._documentData.region) return false
 		const root = this._documentData.data.value
 		return root['size']?.type === 'list'
-            && root['size'].value.type === 'int'
-            && root['size'].value.value.length === 3
-            && root['blocks']?.type === 'list'
-            && root['palette']?.type === 'list'
+			&& root['size'].value.type === 'int'
+			&& root['size'].value.value.length === 3
+			&& root['blocks']?.type === 'list'
+			&& root['palette']?.type === 'list'
 	}
 
 	private isMapData() {

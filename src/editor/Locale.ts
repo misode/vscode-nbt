@@ -10,6 +10,7 @@ const LOCALES = {
 	grid: 'Show Grid',
 	invisibleBlocks: 'Show Invisible Blocks',
 	'panel.structure': '3D',
+	'panel.chunk': '3D',
 	'panel.map': 'Map',
 	'panel.region': 'Region',
 	'panel.default': 'Default',

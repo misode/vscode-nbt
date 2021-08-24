@@ -4,7 +4,7 @@ import { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { getNode, replaceNode, searchNodes } from '../common/Operations'
 import { Snbt } from '../common/Snbt'
-import type { NbtEditOp, NbtFile } from '../common/types'
+import type { NbtEditOp } from '../common/types'
 import type { EditHandler, EditorPanel, SearchResult, VSCode } from './Editor'
 import { locale } from './Locale'
 
@@ -96,9 +96,8 @@ export class TreeEditor implements EditorPanel {
 		document.removeEventListener('keydown', this.onKey)
 	}
 
-	onInit(file: NbtFile) {
-		if (file.region !== false) return
-		this.data = file.data
+	onInit(data: NamedNbtTag) {
+		this.data = data
 		const rootKeys = Object.keys(this.data.value)
 		if (rootKeys.length === 1) {
 			this.expand(new NbtPath([rootKeys[0]]))
@@ -108,8 +107,8 @@ export class TreeEditor implements EditorPanel {
 		this.redraw()
 	}
 
-	onUpdate(file: NbtFile) {
-		this.onInit(file)
+	onUpdate(data: NamedNbtTag) {
+		this.onInit(data)
 	}
 
 	onSearch(query: SearchQuery | null): SearchResult[] {

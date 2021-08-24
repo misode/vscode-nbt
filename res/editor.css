@@ -297,6 +297,10 @@ span.nbt-value {
 	padding-top: 65px;
 }
 
+.region-menu ~ .nbt-editor > .side-panel {
+	top: 72px
+}
+
 .region-menu input {
 	margin-left: 3px;
 	width: 50px;

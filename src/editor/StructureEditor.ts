@@ -1,7 +1,7 @@
 import type { BlockPos, NamedNbtTag } from 'deepslate'
 import { getListTag, Structure, StructureRenderer } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
-import type { NbtEdit, NbtFile } from '../common/types'
+import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
@@ -12,24 +12,24 @@ declare const stringifiedAssets: string
 declare const stringifiedBlocks: string
 
 export class StructureEditor implements EditorPanel {
-	private canvas: HTMLCanvasElement
 	private readonly resources: ResourceManager
-	private data: NamedNbtTag
-	private structure: Structure
-	private readonly renderer: StructureRenderer
+	protected data: NamedNbtTag
+	protected structure: Structure
+	private canvas: HTMLCanvasElement
 	private canvas2: HTMLCanvasElement
 	private readonly gl2: WebGLRenderingContext
-	private readonly renderer2: StructureRenderer
+	protected readonly renderer: StructureRenderer
+	protected readonly renderer2: StructureRenderer
 
 	private readonly cPos: vec3
 	private cRot: vec2
 	private cDist: number
 
-	private gridActive: boolean
-	private invisibleBlocksActive: boolean
-	private selectedBlock: BlockPos | null
+	protected gridActive: boolean
+	protected invisibleBlocksActive: boolean
+	protected selectedBlock: BlockPos | null
 
-	constructor(private readonly root: Element, private readonly vscode: VSCode, private readonly editHandler: EditHandler, private readonly readOnly: boolean) {
+	constructor(protected readonly root: Element, protected readonly vscode: VSCode, protected readonly editHandler: EditHandler, protected readonly readOnly: boolean) {
 		const assets = JSON.parse(stringifiedAssets)
 		const blocks = JSON.parse(stringifiedBlocks)
 		const img = (document.querySelector('.texture-atlas') as HTMLImageElement)
@@ -160,17 +160,16 @@ export class StructureEditor implements EditorPanel {
 		document.removeEventListener('keydown', this.onKey)
 	}
 
-	onInit(file: NbtFile) {
-		this.updateStructure(file)
+	onInit(data: NamedNbtTag) {
+		this.updateStructure(data)
 		vec3.copy(this.cPos, this.structure.getSize())
 		vec3.scale(this.cPos, this.cPos, -0.5)
 		this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
 		this.render()
 	}
 
-	onUpdate(file: NbtFile, edit: NbtEdit) {
-		if (file.region !== false) return
-		this.updateStructure(file)
+	onUpdate(data: NamedNbtTag, edit: NbtEdit) {
+		this.updateStructure(data)
 		this.showSidePanel()
 		this.render()
 	}
@@ -179,9 +178,8 @@ export class StructureEditor implements EditorPanel {
 
 	}
 
-	private updateStructure(file: NbtFile) {
-		if (file.region !== false) return
-		this.data = file.data
+	protected updateStructure(data: NamedNbtTag) {
+		this.data = data
 		this.structure = Structure.fromNbt(this.data)
 		this.renderer.setStructure(this.structure)
 		this.renderer2.setStructure(this.structure)
@@ -237,7 +235,7 @@ export class StructureEditor implements EditorPanel {
 		}
 	}
 
-	private showSidePanel() {
+	protected showSidePanel() {
 		this.root.querySelector('.side-panel')?.remove()
 		const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
 
@@ -267,7 +265,7 @@ export class StructureEditor implements EditorPanel {
 						ops: edit.ops.map(o => ({... o, path: ['blocks', blockIndex, 'nbt', ...o.path]})),
 					})
 				}, this.readOnly)
-				tree.onInit({ region: false, gzipped: false, data: { name: '', value: block.nbt } })
+				tree.onInit({ name: '', value: block.nbt })
 				tree.reveal()
 			}
 		} else {

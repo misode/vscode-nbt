@@ -1,8 +1,10 @@
+import type { NamedNbtTag } from 'deepslate'
 import { tagNames } from 'deepslate'
 import type { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { applyEdit } from '../common/Operations'
 import type { EditorMessage, NbtEdit, NbtEditOp, NbtFile, ViewMessage } from '../common/types'
+import { ChunkEditor } from './ChunkEditor'
 import { locale } from './Locale'
 import { MapEditor } from './MapEditor'
 import { SnbtEditor } from './SnbtEditor'
@@ -38,8 +40,8 @@ export type SearchResult = {
 export interface EditorPanel {
 	reveal?(): void
 	hide?(): void
-	onInit(file: NbtFile): void
-	onUpdate(file: NbtFile, edit: NbtEdit): void
+	onInit(file: NamedNbtTag): void
+	onUpdate(file: NamedNbtTag, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
 	onSearch?(query: SearchQuery | null): SearchResult[]
 	menu?(): Element[]
@@ -62,6 +64,10 @@ class Editor {
 		map: {
 			editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
 			options: ['map', 'default', 'snbt'],
+		},
+		chunk: {
+			editor: lazy(() => new ChunkEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+			options: ['chunk', 'default', 'snbt'],
 		},
 		default: {
 			editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
@@ -198,10 +204,11 @@ class Editor {
 				this.type = m.body.type
 				this.nbtFile = m.body.content
 				this.readOnly = m.body.readOnly
-				this.setPanel(this.type)
 				if (this.nbtFile.region) {
 					this.refreshChunk()
+					this.type = 'chunk'
 				}
+				this.setPanel(this.type)
 				return
 
 			case 'update':
@@ -212,12 +219,11 @@ class Editor {
 					if (this.nbtFile.region) {
 						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
 						if (chunk?.nbt) {
-							const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
 							const ops = m.body.ops.map<NbtEditOp>(op => ({ ...op, path: op.path.slice(1) }))
-							this.getPanel()?.onUpdate(file, { ops })
+							this.getPanel()?.onUpdate(chunk.nbt, { ops })
 						}
 					} else {
-						this.getPanel()?.onUpdate(this.nbtFile, m.body)
+						this.getPanel()?.onUpdate(this.nbtFile.data, m.body)
 					}
 					this.panels[this.activePanel].updated = true
 				} catch (e) {
@@ -232,8 +238,8 @@ class Editor {
 				const index = this.nbtFile.chunks.findIndex(c => c.x === m.body.x && c.z === m.body.z)
 				this.nbtFile.chunks[index] = m.body
 				if (m.body.nbt && this.selectedChunk.x === m.body.x && this.selectedChunk.z === m.body.z) {
-					const file: NbtFile = { region: false, data: m.body.nbt!, gzipped: true }
-					this.getPanel()?.onInit(file)
+					this.getPanel()?.onInit(m.body.nbt)
+					this.panels[this.activePanel].updated = true
 				}
 				return
 
@@ -257,11 +263,10 @@ class Editor {
 				if (this.nbtFile.region) {
 					const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
 					if (chunk?.nbt) {
-						const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
-						editorPanel.onInit(file)
+						editorPanel.onInit(chunk.nbt)
 					}
 				} else {
-					editorPanel.onInit(this.nbtFile)
+					editorPanel.onInit(this.nbtFile.data)
 				}
 				this.panels[panel].updated = true
 			}
@@ -307,11 +312,11 @@ class Editor {
 		this.selectedChunk = { x, z };
 		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
 		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
+		Object.values(this.panels).forEach(p => p.updated = false)
 		if (chunk.nbt) {
-			const file: NbtFile = { region: false, data: chunk.nbt, gzipped: true }
-			this.getPanel()?.onInit(file)
+			this.getPanel()?.onInit(chunk.nbt)
+			this.panels[this.activePanel].updated = true
 		} else {
-			console.log('Send message')
 			vscode.postMessage({ type: 'getChunkData', body: { x, z } })
 		}
 	}

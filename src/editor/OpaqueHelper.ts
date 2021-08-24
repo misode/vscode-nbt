@@ -1,4 +1,4 @@
-const OPAQUE_BLOCKS = new Set([
+export const OPAQUE_BLOCKS = new Set([
 	'minecraft:acacia_planks',
 	'minecraft:acacia_wood',
 	'minecraft:ancient_debris',
@@ -266,10 +266,3 @@ const OPAQUE_BLOCKS = new Set([
 	'minecraft:yellow_terracotta',
 	'minecraft:yellow_wool',
 ])
-
-export function isOpaque(name: string){
-	if (!name.startsWith('minecraft:')) {
-		name = 'minecraft:' + name
-	}
-	return OPAQUE_BLOCKS.has(name)
-}

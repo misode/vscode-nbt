@@ -1,5 +1,5 @@
+import type { NamedNbtTag } from 'deepslate'
 import { Snbt } from '../common/Snbt'
-import type { NbtFile } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 
@@ -22,16 +22,15 @@ export class SnbtEditor implements EditorPanel {
 		this.root.append(content)
 	}
 
-	onInit(data: NbtFile) {
-		if (data.region !== false) return
-		this.snbt = Snbt.stringify('compound', data.data.value)
+	onInit(data: NamedNbtTag) {
+		this.snbt = Snbt.stringify('compound', data.value)
 		const textarea = this.root.querySelector('.snbt-editor')
 		if (textarea) {
 			textarea.textContent = this.snbt
 		}
 	}
 
-	onUpdate(data: NbtFile) {
+	onUpdate(data: NamedNbtTag) {
 		this.onInit(data)
 	}
 

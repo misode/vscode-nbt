@@ -1,6 +1,6 @@
 import type { NamedNbtTag } from 'deepslate'
 import { getTag } from 'deepslate'
-import type { NbtEdit, NbtFile } from '../common/types'
+import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 
 export class MapEditor implements EditorPanel {
@@ -23,13 +23,12 @@ export class MapEditor implements EditorPanel {
 		this.root.append(content)
 	}
 
-	onInit(file: NbtFile) {
-		if (file.region !== false) return
-		this.data = file.data
+	onInit(data: NamedNbtTag) {
+		this.data = data
 	}
 
-	onUpdate(file: NbtFile, edit: NbtEdit) {
-		this.onInit(file)
+	onUpdate(data: NamedNbtTag, edit: NbtEdit) {
+		this.onInit(data)
 	}
 
 	private paint(ctx: CanvasRenderingContext2D) {

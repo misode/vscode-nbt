@@ -1,6 +1,6 @@
+import { fromBigInt, toBigInt } from '../editor/Util'
+
 export class Snbt {
-	static bytes = new Uint8Array(8)
-	static dataView = new DataView(Snbt.bytes.buffer)
 
 	static stringify(type: string, data: any, i: string = ''): string {
 		const ii = i + '  '
@@ -28,14 +28,11 @@ export class Snbt {
 	}
 
 	static stringifyLong(value: [number, number]) {
-		Snbt.dataView.setInt32(0, Number(value[0]))
-		Snbt.dataView.setInt32(4, Number(value[1]))
-		return `${Snbt.dataView.getBigInt64(0)}`
+		return `${toBigInt(value)}`
 	}
 
 	static parseLong(value: string): [number, number] {
-		Snbt.dataView.setBigInt64(0, BigInt(value))
-		return [Snbt.dataView.getInt32(0), Snbt.dataView.getInt32(4)]
+		return fromBigInt(BigInt(value))
 	}
 
 	private static stringifyEntries(type: string, values: any[], ii: string, join: string) {

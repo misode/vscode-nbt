@@ -64,7 +64,7 @@
 		"lint": "eslint . --ext .ts"
 	},
 	"dependencies": {
-		"deepslate": "^0.7.12",
+		"deepslate": "^0.8.0",
 		"gl-matrix": "^3.3.0",
 		"vscode-codicons": "0.0.14"
 	},

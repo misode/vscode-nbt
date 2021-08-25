@@ -40,8 +40,11 @@ input::selection {
 }
 
 .nbt-content {
-	min-height: 100vh;
 	padding: 30px 0;
+}
+
+.nbt-editor > .nbt-content {
+	min-height: 100vh;
 }
 
 .nbt-tag {

@@ -11,14 +11,20 @@ export class ChunkEditor extends StructureEditor {
 		const level = getTag(this.data.value, 'Level', 'compound')
 		const sections = getListTag(level, 'Sections', 'compound')
 
-		const height = sections.length - 2
+		const filledSections = sections.filter(section =>
+			section['Palette'] && getListTag(section, 'Palette', 'compound')
+				.filter(state => getTag(state, 'Name', 'string') !== 'minecraft:air')
+				.length > 0
+		)
+		const minY = 16 * Math.min(...filledSections.map(s => getTag(s, 'Y', 'byte')))
+		const maxY = 16 * Math.max(...filledSections.map(s => getTag(s, 'Y', 'byte')))
 
-		this.structure = new Structure([16, height * 16, 16])
-		for (const section of sections) {
+		this.structure = new Structure([16, maxY - minY + 16, 16])
+		for (const section of filledSections) {
 			if (!section['Palette'] || !section['BlockStates']) {
 				continue
 			}
-			const yOffset = getTag(section, 'Y', 'byte') * 16
+			const yOffset = getTag(section, 'Y', 'byte') * 16 - minY
 			const palette = getListTag(section, 'Palette', 'compound')
 			const blockStates = getTag(section, 'BlockStates', 'longArray')
 

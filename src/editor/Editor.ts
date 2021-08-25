@@ -304,14 +304,15 @@ class Editor {
 		}
 		const x = getInt(document.getElementById('chunk-x')) ?? 0
 		const z = getInt(document.getElementById('chunk-z')) ?? 0
+		this.selectedChunk = { x, z };
+		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
+		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
+
 		const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
 		document.querySelector('.region-menu')?.classList.toggle('invalid', !chunk)
 		if (!chunk) {
 			return
 		}
-		this.selectedChunk = { x, z };
-		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
-		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
 		Object.values(this.panels).forEach(p => p.updated = false)
 		if (chunk.nbt) {
 			this.getPanel()?.onInit(chunk.nbt)

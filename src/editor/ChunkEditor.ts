@@ -1,15 +1,26 @@
 import type { NamedNbtTag } from 'deepslate'
 import { getListTag, getOptional, getTag, Structure } from 'deepslate'
+import { vec3 } from 'gl-matrix'
 import { StructureEditor } from './StructureEditor'
 import { toBigInt } from './Util'
 
 export class ChunkEditor extends StructureEditor {
 	
+	onInit(data: NamedNbtTag) {
+		this.updateStructure(data)
+		vec3.copy(this.cPos, this.structure.getSize())
+		vec3.mul(this.cPos, this.cPos, [-0.5, -1, -0.5])
+		vec3.add(this.cPos, this.cPos, [0, 16, 0])
+		this.cDist = 25
+		this.showSidePanel()
+		this.render()
+	}
+
 	protected updateStructure(data: NamedNbtTag) {
 		this.gridActive = false
 		this.data = data
 		const level = getTag(this.data.value, 'Level', 'compound')
-		const sections = getListTag(level, 'Sections', 'compound')
+		const sections = getOptional(() => getListTag(level, 'Sections', 'compound'), [])
 
 		const filledSections = sections.filter(section =>
 			section['Palette'] && getListTag(section, 'Palette', 'compound')

@@ -21,9 +21,9 @@ export class StructureEditor implements EditorPanel {
 	protected readonly renderer: StructureRenderer
 	protected readonly renderer2: StructureRenderer
 
-	private readonly cPos: vec3
-	private cRot: vec2
-	private cDist: number
+	protected readonly cPos: vec3
+	protected cRot: vec2
+	protected cDist: number
 
 	protected gridActive: boolean
 	protected invisibleBlocksActive: boolean

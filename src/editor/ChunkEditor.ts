@@ -16,9 +16,9 @@ export class ChunkEditor extends StructureEditor {
 		this.render()
 	}
 
-	protected updateStructure(data: NamedNbtTag) {
+	protected loadStructure(data: NamedNbtTag) {
 		this.gridActive = false
-		this.data = data
+
 		const level = getTag(this.data.value, 'Level', 'compound')
 		const sections = getOptional(() => getListTag(level, 'Sections', 'compound'), [])
 
@@ -30,7 +30,7 @@ export class ChunkEditor extends StructureEditor {
 		const minY = 16 * Math.min(...filledSections.map(s => getTag(s, 'Y', 'byte')))
 		const maxY = 16 * Math.max(...filledSections.map(s => getTag(s, 'Y', 'byte')))
 
-		this.structure = new Structure([16, maxY - minY + 16, 16])
+		const structure = new Structure([16, maxY - minY + 16, 16])
 		for (const section of filledSections) {
 			if (!section['Palette'] || !section['BlockStates']) {
 				continue
@@ -59,13 +59,11 @@ export class ChunkEditor extends StructureEditor {
 						Object.entries(getOptional(() => getTag(state, 'Properties', 'compound'), {}))
 							.filter(([_, v]) => v.type === 'string')
 							.map(([k, v]) => [k, v.value as string]))
-					this.structure.addBlock(pos, name, properties)
+					structure.addBlock(pos, name, properties)
 				}
 			}
 		}
-
-		this.renderer.setStructure(this.structure)
-		this.renderer2.setStructure(this.structure)
+		return structure
 	}
 
 	menu() {

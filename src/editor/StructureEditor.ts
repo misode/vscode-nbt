@@ -15,8 +15,9 @@ export class StructureEditor implements EditorPanel {
 	private readonly resources: ResourceManager
 	protected data: NamedNbtTag
 	protected structure: Structure
-	private canvas: HTMLCanvasElement
-	private canvas2: HTMLCanvasElement
+	private readonly warning: HTMLDivElement
+	private readonly canvas: HTMLCanvasElement
+	private readonly canvas2: HTMLCanvasElement
 	private readonly gl2: WebGLRenderingContext
 	protected readonly renderer: StructureRenderer
 	protected readonly renderer2: StructureRenderer
@@ -50,6 +51,25 @@ export class StructureEditor implements EditorPanel {
 		this.canvas2.className = 'structure-3d click-detection'
 		this.gl2 = this.canvas2.getContext('webgl')!
 		this.renderer2 = new StructureRenderer(this.gl2, this.structure, this.resources)
+
+		this.warning = document.createElement('div')
+		this.warning.className = 'nbt-warning'
+		const warningMsg = document.createElement('span')
+		warningMsg.textContent = 'Trying to render a very large structure'
+		this.warning.append(warningMsg)
+		const warningButton = document.createElement('div')
+		warningButton.className = 'btn active'
+		warningButton.textContent = 'Continue'
+		warningButton.addEventListener('click', () => {
+			this.warning.classList.remove('active')
+			this.root.innerHTML = '<div class="spinner"></div>'
+			setTimeout(() => {
+				this.buildStructure(this.structure)
+				this.reveal()
+				this.render()
+			})
+		})
+		this.warning.append(warningButton)
 
 		this.cPos = vec3.create()
 		this.cRot = vec2.fromValues(0.4, 0.6)
@@ -171,6 +191,7 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	reveal() {
+		this.root.append(this.warning)
 		this.root.append(this.canvas)
 		this.root.append(this.canvas2)
 		this.showSidePanel()
@@ -214,9 +235,24 @@ export class StructureEditor implements EditorPanel {
 
 	protected updateStructure(data: NamedNbtTag) {
 		this.data = data
-		this.structure = Structure.fromNbt(this.data)
-		this.renderer.setStructure(this.structure)
-		this.renderer2.setStructure(this.structure)
+		this.structure = this.loadStructure(data)
+
+		const [x, y, z] = this.structure.getSize()
+		if (x * y * z > 48 * 48 * 48) {
+			this.warning.classList.add('active')
+			return
+		}
+
+		this.buildStructure(this.structure)
+	}
+
+	protected loadStructure(data: NamedNbtTag) {
+		return Structure.fromNbt(data)
+	}
+
+	private buildStructure(structure: Structure) {
+		this.renderer.setStructure(structure)
+		this.renderer2.setStructure(structure)
 	}
 
 	menu() {

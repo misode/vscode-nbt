@@ -47,6 +47,31 @@ input::selection {
 	min-height: 100vh;
 }
 
+.nbt-warning {
+	display: none;
+	position: absolute;
+	left: 0;
+	right: 0;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+
+.nbt-warning .btn {
+	margin-top: 10px;
+}
+
+.nbt-warning.active {
+	display: active;
+}
+
+.nbt-warning.active ~ canvas {
+	display: none;
+}
+
 .nbt-tag {
 	height: 22px;
 	cursor: default;

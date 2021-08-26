@@ -21,6 +21,11 @@ export class StructureEditor implements EditorPanel {
 	protected readonly renderer: StructureRenderer
 	protected readonly renderer2: StructureRenderer
 
+	private renderRequested = false
+
+	private movement = [0, 0, 0, 0, 0, 0]
+	private readonly movementKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft']
+
 	protected readonly cPos: vec3
 	protected cRot: vec2
 	protected cDist: number
@@ -108,8 +113,24 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	render() {
-		requestAnimationFrame(() => {
+		if (this.renderRequested) {
+			return
+		}
+		const requestTime = performance.now()
+		this.renderRequested = true
+		requestAnimationFrame((time) => {
+			const delta = Math.max(0, time - requestTime)
+			this.renderRequested = false
 			this.resize()
+
+			if (this.movement.some(m => m)) {
+				vec3.rotateY(this.cPos, this.cPos, [0, 0, 0], this.cRot[0])
+				const [w, a, s, d, space, shift] = this.movement
+				const move = vec3.fromValues(a - d, shift - space, w - s)
+				vec3.scaleAndAdd(this.cPos, this.cPos, move, delta * 0.02)
+				vec3.rotateY(this.cPos, this.cPos, [0, 0, 0], -this.cRot[0])
+				this.render()
+			}
 
 			const viewMatrix = this.getViewMatrix()
 
@@ -153,11 +174,13 @@ export class StructureEditor implements EditorPanel {
 		this.root.append(this.canvas)
 		this.root.append(this.canvas2)
 		this.showSidePanel()
-		document.addEventListener('keydown', this.onKey)
+		document.addEventListener('keydown', this.onKeyDown)
+		document.addEventListener('keyup', this.onKeyUp)
 	}
 
 	hide() {
-		document.removeEventListener('keydown', this.onKey)
+		document.removeEventListener('keydown', this.onKeyDown)
+		document.removeEventListener('keyup', this.onKeyUp)
 	}
 
 	onInit(data: NamedNbtTag) {
@@ -174,8 +197,19 @@ export class StructureEditor implements EditorPanel {
 		this.render()
 	}
 
-	private readonly onKey = (evt: KeyboardEvent) => {
+	private readonly onKeyDown = (evt: KeyboardEvent) => {
+		const index = this.movementKeys.indexOf(evt.code)
+		if (index !== -1) {
+			this.movement[index] = 1
+			this.render()
+		}
+	}
 
+	private readonly onKeyUp = (evt: KeyboardEvent) => {
+		const index = this.movementKeys.indexOf(evt.code)
+		if (index !== -1) {
+			this.movement[index] = 0
+		}
 	}
 
 	protected updateStructure(data: NamedNbtTag) {

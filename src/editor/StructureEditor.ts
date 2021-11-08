@@ -316,6 +316,7 @@ export class StructureEditor implements EditorPanel {
 			const properties = block.state.getProperties()
 			sidePanel.innerHTML = `
 				<div class="block-name">${block.state.getName()}</div>
+				<div class="block-pos">${block.pos.join(' ')}</div>
 				${Object.keys(properties).length === 0 ? '' : `
 					<div class="block-props">
 					${Object.entries(properties).map(([k, v]) => `

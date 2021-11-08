@@ -451,6 +451,11 @@ span.nbt-value {
 	font-size: large;
 }
 
+.block-pos {
+	word-spacing: 5px;
+	font-size: 15px;
+}
+
 .block-props {
 	padding-top: 5px;
 	display: inline-grid;

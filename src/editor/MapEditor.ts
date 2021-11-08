@@ -37,7 +37,7 @@ export class MapEditor implements EditorPanel {
 		const colors = getTag(data, 'colors', 'byteArray')
 		for (let x = 0; x < 128; x += 1) {
 			for (let z = 0; z < 128; z += 1) {
-				const id = colors[x + z * 128] ?? 0
+				const id = ((colors[x + z * 128] ?? 0) + 256) % 256
 				const base = colorIds[id >> 2] ?? [0, 0, 0]
 				const m = multipliers[id & 0b11] ?? 1
 				const color = [base[0] * m, base[1] * m, base[2] * m]
@@ -119,4 +119,7 @@ const colorIds = [
 	[58, 142, 140],
 	[86, 44, 62],
 	[20, 180, 133],
+	[100, 100, 100],
+	[216, 175, 147],
+	[127, 167, 150],
 ]

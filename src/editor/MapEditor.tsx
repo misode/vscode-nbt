@@ -1,4 +1,6 @@
 import type { NamedNbtTag } from 'deepslate'
+import {h, render} from 'preact'
+import { useEffect, useRef } from 'preact/hooks'
 import { getTag } from 'deepslate'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
@@ -11,29 +13,27 @@ export class MapEditor implements EditorPanel {
 	}
 
 	reveal() {
-		const content = document.createElement('div')
-		content.classList.add('nbt-content')
-		const canvas = document.createElement('canvas')
-		canvas.classList.add('nbt-map')
-		canvas.width = 128
-		canvas.height = 128
-		const ctx = canvas.getContext('2d')!
-		this.paint(ctx)
-		content.append(canvas)
-		this.root.append(content)
+		render(<Main tag={this.data} />, this.root)
 	}
 
 	onInit(data: NamedNbtTag) {
 		this.data = data
+		this.reveal()
 	}
 
 	onUpdate(data: NamedNbtTag, edit: NbtEdit) {
 		this.onInit(data)
 	}
+}
 
-	private paint(ctx: CanvasRenderingContext2D) {
+function Main({ tag }: { tag: NamedNbtTag }) {
+	const canvas = useRef<HTMLCanvasElement>(null)
+
+	useEffect(() => {
+		if (canvas.current === null) return
+		const ctx = canvas.current.getContext('2d')!
 		const img = ctx.createImageData(128, 128)
-		const data = getTag(this.data.value, 'data', 'compound')
+		const data = getTag(tag.value, 'data', 'compound')
 		const colors = getTag(data, 'colors', 'byteArray')
 		for (let x = 0; x < 128; x += 1) {
 			for (let z = 0; z < 128; z += 1) {
@@ -49,7 +49,11 @@ export class MapEditor implements EditorPanel {
 			}
 		}
 		ctx.putImageData(img, 0, 0)
-	}
+	}, [canvas.current])
+
+	return <div class="nbt-content">
+		<canvas ref={canvas} class="nbt-map" width="128" height="128"></canvas>
+	</div>
 }
 
 const multipliers = [

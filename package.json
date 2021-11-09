@@ -66,9 +66,11 @@
 	"dependencies": {
 		"deepslate": "^0.8.0",
 		"gl-matrix": "^3.4.3",
+		"preact": "^10.5.15",
 		"vscode-codicons": "^0.0.14"
 	},
 	"devDependencies": {
+		"@rollup/plugin-babel": "^5.3.0",
 		"@rollup/plugin-commonjs": "^20.0.0",
 		"@rollup/plugin-node-resolve": "^13.0.6",
 		"@rollup/plugin-typescript": "^8.3.0",

@@ -1,4 +1,5 @@
 import type { NamedNbtTag } from 'deepslate'
+import {h, render} from 'preact'
 import { Snbt } from '../common/Snbt'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
@@ -11,23 +12,12 @@ export class SnbtEditor implements EditorPanel {
 	}
 
 	reveal() {
-		const content = document.createElement('div')
-		content.classList.add('nbt-content')
-		const textarea = document.createElement('textarea')
-		textarea.classList.add('snbt-editor')
-		textarea.textContent = this.snbt
-		textarea.rows = (this.snbt.match(/\n/g)?.length ?? 0) + 1
-		textarea.readOnly = true
-		content.append(textarea)
-		this.root.append(content)
+		render(<Main snbt={this.snbt} />, this.root)
 	}
 
 	onInit(data: NamedNbtTag) {
 		this.snbt = Snbt.stringify('compound', data.value)
-		const textarea = this.root.querySelector('.snbt-editor')
-		if (textarea) {
-			textarea.textContent = this.snbt
-		}
+		this.reveal()
 	}
 
 	onUpdate(data: NamedNbtTag) {
@@ -46,4 +36,13 @@ export class SnbtEditor implements EditorPanel {
 
 		return [copyButton]
 	}
+}
+
+function Main({ snbt }) {
+	const lines = snbt.match(/\n/g)?.length ?? 0
+	return <div class="nbt-content">
+		<textarea class="snbt-editor" rows={lines + 1} readonly>
+			{snbt}
+		</textarea>
+	</div>
 }

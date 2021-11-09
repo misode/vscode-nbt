@@ -14,7 +14,11 @@ export default defineConfig([
 			},
 		],
 		external: ['vscode'],
-		plugins: [commonjs(), resolve(), typescript()],
+		plugins: [
+			resolve(),
+			commonjs(),
+			typescript(),
+		],
 	},
 	{
 		input: 'src/editor/Editor.ts',
@@ -26,6 +30,10 @@ export default defineConfig([
 				sourcemap: true,
 			},
 		],
-		plugins: [commonjs(), resolve(), typescript()],
+		plugins: [
+			resolve(),
+			commonjs(),
+			typescript(),
+		],
 	},
 ])

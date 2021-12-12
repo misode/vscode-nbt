@@ -579,3 +579,51 @@ span.nbt-value {
 	height: 512px;
 	image-rendering: pixelated;
 }
+
+.region-menu .map-toggle {
+	margin-right: 15px;
+}
+
+.region-map {
+	padding-top: 45px;
+	padding-bottom: 20px;
+	display: grid;
+	grid-template-columns: repeat(32, 1fr);
+}
+
+.region-map-chunk {
+	aspect-ratio: 1/1;
+	background-color: var(--vscode-sideBar-background);
+	color: var(--vscode-sideBar-foreground);
+	border: 2px solid var(--vscode-sideBarSectionHeader-border);
+	padding: 1px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	font-size: 10px;
+	min-width: 30px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.region-map-chunk:not(:nth-child(-n+32)) {
+	border-top: none;
+}
+
+.region-map-chunk:not(:nth-child(32n+1)) {
+	border-left: none;
+}
+
+.region-map-chunk.empty {
+	background-color: transparent;
+	color: transparent;
+	cursor: initial;
+}
+
+.region-map-chunk.loaded {
+	background-color: var(--vscode-menu-selectionBackground);
+}
+
+.hidden {
+	display: none !important;
+}

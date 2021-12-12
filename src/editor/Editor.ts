@@ -57,26 +57,26 @@ class Editor {
 			options?: string[],
 		},
 	} = {
-		structure: {
-			editor: lazy(() => new StructureEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['structure', 'default', 'snbt'],
-		},
-		map: {
-			editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['map', 'default', 'snbt'],
-		},
-		chunk: {
-			editor: lazy(() => new ChunkEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['chunk', 'default', 'snbt'],
-		},
-		default: {
-			editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-			options: ['default', 'snbt'],
-		},
-		snbt: {
-			editor: lazy(() => new SnbtEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-		},
-	}
+			structure: {
+				editor: lazy(() => new StructureEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+				options: ['structure', 'default', 'snbt'],
+			},
+			map: {
+				editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+				options: ['map', 'default', 'snbt'],
+			},
+			chunk: {
+				editor: lazy(() => new ChunkEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+				options: ['chunk', 'default', 'snbt'],
+			},
+			default: {
+				editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+				options: ['default', 'snbt'],
+			},
+			snbt: {
+				editor: lazy(() => new SnbtEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+			},
+		}
 
 	private type: string
 	private nbtFile: NbtFile
@@ -89,6 +89,9 @@ class Editor {
 	private searchIndex: number = 0
 	private lastReplace: NbtPath | null = null
 
+	private inMap = false
+	private waitingChunk: Promise<void> | null
+	private chunkResolver: () => unknown
 	private selectedChunk: { x: number, z: number } = { x: 0, z: 0 }
 
 	constructor() {
@@ -158,6 +161,11 @@ class Editor {
 			this.doReplaceAll()
 		})
 
+		document.querySelector('.region-menu .btn')?.addEventListener('click', () => {
+			this.inMap = !this.inMap
+			this.updateRegionMap()
+		})
+
 		document.querySelectorAll('.region-menu input').forEach(el => {
 			el.addEventListener('change', () => {
 				this.refreshChunk()
@@ -205,10 +213,13 @@ class Editor {
 				this.nbtFile = m.body.content
 				this.readOnly = m.body.readOnly
 				if (this.nbtFile.region) {
-					this.refreshChunk()
 					this.type = 'chunk'
+					this.activePanel = this.type
+					this.inMap = true
+					this.updateRegionMap()
+				} else {
+					this.setPanel(this.type)
 				}
-				this.setPanel(this.type)
 				return
 
 			case 'update':
@@ -237,10 +248,10 @@ class Editor {
 				}
 				const index = this.nbtFile.chunks.findIndex(c => c.x === m.body.x && c.z === m.body.z)
 				this.nbtFile.chunks[index] = m.body
-				if (m.body.nbt && this.selectedChunk.x === m.body.x && this.selectedChunk.z === m.body.z) {
-					this.getPanel()?.onInit(m.body.nbt)
-					this.panels[this.activePanel].updated = true
+				if (this.inMap) {
+					this.updateRegionMap()
 				}
+				this.chunkResolver()
 				return
 
 			default:
@@ -258,9 +269,12 @@ class Editor {
 		this.activePanel = panel
 		const editorPanel = this.getPanel()!
 		this.setPanelMenu(editorPanel)
-		setTimeout(() => {
+		setTimeout(async () => {
 			if (!this.panels[panel].updated) {
 				if (this.nbtFile.region) {
+					if (this.waitingChunk !== null) {
+						await this.waitingChunk
+					}
 					const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
 					if (chunk?.nbt) {
 						editorPanel.onInit(chunk.nbt)
@@ -298,28 +312,77 @@ class Editor {
 		}
 	}
 
+	private updateRegionMap() {
+		if (!this.nbtFile?.region) {
+			return
+		}
+		document.querySelector('.region-menu .btn')?.classList.toggle('active', this.inMap)
+		document.querySelector('.panel-menu')?.classList.toggle('hidden', this.inMap)
+		document.querySelector('.nbt-editor')?.classList.toggle('hidden', this.inMap)
+		
+		if (this.inMap) {
+			const map = document.createElement('div')
+			map.classList.add('region-map')
+			for (let z = 0; z < 32; z += 1) {
+				for (let x = 0; x < 32; x += 1) {
+					const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
+					const cell = document.createElement('div')
+					cell.classList.add('region-map-chunk')
+					cell.textContent = `${x} ${z}`
+					cell.classList.toggle('empty', chunk === undefined)
+					cell.classList.toggle('loaded', chunk?.nbt !== undefined)
+					cell.addEventListener('click', () => {
+						this.requestChunk(x, z)				
+					})
+					cell.setAttribute('data-pos', `${x} ${z}`)
+					map.append(cell)
+				}
+			}
+			document.body.append(map)
+		} else {
+			document.querySelector('.region-map')?.remove()
+		}
+	}
+
 	private refreshChunk() {
 		if (!this.nbtFile?.region) {
 			return
 		}
 		const x = getInt(document.getElementById('chunk-x')) ?? 0
 		const z = getInt(document.getElementById('chunk-z')) ?? 0
+		this.requestChunk(x, z)
+	}
+
+	private requestChunk(x: number, z: number) {
+		if (!this.nbtFile?.region) {
+			return
+		}
 		this.selectedChunk = { x, z };
 		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
 		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
-
 		const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
 		document.querySelector('.region-menu')?.classList.toggle('invalid', !chunk)
 		if (!chunk) {
 			return
 		}
 		Object.values(this.panels).forEach(p => p.updated = false)
+		this.waitingChunk = null
 		if (chunk.nbt) {
-			this.getPanel()?.onInit(chunk.nbt)
-			this.panels[this.activePanel].updated = true
+			this.setPanel(this.activePanel)
 		} else {
+			this.waitingChunk = new Promise((res) => {
+				this.chunkResolver = () => {
+					if (this.selectedChunk.x === x && this.selectedChunk.z === z) {
+						this.waitingChunk = null
+						res()
+					}
+				}
+			})
 			vscode.postMessage({ type: 'getChunkData', body: { x, z } })
 		}
+		this.inMap = false
+		this.updateRegionMap()
+		this.setPanel(this.activePanel)
 	}
 
 	private doSearch() {

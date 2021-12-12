@@ -130,6 +130,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				<body>
 					${isRegion ? `
 					<div class="region-menu">
+						<div class="btn map-toggle">Map</div>
 						Select Chunk:
 						<label for="chunk-x">X</label>
 						<input id="chunk-x" type="number">
@@ -202,7 +203,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 							? {
 								region: true,
 								chunks: document.documentData.chunks
-									.map(c => ({ x: c.x, z: c.z } as NbtChunk)),
+									.map(c => ({ x: c.x, z: c.z, size: c.data.length } as NbtChunk & { size: number })),
 							}
 							: document.documentData,
 					},
@@ -219,7 +220,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 
 			case 'getChunkData':
 				document.getChunkData(message.body.x, message.body.z).then(data => {
-					this.postMessage(panel, { type: 'chunk', body: data } )
+					this.postMessage(panel, { type: 'chunk', body: { ...data, size: data.data.length } } )
 				})
 				return
 

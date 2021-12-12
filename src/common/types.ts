@@ -68,5 +68,5 @@ export type ViewMessage = {
 	body: NbtEdit,
 } | {
 	type: 'chunk',
-	body: NbtChunk,
+	body: NbtChunk & { size: number },
 }

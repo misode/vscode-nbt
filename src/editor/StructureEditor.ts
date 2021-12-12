@@ -235,7 +235,7 @@ export class StructureEditor implements EditorPanel {
 
 	protected updateStructure(data: NamedNbtTag) {
 		this.data = data
-		this.structure = this.loadStructure(data)
+		this.structure = this.loadStructure()
 
 		const [x, y, z] = this.structure.getSize()
 		if (x * y * z > 48 * 48 * 48) {
@@ -246,8 +246,8 @@ export class StructureEditor implements EditorPanel {
 		this.buildStructure(this.structure)
 	}
 
-	protected loadStructure(data: NamedNbtTag) {
-		return Structure.fromNbt(data)
+	protected loadStructure() {
+		return Structure.fromNbt(this.data)
 	}
 
 	private buildStructure(structure: Structure) {

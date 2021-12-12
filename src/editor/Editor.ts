@@ -285,6 +285,7 @@ class Editor {
 					}
 				} catch (e) {
 					if (e instanceof Error) {
+						console.error(e)
 						const div = document.createElement('div')
 						div.classList.add('nbt-content', 'error')
 						div.textContent = e.message

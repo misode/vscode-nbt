@@ -4,6 +4,8 @@ import { vec3 } from 'gl-matrix'
 import { StructureEditor } from './StructureEditor'
 import { toBigInt } from './Util'
 
+const VERSION_21w43a = 2844
+
 export class ChunkEditor extends StructureEditor {
 	
 	onInit(data: NamedNbtTag) {
@@ -16,28 +18,42 @@ export class ChunkEditor extends StructureEditor {
 		this.render()
 	}
 
-	protected loadStructure(data: NamedNbtTag) {
+	protected loadStructure() {
 		this.gridActive = false
 
-		const level = getTag(this.data.value, 'Level', 'compound')
-		const sections = getOptional(() => getListTag(level, 'Sections', 'compound'), [])
+		const dataVersion = getTag(this.data.value, 'DataVersion', 'int')
+		const N = dataVersion >= VERSION_21w43a
 
-		const filledSections = sections.filter(section =>
-			section['Palette'] && getListTag(section, 'Palette', 'compound')
+		const sections = N
+			? getOptional(() => getListTag(this.data.value, 'sections', 'compound'), [])
+			: getOptional(() => getListTag(getTag(this.data.value, 'Level', 'compound'), 'Sections', 'compound'), [])
+
+		const filledSections = sections.filter(section => {
+			const palette = N
+				? section['block_states'] && getListTag(getTag(section, 'block_states', 'compound'), 'palette', 'compound')
+				: section['Palette'] && getListTag(section, 'Palette', 'compound')
+			return palette
 				.filter(state => getTag(state, 'Name', 'string') !== 'minecraft:air')
 				.length > 0
-		)
+		})
+		if (filledSections.length === 0) {
+			throw new Error('Empty chunk')
+		}
 		const minY = 16 * Math.min(...filledSections.map(s => getTag(s, 'Y', 'byte')))
 		const maxY = 16 * Math.max(...filledSections.map(s => getTag(s, 'Y', 'byte')))
 
+		const K_palette = N ? 'palette' : 'Palette'
+		const K_data = N ? 'data' : 'BlockStates'
+
 		const structure = new Structure([16, maxY - minY + 16, 16])
 		for (const section of filledSections) {
-			if (!section['Palette'] || !section['BlockStates']) {
+			const states = N ? getTag(section, 'block_states', 'compound') : section
+			if (!states[K_palette] || !states[K_data]) {
 				continue
 			}
 			const yOffset = getTag(section, 'Y', 'byte') * 16 - minY
-			const palette = getListTag(section, 'Palette', 'compound')
-			const blockStates = getTag(section, 'BlockStates', 'longArray')
+			const palette = getListTag(states, K_palette, 'compound')
+			const blockStates = getTag(states, K_data, 'longArray')
 
 			const bits = Math.max(4, Math.ceil(Math.log2(palette.length)))
 			const bitMask = BigInt(Math.pow(2, bits) - 1)
@@ -63,6 +79,7 @@ export class ChunkEditor extends StructureEditor {
 				}
 			}
 		}
+		console.log(structure)
 		return structure
 	}
 

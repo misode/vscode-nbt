@@ -587,6 +587,8 @@ span.nbt-value {
 .region-map {
 	padding-top: 45px;
 	padding-bottom: 20px;
+	max-width: 1152px;
+	margin: 0 auto;
 	display: grid;
 	grid-template-columns: repeat(32, 1fr);
 }
@@ -601,7 +603,7 @@ span.nbt-value {
 	justify-content: center;
 	align-items: center;
 	font-size: 10px;
-	min-width: 30px;
+	min-width: 32px;
 	white-space: nowrap;
 	cursor: pointer;
 }

@@ -271,16 +271,27 @@ class Editor {
 		this.setPanelMenu(editorPanel)
 		setTimeout(async () => {
 			if (!this.panels[panel].updated) {
-				if (this.nbtFile.region) {
-					if (this.waitingChunk !== null) {
-						await this.waitingChunk
+				try {
+					if (this.nbtFile.region) {
+						if (this.waitingChunk !== null) {
+							await this.waitingChunk
+						}
+						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
+						if (chunk?.nbt) {
+							editorPanel.onInit(chunk.nbt)
+						}
+					} else {
+						editorPanel.onInit(this.nbtFile.data)
 					}
-					const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
-					if (chunk?.nbt) {
-						editorPanel.onInit(chunk.nbt)
+				} catch (e) {
+					if (e instanceof Error) {
+						const div = document.createElement('div')
+						div.classList.add('nbt-content', 'error')
+						div.textContent = e.message
+						root.innerHTML = ''
+						root.append(div)
+						return
 					}
-				} else {
-					editorPanel.onInit(this.nbtFile.data)
 				}
 				this.panels[panel].updated = true
 			}
@@ -331,9 +342,11 @@ class Editor {
 					cell.textContent = `${x} ${z}`
 					cell.classList.toggle('empty', chunk === undefined)
 					cell.classList.toggle('loaded', chunk?.nbt !== undefined)
-					cell.addEventListener('click', () => {
-						this.requestChunk(x, z)				
-					})
+					if (chunk !== undefined) {
+						cell.addEventListener('click', () => {
+							this.requestChunk(x, z)				
+						})
+					}
 					cell.setAttribute('data-pos', `${x} ${z}`)
 					map.append(cell)
 				}
@@ -355,6 +368,11 @@ class Editor {
 
 	private requestChunk(x: number, z: number) {
 		if (!this.nbtFile?.region) {
+			return
+		}
+		if (this.selectedChunk.x === x && this.selectedChunk.z === z) {
+			this.inMap = false
+			this.updateRegionMap()
 			return
 		}
 		this.selectedChunk = { x, z };

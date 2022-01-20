@@ -1,6 +1,6 @@
 import type { NamedNbtTag } from 'deepslate'
 import { tagNames } from 'deepslate'
-import type { NbtPath } from '../common/NbtPath'
+import { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { applyEdit } from '../common/Operations'
 import type { EditorMessage, NbtEdit, NbtEditOp, NbtFile, ViewMessage } from '../common/types'
@@ -40,7 +40,7 @@ export type SearchResult = {
 export interface EditorPanel {
 	reveal?(): void
 	hide?(): void
-	onInit(file: NamedNbtTag): void
+	onInit(file: NamedNbtTag, prefix?: NbtPath): void
 	onUpdate(file: NamedNbtTag, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
 	onSearch?(query: SearchQuery | null): SearchResult[]
@@ -276,9 +276,10 @@ class Editor {
 						if (this.waitingChunk !== null) {
 							await this.waitingChunk
 						}
-						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
+						const chunkIndex = this.nbtFile.chunks.findIndex(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
+						const chunk = this.nbtFile.chunks[chunkIndex]
 						if (chunk?.nbt) {
-							editorPanel.onInit(chunk.nbt)
+							editorPanel.onInit(chunk.nbt, new NbtPath([chunkIndex]))
 						}
 					} else {
 						editorPanel.onInit(this.nbtFile.data)

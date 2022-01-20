@@ -65,6 +65,7 @@ export class TreeEditor implements EditorPanel {
 	protected expanded: Set<string>
 	protected content: HTMLDivElement
 	protected data: NamedNbtTag
+	protected prefix: NbtPath
 
 	protected pathToElement: PathToElements
 	protected highlighted: null | NbtPath
@@ -73,11 +74,10 @@ export class TreeEditor implements EditorPanel {
 
 	constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
 		this.expanded = new Set()
-		this.expand(new NbtPath())
-
 		this.content = document.createElement('div')
 		this.content.className = 'nbt-content'
 		this.data = { name: '', value: {} }
+		this.prefix = new NbtPath()
 		this.pathToElement = {childs: {}}
 		this.highlighted = null
 		this.selected = null
@@ -96,11 +96,15 @@ export class TreeEditor implements EditorPanel {
 		document.removeEventListener('keydown', this.onKey)
 	}
 
-	onInit(data: NamedNbtTag) {
+	onInit(data: NamedNbtTag, prefix?: NbtPath) {
+		if (prefix) {
+			this.prefix = prefix
+		}
 		this.data = data
+		this.expand(this.prefix)
 		const rootKeys = Object.keys(this.data.value)
 		if (rootKeys.length === 1) {
-			this.expand(new NbtPath([rootKeys[0]]))
+			this.expand(this.prefix.push(rootKeys[0]))
 		}
 		this.select(null)
 		this.editing = null
@@ -204,7 +208,7 @@ export class TreeEditor implements EditorPanel {
 
 	protected redraw() {
 		this.pathToElement = { childs: {} }
-		const root = this.drawTag(new NbtPath(), 'compound', this.data.value)
+		const root = this.drawTag(this.prefix, 'compound', this.data.value)
 		this.content.innerHTML = ''
 		this.content.append(root)
 	}

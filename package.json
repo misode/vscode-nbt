@@ -81,7 +81,7 @@
 		"@typescript-eslint/parser": "^5.3.1",
 		"adm-zip": "^0.5.9",
 		"eslint": "^8.2.0",
-		"node-fetch": "^2.6.6",
+		"node-fetch": "^3.1.1",
 		"pngjs": "^6.0.0",
 		"rollup": "^2.59.0",
 		"ts-node": "^10.4.0",

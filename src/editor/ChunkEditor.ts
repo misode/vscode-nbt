@@ -33,7 +33,7 @@ export class ChunkEditor extends StructureEditor {
 				? section['block_states'] && getListTag(getTag(section, 'block_states', 'compound'), 'palette', 'compound')
 				: section['Palette'] && getListTag(section, 'Palette', 'compound')
 			return palette
-				.filter(state => getTag(state, 'Name', 'string') !== 'minecraft:air')
+				?.filter(state => getTag(state, 'Name', 'string') !== 'minecraft:air')
 				.length > 0
 		})
 		if (filledSections.length === 0) {

@@ -37,6 +37,9 @@
 						"filenamePattern": "*.dat"
 					},
 					{
+						"filenamePattern": "*.dat_old"
+					},
+					{
 						"filenamePattern": "*.mca"
 					},
 					{

@@ -5,7 +5,8 @@ VSCode extension to view Minecraft NBT files. For structure files, this shows a 
 
 ## Credits
 
-* Icons: [AmberW](https://github.com/AmberWat)
+* [AmberW](https://github.com/AmberWat) for the NBT icons
+* [SPGoding](https://github.com/SPGoding) for the downloading and caching logic from [Spyglass](https://github.com/SpyglassMC/Spyglass)
 
 ## Disclaimer
-This extension can corrupt your files, always backup your files.
+While this extension has been tested, it can technically corrupt your files. Always be careful and backup important files.

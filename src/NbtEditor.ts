@@ -1,17 +1,17 @@
 import type { NbtChunk } from 'deepslate'
 import * as path from 'path'
 import * as vscode from 'vscode'
-import type { EditorMessage, ViewMessage } from './common/types'
+import type { EditorMessage, Logger, ViewMessage } from './common/types'
 import { disposeAll } from './dispose'
 import { NbtDocument } from './NbtDocument'
 import { WebviewCollection } from './WebviewCollection'
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-	public static register(context: vscode.ExtensionContext): vscode.Disposable {
+	public static register(context: vscode.ExtensionContext, logger: Logger): vscode.Disposable {
 		return vscode.window.registerCustomEditorProvider(
 			'nbtEditor.nbt',
-			new NbtEditorProvider(context),
+			new NbtEditorProvider(context, logger),
 			{
 				webviewOptions: {
 					retainContextWhenHidden: true,
@@ -23,7 +23,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	private readonly webviews = new WebviewCollection()
 
 	constructor(
-		private readonly _context: vscode.ExtensionContext
+		private readonly _context: vscode.ExtensionContext,
+		private readonly logger: Logger,
 	) { }
 
 	//#region CustomEditorProvider
@@ -33,7 +34,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		openContext: vscode.CustomDocumentOpenContext,
 		_token: vscode.CancellationToken
 	): Promise<NbtDocument> {
-		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId)
+		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, this.logger)
 
 		const listeners: vscode.Disposable[] = []
 
@@ -225,6 +226,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				return
 
 			case 'error':
+				this.logger.error(message.body)
 				vscode.window.showErrorMessage(`Error in webview: ${message.body}`)
 				return
 		}

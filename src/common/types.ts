@@ -1,5 +1,12 @@
 import type { NamedNbtTag, NbtChunk } from 'deepslate'
 
+export interface Logger {
+	error(data: any, ...args: any[]): void
+	info(data: any, ...args: any[]): void
+	log(data: any, ...args: any[]): void
+	warn(data: any, ...args: any[]): void
+}
+
 export type SimpleNbtFile = {
 	region: false,
 	gzipped: boolean,

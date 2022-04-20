@@ -37,8 +37,8 @@ export class Downloader {
 		let cacheChecksumPath: string | undefined
 		if (cache) {
 			const { checksumJob, checksumExtension } = cache
-			out.cachePath = cachePath = path.join(this.cacheRoot, 'downloader', id)
-			cacheChecksumPath = path.join(this.cacheRoot, 'downloader', id + checksumExtension)
+			out.cachePath = cachePath = path.join(this.cacheRoot, id)
+			cacheChecksumPath = path.join(this.cacheRoot, id + checksumExtension)
 			try {
 				out.checksum = checksum = await this.download({ ...checksumJob, id: id + checksumExtension })
 				try {
@@ -48,7 +48,7 @@ export class Downloader {
 						try {
 							const cachedBuffer = await fileUtil.readFile(fileUtil.pathToFileUri(cachePath))
 							const deserializer = cache.deserializer ?? (b => b)
-							const ans = await transformer(deserializer(cachedBuffer))
+							const ans = await transformer(await deserializer(cachedBuffer))
 							this.logger.info(`[Downloader] [${id}] Skipped downloading thanks to cache ${cacheChecksum}`)
 							return ans
 						} catch (e) {
@@ -86,7 +86,7 @@ export class Downloader {
 				}
 				try {
 					const serializer = cache.serializer ?? (b => b)
-					await fileUtil.writeFile(fileUtil.pathToFileUri(cachePath), serializer(buffer))
+					await fileUtil.writeFile(fileUtil.pathToFileUri(cachePath), await serializer(buffer))
 				} catch (e) {
 					this.logger.error(`[Downloader] [${id}] Caching file “${cachePath}”`, e)
 				}
@@ -99,7 +99,7 @@ export class Downloader {
 				try {
 					const cachedBuffer = await fileUtil.readFile(fileUtil.pathToFileUri(cachePath))
 					const deserializer = cache.deserializer ?? (b => b)
-					const ans = await transformer(deserializer(cachedBuffer))
+					const ans = await transformer(await deserializer(cachedBuffer))
 					this.logger.warn(`[Downloader] [${id}] Fell back to cached file “${cachePath}”`)
 					return ans
 				} catch (e) {
@@ -112,7 +112,7 @@ export class Downloader {
 	}
 }
 
-interface Job<R> {
+export interface Job<R> {
 	/**
 	 * A unique ID for the cache.
 	 * 
@@ -126,8 +126,8 @@ interface Job<R> {
 		 */
 		checksumJob: Omit<Job<string>, 'cache' | 'id'>,
 		checksumExtension: `.${string}`,
-		serializer?: (data: Buffer) => Buffer,
-		deserializer?: (cache: Buffer) => Buffer,
+		serializer?: (data: Buffer) => Buffer | Promise<Buffer>,
+		deserializer?: (cache: Buffer) => Buffer | Promise<Buffer>,
 	},
 	transformer: (data: Buffer) => PromiseLike<R> | R,
 	options?: LowLevelDownloadOptions,

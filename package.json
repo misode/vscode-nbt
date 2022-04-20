@@ -66,10 +66,10 @@
 		"lint": "eslint . --ext .ts"
 	},
 	"dependencies": {
-		"deepslate": "^0.8.0",
-		"env-paths": "^3.0.0",
+		"env-paths": "^2.2.1",
 		"follow-redirects": "^1.14.8",
 		"gl-matrix": "^3.4.3",
+		"tar": "^6.1.11",
 		"vscode-codicons": "^0.0.14"
 	},
 	"devDependencies": {
@@ -78,6 +78,7 @@
 		"@rollup/plugin-typescript": "^8.3.0",
 		"@types/follow-redirects": "^1.14.0",
 		"@types/node": "^14.14.37",
+		"@types/tar": "^6.1.1",
 		"@types/vscode": "^1.46.0",
 		"@typescript-eslint/eslint-plugin": "^5.3.1",
 		"@typescript-eslint/parser": "^5.3.1",

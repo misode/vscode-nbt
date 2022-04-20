@@ -1,5 +1,5 @@
 import type { NbtChunk } from 'deepslate'
-import { read as readNbt, readChunk, readRegion, write as writeNbt, writeChunk, writeRegion } from 'deepslate'
+import { getOptional, getTag, read as readNbt, readChunk, readRegion, write as writeNbt, writeChunk, writeRegion } from 'deepslate'
 import * as vscode from 'vscode'
 import { applyEdit, reverseEdit } from './common/Operations'
 import type { Logger, NbtEdit, NbtFile } from './common/types'
@@ -84,6 +84,18 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	public get isMap() { return this._isMap }
 
 	public get isReadOnly() { return this._isReadOnly }
+
+	public get dataVersion() {
+		const file = this._documentData
+		if (file.region) {
+			const firstChunk = file.chunks.find(c => c.data || c.nbt)
+			if (!firstChunk) return undefined
+			readChunk(file.chunks, firstChunk.x, firstChunk.z)
+			return getOptional(() => getTag(firstChunk.nbt!.value, 'DataVersion', 'int'), undefined)
+		} else {
+			return getOptional(() => getTag(file.data.value, 'DataVersion', 'int'), undefined)
+		}
+	}
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>())
 	public readonly onDidDispose = this._onDidDispose.event

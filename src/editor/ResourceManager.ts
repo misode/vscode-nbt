@@ -1,5 +1,5 @@
 import type { BlockDefinitionProvider, BlockFlagsProvider, BlockModelProvider, BlockPropertiesProvider } from 'deepslate'
-import { BlockDefinition, BlockModel, TextureAtlas } from 'deepslate'
+import { BlockDefinition, BlockModel, Identifier, TextureAtlas, upperPowerOfTwo } from 'deepslate'
 import { OPAQUE_BLOCKS } from './OpaqueHelper'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider {
@@ -21,15 +21,15 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		this.loadBlockAtlas(textureAtlas, assets.textures)
 	}
 
-	public getBlockDefinition(id: string) {
-		return this.blockDefinitions[id]
+	public getBlockDefinition(id: Identifier) {
+		return this.blockDefinitions[id.toString()]
 	}
 
-	public getBlockModel(id: string) {
-		return this.blockModels[id]
+	public getBlockModel(id: Identifier) {
+		return this.blockModels[id.toString()]
 	}
 
-	public getTextureUV(id: string) {
+	public getTextureUV(id: Identifier) {
 		return this.textureAtlas.getTextureUV(id)
 	}
 
@@ -37,45 +37,46 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		return this.textureAtlas.getTextureAtlas()
 	}
 
-	public getBlockFlags(id: string) {
+	public getBlockFlags(id: Identifier) {
 		return {
-			opaque: OPAQUE_BLOCKS.has(id),
+			opaque: OPAQUE_BLOCKS.has(id.toString()),
 		}
 	}
 
-	public getBlockProperties(id: string) {
-		return this.blocks[id]?.properties ?? null
+	public getBlockProperties(id: Identifier) {
+		return this.blocks[id.toString()]?.properties ?? null
 	}
 
-	public getDefaultBlockProperties(id: string) {
-		return this.blocks[id]?.default ?? null
+	public getDefaultBlockProperties(id: Identifier) {
+		return this.blocks[id.toString()]?.default ?? null
 	}
 
 	public loadBlockDefinitions(definitions: any) {
 		Object.keys(definitions).forEach(id => {
-			this.blockDefinitions['minecraft:' + id] = BlockDefinition.fromJson(id, definitions[id])
+			this.blockDefinitions[Identifier.create(id).toString()] = BlockDefinition.fromJson(id, definitions[id])
 		})
 	}
 
 	public loadBlockModels(models: any) {
 		Object.keys(models).forEach(id => {
-			this.blockModels['minecraft:' + id] = BlockModel.fromJson(id, models[id])
+			this.blockModels[Identifier.create(id).toString()] = BlockModel.fromJson(id, models[id])
 		})
 		Object.values(this.blockModels).forEach(m => m.flatten(this))
 	}
 
 	public loadBlockAtlas(image: HTMLImageElement, textures: any) {
 		const atlasCanvas = document.createElement('canvas')
-		atlasCanvas.width = image.width
-		atlasCanvas.height = image.height
+		const w = upperPowerOfTwo(image.width)
+		const h = upperPowerOfTwo(image.height)
+		atlasCanvas.width = w
+		atlasCanvas.height = h
 		const atlasCtx = atlasCanvas.getContext('2d')!
 		atlasCtx.drawImage(image, 0, 0)
-		const atlasData = atlasCtx.getImageData(0, 0, atlasCanvas.width, atlasCanvas.height)
-		const part = 16 / atlasData.width
+		const atlasData = atlasCtx.getImageData(0, 0, w, h)
 		const idMap = {}
-		Object.keys(textures).forEach(t => {
-			const [u, v] = textures[t]
-			idMap['minecraft:' + t] = [u, v, u + part, v + part]
+		Object.keys(textures).forEach(id => {
+			const [u, v, du, dv] = textures[id]
+			idMap[Identifier.create(id).toString()] = [u / w, v / h, (u + du) / w, (v + dv) / h]
 		})
 		this.textureAtlas = new TextureAtlas(atlasData, idMap)
 	}

@@ -1,5 +1,5 @@
 import type { NbtChunk } from 'deepslate'
-import { getOptional, getTag, read as readNbt, readChunk, readRegion, write as writeNbt, writeChunk, writeRegion } from 'deepslate'
+import { getOptional, getTag, loadChunk, readNbt, readRegion, saveChunk, writeNbt, writeRegion } from 'deepslate'
 import * as vscode from 'vscode'
 import { applyEdit, reverseEdit } from './common/Operations'
 import type { Logger, NbtEdit, NbtFile } from './common/types'
@@ -26,8 +26,8 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		if (uri.scheme === 'git' && array.length === 0) {
 			return {
 				region: false,
-				gzipped: false,
-				data: { name: '', value: {} },
+				name: '',
+				value: {},
 			}
 		}
 
@@ -39,15 +39,13 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		const littleEndian = uri.fsPath.endsWith('.mcstructure')
-		const { compressed, result } = readNbt(array, littleEndian)
+		const result = readNbt(array, { littleEndian })
 
-		logger.info(`Parsed NBT [compressed=${compressed}]`)
+		logger.info(`Parsed NBT [compression=${result.compression ?? 'none'}, littleEndian=${result.littleEndian ?? false}, bedrockHeader=${result.bedrockHeader ?? 'none'}]`)
 
 		return {
 			region: false,
-			gzipped: compressed,
-			littleEndian,
-			data: result,
+			...result,
 		}
 	}
 
@@ -90,10 +88,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		if (file.region) {
 			const firstChunk = file.chunks.find(c => c.data || c.nbt)
 			if (!firstChunk) return undefined
-			readChunk(file.chunks, firstChunk.x, firstChunk.z)
+			loadChunk(firstChunk)
 			return getOptional(() => getTag(firstChunk.nbt!.value, 'DataVersion', 'int'), undefined)
 		} else {
-			return getOptional(() => getTag(file.data.value, 'DataVersion', 'int'), undefined)
+			return getOptional(() => getTag(file.value, 'DataVersion', 'int'), undefined)
 		}
 	}
 
@@ -143,7 +141,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 	private isStructureData() {
 		if (this._documentData.region) return false
-		const root = this._documentData.data.value
+		const root = this._documentData.value
 		return root['size']?.type === 'list'
 			&& root['size'].value.type === 'int'
 			&& root['size'].value.value.length === 3
@@ -161,7 +159,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		const chunks = this._documentData.chunks
-		return readChunk(chunks, x, z)
+		const chunk = chunks.find(c => c.x === x && c.z === z)
+		if (!chunk) {
+			throw new Error(`Cannot find chunk [${x}, ${z}]`)
+		}
+		return loadChunk(chunk)
 	}
 
 	async save(cancellation: vscode.CancellationToken): Promise<void> {
@@ -183,15 +185,15 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		if (nbtFile.region) {
-			nbtFile.chunks.filter(c => c.dirty).forEach(c => {
-				writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
-				c.dirty = false
+			nbtFile.chunks.filter(c => c.dirty).forEach(chunk => {
+				saveChunk(chunk)
+				chunk.dirty = false
 			})
 		}
 
 		const fileData = nbtFile.region
 			? writeRegion(nbtFile.chunks)
-			: writeNbt(nbtFile.data, nbtFile.gzipped, nbtFile.littleEndian)
+			: writeNbt(nbtFile.value, nbtFile)
 
 		await vscode.workspace.fs.writeFile(targetResource, fileData)
 	}

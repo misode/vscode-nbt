@@ -1,4 +1,4 @@
-import type { NamedNbtTag, NbtChunk } from 'deepslate'
+import type { NbtChunk, NbtReadResult } from 'deepslate'
 
 export interface Logger {
 	error(data: any, ...args: any[]): void
@@ -7,18 +7,17 @@ export interface Logger {
 	warn(data: any, ...args: any[]): void
 }
 
-export type SimpleNbtFile = {
+export interface SimpleNbtFile extends NbtReadResult {
 	region: false,
-	gzipped: boolean,
-	littleEndian?: boolean,
-	data: NamedNbtTag,
+}
+
+export interface RegionNbtChunk extends NbtChunk {
+	dirty?: boolean,
 }
 
 export type RegionNbtFile = {
 	region: true,
-	chunks: (NbtChunk & {
-		dirty?: boolean,
-	})[],
+	chunks: RegionNbtChunk[],
 }
 
 export type NbtFile = SimpleNbtFile | RegionNbtFile

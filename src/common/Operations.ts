@@ -48,7 +48,7 @@ function getRoot(file: NbtFile, path: NbtPath) {
 			path: path.shift(),
 		}
 	}
-	return { data: file.data, path: path }
+	return { data: file, path }
 }
 
 export function getNode(data: NamedNbtTag, path: NbtPath) {

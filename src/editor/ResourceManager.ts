@@ -76,7 +76,8 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		const idMap = {}
 		Object.keys(textures).forEach(id => {
 			const [u, v, du, dv] = textures[id]
-			idMap[Identifier.create(id).toString()] = [u / w, v / h, (u + du) / w, (v + dv) / h]
+			const dv2 = (du !== dv && id.startsWith('block/')) ? du : dv
+			idMap[Identifier.create(id).toString()] = [u / w, v / h, (u + du) / w, (v + dv2) / h]
 		})
 		this.textureAtlas = new TextureAtlas(atlasData, idMap)
 	}

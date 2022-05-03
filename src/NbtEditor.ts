@@ -109,9 +109,6 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		))
 		const scriptUri = uri('out', 'editor.js')
 		const styleUri = uri('res', 'editor.css')
-		// const atlasUrl = uri('res', 'generated', 'atlas.png')
-		// const assetsUrl = uri('res', 'generated', 'assets.js')
-		const blocksUrl = uri('res', 'generated', 'blocks.js')
 		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css')
 
 		const mcmetaUri = (id: string) => webview.asWebviewUri(vscode.Uri.file(
@@ -121,6 +118,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		// const blocksUrl = mcmetaUri('blocks')
 		const assetsUrl = mcmetaUri('assets')
 		const uvmappingUrl = mcmetaUri('uvmapping')
+		const blocksUrl = mcmetaUri('blocks')
 		const atlasUrl = mcmetaUri('atlas')
 
 		const nonce = this.getNonce()

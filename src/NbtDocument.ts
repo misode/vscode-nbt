@@ -1,33 +1,33 @@
 import type { NbtChunk } from 'deepslate'
-import { read as readNbt, readChunk, readRegion, write as writeNbt, writeChunk, writeRegion } from 'deepslate'
+import { getOptional, getTag, loadChunk, readNbt, readRegion, saveChunk, writeNbt, writeRegion } from 'deepslate'
 import * as vscode from 'vscode'
 import { applyEdit, reverseEdit } from './common/Operations'
-import type { NbtEdit, NbtFile } from './common/types'
+import type { Logger, NbtEdit, NbtFile } from './common/types'
 import { Disposable } from './dispose'
-import { output } from './extension'
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 	static async create(
 		uri: vscode.Uri,
 		backupId: string | undefined,
+		logger: Logger,
 	): Promise<NbtDocument | PromiseLike<NbtDocument>> {
 		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri
-		output.appendLine(`Creating NBT document [uri=${JSON.stringify(dataFile)}]`)
-		const fileData = await NbtDocument.readFile(dataFile)
-		return new NbtDocument(uri, fileData)
+		logger.info(`Creating NBT document [uri=${JSON.stringify(dataFile)}]`)
+		const fileData = await NbtDocument.readFile(dataFile, logger)
+		return new NbtDocument(uri, fileData, logger)
 	}
 
-	private static async readFile(uri: vscode.Uri): Promise<NbtFile> {
+	private static async readFile(uri: vscode.Uri, logger: Logger): Promise<NbtFile> {
 		const array = await vscode.workspace.fs.readFile(uri)
 
-		output.appendLine(`Read file [length=${array.length}, scheme=${uri.scheme}, extension=${uri.path.match(/(?:\.([^.]+))?$/)?.[1]}]`)
+		logger.info(`Read file [length=${array.length}, scheme=${uri.scheme}, extension=${uri.path.match(/(?:\.([^.]+))?$/)?.[1]}]`)
 
 		if (uri.scheme === 'git' && array.length === 0) {
 			return {
 				region: false,
-				gzipped: false,
-				data: { name: '', value: {} },
+				name: '',
+				value: {},
 			}
 		}
 
@@ -39,15 +39,13 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		const littleEndian = uri.fsPath.endsWith('.mcstructure')
-		const { compressed, result } = readNbt(array, littleEndian)
+		const result = readNbt(array, { littleEndian })
 
-		output.appendLine(`Parsed NBT [compressed=${compressed}]`)
+		logger.info(`Parsed NBT [compression=${result.compression ?? 'none'}, littleEndian=${result.littleEndian ?? false}, bedrockHeader=${result.bedrockHeader ?? 'none'}]`)
 
 		return {
 			region: false,
-			gzipped: compressed,
-			littleEndian,
-			data: result,
+			...result,
 		}
 	}
 
@@ -64,6 +62,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	private constructor(
 		uri: vscode.Uri,
 		initialContent: NbtFile,
+		private readonly logger: Logger,
 	) {
 		super()
 		this._uri = uri
@@ -83,6 +82,18 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	public get isMap() { return this._isMap }
 
 	public get isReadOnly() { return this._isReadOnly }
+
+	public get dataVersion() {
+		const file = this._documentData
+		if (file.region) {
+			const firstChunk = file.chunks.find(c => c.data || c.nbt)
+			if (!firstChunk) return undefined
+			loadChunk(firstChunk)
+			return getOptional(() => getTag(firstChunk.nbt!.value, 'DataVersion', 'int'), undefined)
+		} else {
+			return getOptional(() => getTag(file.value, 'DataVersion', 'int'), undefined)
+		}
+	}
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>())
 	public readonly onDidDispose = this._onDidDispose.event
@@ -107,22 +118,21 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 			vscode.window.showWarningMessage('Cannot edit in read-only editor')
 			return
 		}
-		const logger = (s: string) => output.appendLine(s)
 
 		this._edits.push(edit)
-		applyEdit(this._documentData, edit, logger)
+		applyEdit(this._documentData, edit, this.logger)
 		const reversed = reverseEdit(edit)
 
 		this._onDidChange.fire({
 			label: 'Edit',
 			undo: async () => {
 				this._edits.pop()
-				applyEdit(this._documentData, reversed, logger)
+				applyEdit(this._documentData, reversed, this.logger)
 				this._onDidChangeDocument.fire(reversed)
 			},
 			redo: async () => {
 				this._edits.push(edit)
-				applyEdit(this._documentData, edit, logger)
+				applyEdit(this._documentData, edit, this.logger)
 				this._onDidChangeDocument.fire(edit)
 			},
 		})
@@ -131,7 +141,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 	private isStructureData() {
 		if (this._documentData.region) return false
-		const root = this._documentData.data.value
+		const root = this._documentData.value
 		return root['size']?.type === 'list'
 			&& root['size'].value.type === 'int'
 			&& root['size'].value.value.length === 3
@@ -149,7 +159,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		const chunks = this._documentData.chunks
-		return readChunk(chunks, x, z)
+		const chunk = chunks.find(c => c.x === x && c.z === z)
+		if (!chunk) {
+			throw new Error(`Cannot find chunk [${x}, ${z}]`)
+		}
+		return loadChunk(chunk)
 	}
 
 	async save(cancellation: vscode.CancellationToken): Promise<void> {
@@ -171,21 +185,21 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		}
 
 		if (nbtFile.region) {
-			nbtFile.chunks.filter(c => c.dirty).forEach(c => {
-				writeChunk(nbtFile.chunks, c.x, c.z, c.nbt!)
-				c.dirty = false
+			nbtFile.chunks.filter(c => c.dirty).forEach(chunk => {
+				saveChunk(chunk)
+				chunk.dirty = false
 			})
 		}
 
 		const fileData = nbtFile.region
 			? writeRegion(nbtFile.chunks)
-			: writeNbt(nbtFile.data, nbtFile.gzipped, nbtFile.littleEndian)
+			: writeNbt(nbtFile.value, nbtFile)
 
 		await vscode.workspace.fs.writeFile(targetResource, fileData)
 	}
 
 	async revert(_cancellation: vscode.CancellationToken): Promise<void> {
-		const diskContent = await NbtDocument.readFile(this.uri)
+		const diskContent = await NbtDocument.readFile(this.uri, this.logger)
 		this._documentData = diskContent
 		this._edits = this._savedEdits
 		this._onDidChangeDocument.fire({

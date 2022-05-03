@@ -4,7 +4,7 @@
 		"module": "ESNext",
 		"moduleResolution": "node",
 		"esModuleInterop": true,
-		"lib": ["dom", "esnext"],
+		"lib": ["dom", "es2019"],
 		"outDir": "out",
 		"sourceMap": true,
 		"rootDir": "src",

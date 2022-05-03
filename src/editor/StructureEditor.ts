@@ -10,6 +10,7 @@ import { clamp, clampVec3, negVec3 } from './Util'
 
 declare const stringifiedAssets: string
 declare const stringifiedBlocks: string
+declare const stringifiedUvmapping: string
 
 export class StructureEditor implements EditorPanel {
 	private readonly resources: ResourceManager
@@ -37,9 +38,10 @@ export class StructureEditor implements EditorPanel {
 
 	constructor(protected readonly root: Element, protected readonly vscode: VSCode, protected readonly editHandler: EditHandler, protected readonly readOnly: boolean) {
 		const assets = JSON.parse(stringifiedAssets)
+		const uvMapping = JSON.parse(stringifiedUvmapping)
 		const blocks = JSON.parse(stringifiedBlocks)
 		const img = (document.querySelector('.texture-atlas') as HTMLImageElement)
-		this.resources = new ResourceManager(blocks, assets, img)
+		this.resources = new ResourceManager(blocks, { ...assets, textures: uvMapping }, img)
 
 		this.canvas = document.createElement('canvas')
 		this.canvas.className = 'structure-3d'

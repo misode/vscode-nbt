@@ -1,11 +1,12 @@
 .vscode/**
 .vscode-test/**
-out/test/**
+node_modules/**
+!node_modules/vscode-codicons/dist/**
 src/**
-editor/node_modules/**
 .gitignore
 **/tsconfig.json
-**/webpack.config.js
+**/tsconfig.eslint.json
+**/rollup.config.js
 **/.eslintrc.json
 **/*.map
 **/*.ts

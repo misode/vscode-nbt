@@ -1,17 +1,18 @@
 import type { NbtChunk } from 'deepslate'
 import * as path from 'path'
 import * as vscode from 'vscode'
-import type { EditorMessage, ViewMessage } from './common/types'
+import type { EditorMessage, Logger, ViewMessage } from './common/types'
 import { disposeAll } from './dispose'
+import { getAssets, mcmetaRoot } from './mcmeta'
 import { NbtDocument } from './NbtDocument'
 import { WebviewCollection } from './WebviewCollection'
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-	public static register(context: vscode.ExtensionContext): vscode.Disposable {
+	public static register(context: vscode.ExtensionContext, logger: Logger): vscode.Disposable {
 		return vscode.window.registerCustomEditorProvider(
 			'nbtEditor.nbt',
-			new NbtEditorProvider(context),
+			new NbtEditorProvider(context, logger),
 			{
 				webviewOptions: {
 					retainContextWhenHidden: true,
@@ -23,7 +24,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	private readonly webviews = new WebviewCollection()
 
 	constructor(
-		private readonly _context: vscode.ExtensionContext
+		private readonly _context: vscode.ExtensionContext,
+		private readonly logger: Logger,
 	) { }
 
 	//#region CustomEditorProvider
@@ -33,7 +35,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		openContext: vscode.CustomDocumentOpenContext,
 		_token: vscode.CancellationToken
 	): Promise<NbtDocument> {
-		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId)
+		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, this.logger)
 
 		const listeners: vscode.Disposable[] = []
 
@@ -57,10 +59,16 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	): Promise<void> {
 		this.webviews.add(document.uri, webviewPanel)
 
+		const assets = await getAssets(document.dataVersion, this.logger)
+
 		webviewPanel.webview.options = {
 			enableScripts: true,
+			localResourceRoots: [
+				vscode.Uri.file(mcmetaRoot),
+				vscode.Uri.file(this._context.extensionPath),
+			],
 		}
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.isStructure, document.documentData.region)
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, assets.version, document.isStructure, document.documentData.region)
 
 		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
 	}
@@ -95,16 +103,23 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		return text
 	}
 
-	private getHtmlForWebview(webview: vscode.Webview, isStructure: boolean, isRegion: boolean): string {
+	private getHtmlForWebview(webview: vscode.Webview, version: string, isStructure: boolean, isRegion: boolean): string {
 		const uri = (...folders: string[]) => webview.asWebviewUri(vscode.Uri.file(
 			path.join(this._context.extensionPath, ...folders)
 		))
 		const scriptUri = uri('out', 'editor.js')
 		const styleUri = uri('res', 'editor.css')
-		const atlasUrl = uri('res', 'generated', 'atlas.png')
-		const assetsUrl = uri('res', 'generated', 'assets.js')
-		const blocksUrl = uri('res', 'generated', 'blocks.js')
 		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css')
+
+		const mcmetaUri = (id: string) => webview.asWebviewUri(vscode.Uri.file(
+			path.join(mcmetaRoot, `${version}-${id}`)
+		))
+
+		// const blocksUrl = mcmetaUri('blocks')
+		const assetsUrl = mcmetaUri('assets')
+		const uvmappingUrl = mcmetaUri('uvmapping')
+		const blocksUrl = mcmetaUri('blocks')
+		const atlasUrl = mcmetaUri('atlas')
 
 		const nonce = this.getNonce()
 
@@ -173,6 +188,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 					${isStructure || isRegion ? `
 						<img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
 						<script nonce="${nonce}" src="${assetsUrl}"></script>
+						<script nonce="${nonce}" src="${uvmappingUrl}"></script>
 						<script nonce="${nonce}" src="${blocksUrl}"></script>
 					` : ''}
 
@@ -225,6 +241,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				return
 
 			case 'error':
+				this.logger.error(message.body)
 				vscode.window.showErrorMessage(`Error in webview: ${message.body}`)
 				return
 		}

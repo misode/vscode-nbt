@@ -1,7 +1,7 @@
 import type { NamedNbtTag } from 'deepslate'
 import { NbtPath } from './NbtPath'
 import { Snbt } from './Snbt'
-import type { NbtEdit, NbtEditOp, NbtFile } from './types'
+import type { Logger, NbtEdit, NbtEditOp, NbtFile } from './types'
 
 export function reverseEdit(edit: NbtEdit): NbtEdit {
 	return {
@@ -18,12 +18,12 @@ export function reverseEditOp(op: NbtEditOp): NbtEditOp {
 	}
 }
 
-export function applyEdit(file: NbtFile, edit: NbtEdit, logger?: (str: string) => void) {
+export function applyEdit(file: NbtFile, edit: NbtEdit, logger?: Logger) {
 	edit.ops.forEach(op => applyEditOp(file, op, logger))
 }
 
-export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string) => void) {
-	logger?.(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()} ${op.type === 'remove' ? '' : op.type === 'move' ? `target=${new NbtPath(op.target).toString()}` : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
+export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: Logger) {
+	logger?.info(`Applying edit type=${op.type} path=${new NbtPath(op.path).toString()} ${op.type === 'remove' ? '' : op.type === 'move' ? `target=${new NbtPath(op.target).toString()}` : `value=${(a => a.slice(0, 40) + (a.length > 40 ? '...' : ''))(JSON.stringify(op.type === 'set' ? op.new : op.value))}`}`)
 	try {
 		const { data, path } = getRoot(file, new NbtPath(op.path))
 		const { type, value } = getNode(data, path.pop())
@@ -34,7 +34,7 @@ export function applyEditOp(file: NbtFile, op: NbtEditOp, logger?: (str: string)
 			case 'move': moveNode(data, value, type, path, new NbtPath(op.target)); break
 		}
 	} catch (e) {
-		logger?.(`Error applying edit: ${e.message}`)
+		logger?.error(`Error applying edit: ${e.message}`)
 		throw e
 	}
 }
@@ -48,7 +48,7 @@ function getRoot(file: NbtFile, path: NbtPath) {
 			path: path.shift(),
 		}
 	}
-	return { data: file.data, path: path }
+	return { data: file, path }
 }
 
 export function getNode(data: NamedNbtTag, path: NbtPath) {

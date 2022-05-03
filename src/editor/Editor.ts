@@ -234,7 +234,7 @@ class Editor {
 							this.getPanel()?.onUpdate(chunk.nbt, { ops })
 						}
 					} else {
-						this.getPanel()?.onUpdate(this.nbtFile.data, m.body)
+						this.getPanel()?.onUpdate(this.nbtFile, m.body)
 					}
 					this.panels[this.activePanel].updated = true
 				} catch (e) {
@@ -282,7 +282,7 @@ class Editor {
 							editorPanel.onInit(chunk.nbt, new NbtPath([chunkIndex]))
 						}
 					} else {
-						editorPanel.onInit(this.nbtFile.data)
+						editorPanel.onInit(this.nbtFile)
 					}
 				} catch (e) {
 					if (e instanceof Error) {

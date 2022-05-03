@@ -60,13 +60,13 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run genAssets && npm run build",
+		"vscode:prepublish": "npm run build",
 		"build": "rollup --config",
 		"dev": "rollup --config --watch",
 		"lint": "eslint . --ext .ts"
 	},
 	"dependencies": {
-		"deepslate": "^0.10.0-beta.1",
+		"deepslate": "^0.10.0",
 		"env-paths": "^2.2.1",
 		"follow-redirects": "^1.14.8",
 		"gl-matrix": "^3.4.3",

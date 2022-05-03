@@ -484,6 +484,22 @@ span.nbt-value {
 	margin-left: 7px;
 }
 
+.file-info {
+	position: fixed;
+	display: none;
+	z-index: 2;
+	padding: 10px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-contrastBorder);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	top: 32px;
+	left: 20px;
+}
+
+.file-info.active {
+	display: block;
+}
+
 .find-widget {
 	position: fixed;
 	z-index: 1;

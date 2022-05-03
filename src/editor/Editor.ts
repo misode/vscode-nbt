@@ -5,6 +5,7 @@ import type { SearchQuery } from '../common/Operations'
 import { applyEdit } from '../common/Operations'
 import type { EditorMessage, NbtEdit, NbtEditOp, NbtFile, ViewMessage } from '../common/types'
 import { ChunkEditor } from './ChunkEditor'
+import { FileInfoEditor } from './FileInfoEditor'
 import { locale } from './Locale'
 import { MapEditor } from './MapEditor'
 import { SnbtEditor } from './SnbtEditor'
@@ -40,8 +41,9 @@ export type SearchResult = {
 export interface EditorPanel {
 	reveal?(): void
 	hide?(): void
-	onInit(file: NamedNbtTag, prefix?: NbtPath): void
-	onUpdate(file: NamedNbtTag, edit: NbtEdit): void
+	onFile?(file: NbtFile): void
+	onInit?(file: NamedNbtTag, prefix?: NbtPath): void
+	onUpdate?(file: NamedNbtTag, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
 	onSearch?(query: SearchQuery | null): SearchResult[]
 	menu?(): Element[]
@@ -59,11 +61,11 @@ class Editor {
 	} = {
 			structure: {
 				editor: lazy(() => new StructureEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-				options: ['structure', 'default', 'snbt'],
+				options: ['structure', 'default', 'snbt', 'info'],
 			},
 			map: {
 				editor: lazy(() => new MapEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-				options: ['map', 'default', 'snbt'],
+				options: ['map', 'default', 'snbt', 'info'],
 			},
 			chunk: {
 				editor: lazy(() => new ChunkEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
@@ -71,10 +73,13 @@ class Editor {
 			},
 			default: {
 				editor: lazy(() => new TreeEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
-				options: ['default', 'snbt'],
+				options: ['default', 'snbt', 'info'],
 			},
 			snbt: {
 				editor: lazy(() => new SnbtEditor(root, vscode, e => this.makeEdit(e), this.readOnly)),
+			},
+			info: {
+				editor: lazy(() => new FileInfoEditor(root, vscode, () => {}, this.readOnly)),
 			},
 		}
 
@@ -231,10 +236,10 @@ class Editor {
 						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
 						if (chunk?.nbt) {
 							const ops = m.body.ops.map<NbtEditOp>(op => ({ ...op, path: op.path.slice(1) }))
-							this.getPanel()?.onUpdate(chunk.nbt, { ops })
+							this.getPanel()?.onUpdate?.(chunk.nbt, { ops })
 						}
 					} else {
-						this.getPanel()?.onUpdate(this.nbtFile, m.body)
+						this.getPanel()?.onUpdate?.(this.nbtFile, m.body)
 					}
 					this.panels[this.activePanel].updated = true
 				} catch (e) {
@@ -279,10 +284,11 @@ class Editor {
 						const chunkIndex = this.nbtFile.chunks.findIndex(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
 						const chunk = this.nbtFile.chunks[chunkIndex]
 						if (chunk?.nbt) {
-							editorPanel.onInit(chunk.nbt, new NbtPath([chunkIndex]))
+							editorPanel.onInit?.(chunk.nbt, new NbtPath([chunkIndex]))
 						}
 					} else {
-						editorPanel.onInit(this.nbtFile)
+						editorPanel.onFile?.(this.nbtFile)
+						editorPanel.onInit?.(this.nbtFile)
 					}
 				} catch (e) {
 					if (e instanceof Error) {
@@ -319,9 +325,10 @@ class Editor {
 				button.addEventListener('click', () => this.setPanel(p))
 			}
 		})
-		if (panel.menu) {
+		const menuPanels = panel.menu?.() ?? []
+		if (menuPanels.length > 0) {
 			el.insertAdjacentHTML('beforeend', '<div class="menu-spacer"></div>')
-			panel.menu().forEach(e => el.append(e))
+			menuPanels.forEach(e => el.append(e))
 		}
 	}
 

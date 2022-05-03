@@ -15,6 +15,7 @@ const LOCALES = {
 	'panel.region': 'Region',
 	'panel.default': 'Default',
 	'panel.snbt': 'SNBT',
+	'panel.info': 'File Info',
 }
 
 export function locale(key: string) {

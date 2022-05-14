@@ -6,13 +6,17 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	private blockDefinitions: { [id: string]: BlockDefinition }
 	private blockModels: { [id: string]: BlockModel }
 	private textureAtlas: TextureAtlas
-	private readonly blocks: Record<string, {
+	private readonly blocks: Map<string, {
 		default: Record<string, string>,
 		properties: Record<string, string[]>,
 	}>
 
 	constructor(blocks: any, assets: any, textureAtlas: HTMLImageElement) {
-		this.blocks = blocks
+		this.blocks = new Map(Object.entries(blocks)
+			.map(([k, v]: [string, any]) => [
+				Identifier.create(k).toString(),
+				{ properties: v[0], default: v[1] },
+			]))
 		this.blockDefinitions = {}
 		this.blockModels = {}
 		this.textureAtlas = TextureAtlas.empty()
@@ -48,7 +52,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	}
 
 	public getDefaultBlockProperties(id: Identifier) {
-		return this.blocks[id.toString()]?.default ?? null
+		return this.blocks.get(id.toString())?.default ?? null
 	}
 
 	public loadBlockDefinitions(definitions: any) {

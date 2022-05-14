@@ -193,8 +193,8 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 						<script nonce="${nonce}" src="${blocksUrl}"></script>
 					` : ''}
 
-				<script nonce="${nonce}" src="${scriptUri}"></script>
-			</body>
+					<script nonce="${nonce}" src="${scriptUri}"></script>
+				</body>
 			</html>`
 	}
 

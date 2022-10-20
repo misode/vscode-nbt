@@ -1,4 +1,4 @@
-import type { NbtChunk, NbtReadResult } from 'deepslate'
+import type { JsonValue } from 'deepslate'
 
 export interface Logger {
 	error(data: any, ...args: any[]): void
@@ -7,42 +7,30 @@ export interface Logger {
 	warn(data: any, ...args: any[]): void
 }
 
-export interface SimpleNbtFile extends NbtReadResult {
-	region: false,
-}
-
-export interface RegionNbtChunk extends NbtChunk {
-	dirty?: boolean,
-}
-
-export type RegionNbtFile = {
-	region: true,
-	chunks: RegionNbtChunk[],
-}
-
-export type NbtFile = SimpleNbtFile | RegionNbtFile
-
-export type NbtEditOp = {
+export type NbtEdit = {
+	type: 'composite',
+	edits: NbtEdit[],
+} | {
+	type: 'chunk',
+	x: number,
+	z: number,
+	edit: NbtEdit,
+} | {
 	type: 'set',
 	path: (number | string)[],
-	new: any,
-	old: any,
+	new: JsonValue,
+	old: JsonValue,
 } | {
 	type: 'remove' | 'add',
 	path: (number | string)[],
-	value: any,
-	valueType: string,
+	value: JsonValue,
 } | {
 	type: 'move',
 	path: (number | string)[],
-	target: (number | string)[],
+	source: (number | string)[],
 }
 
-export type NbtEdit = {
-	ops: NbtEditOp[],
-}
-
-export type EditorMessage = {
+export type EditorMessage = { requestId?: number } & ({
 	type: 'ready',
 } | {
 	type: 'response',
@@ -60,19 +48,27 @@ export type EditorMessage = {
 		x: number,
 		z: number,
 	},
-}
+})
 
-export type ViewMessage = {
+export type ViewMessage = { requestId?: number } & ({
 	type: 'init',
 	body: {
-		type: 'default' | 'structure' | 'map',
+		type: 'default' | 'structure' | 'map' | 'region',
 		readOnly: boolean,
-		content: NbtFile,
+		content: JsonValue,
 	},
 } | {
 	type: 'update',
 	body: NbtEdit,
 } | {
 	type: 'chunk',
-	body: NbtChunk & { size: number },
-}
+	body: {
+		x: number,
+		z: number,
+		size: number,
+		content: JsonValue,
+	},
+} | {
+	type: 'response',
+	body: unknown,
+})

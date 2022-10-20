@@ -19,6 +19,7 @@ export default defineConfig([
 			commonjs(),
 			typescript(),
 		],
+		onwarn,
 	},
 	{
 		input: 'src/editor/Editor.ts',
@@ -35,5 +36,13 @@ export default defineConfig([
 			commonjs(),
 			typescript(),
 		],
+		onwarn,
 	},
 ])
+
+function onwarn(warning) {
+	if (warning.code === 'CIRCULAR_DEPENDENCY') {
+		return
+	}
+	console.warn(`(!) ${warning.message}`)
+}

@@ -1,4 +1,4 @@
-import type { NbtChunk } from 'deepslate'
+import { NbtRegion } from 'deepslate'
 import * as path from 'path'
 import * as vscode from 'vscode'
 import type { EditorMessage, Logger, ViewMessage } from './common/types'
@@ -68,7 +68,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				vscode.Uri.file(this._context.extensionPath),
 			],
 		}
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, assets.version, document.isStructure, document.documentData.region)
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, assets.version, document.isStructure, document.documentData instanceof NbtRegion)
 
 		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
 	}
@@ -214,15 +214,12 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				this.postMessage(panel, {
 					type: 'init',
 					body: {
-						type: document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
+						type: document.documentData instanceof NbtRegion ? 'region' :
+							document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
 						readOnly: document.isReadOnly,
-						content: document.documentData.region
-							? {
-								region: true,
-								chunks: document.documentData.chunks
-									.map(c => ({ x: c.x, z: c.z, size: c.data.length } as NbtChunk & { size: number })),
-							}
-							: document.documentData,
+						content: document.documentData instanceof NbtRegion
+							? { chunks: document.documentData.map(c => ({ x: c.x, z: c.z, size: c.getRaw().length })) }
+							: document.documentData.toJson(),
 					},
 				})
 				return
@@ -236,8 +233,12 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				return
 
 			case 'getChunkData':
-				document.getChunkData(message.body.x, message.body.z).then(data => {
-					this.postMessage(panel, { type: 'chunk', body: { ...data, size: data.data.length } } )
+				document.getChunkData(message.body.x, message.body.z).then(chunk => {
+					this.postMessage(panel, {
+						type: 'response',
+						requestId: message.requestId,
+						body: chunk.getRoot().toJson(),
+					})
 				})
 				return
 

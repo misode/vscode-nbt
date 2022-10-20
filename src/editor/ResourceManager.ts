@@ -1,8 +1,8 @@
-import type { BlockDefinitionProvider, BlockFlagsProvider, BlockModelProvider, BlockPropertiesProvider } from 'deepslate'
+import type { BlockDefinitionProvider, BlockFlagsProvider, BlockModelProvider, BlockPropertiesProvider, TextureAtlasProvider } from 'deepslate'
 import { BlockDefinition, BlockModel, Identifier, TextureAtlas, upperPowerOfTwo } from 'deepslate'
 import { OPAQUE_BLOCKS } from './OpaqueHelper'
 
-export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider {
+export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider, TextureAtlasProvider {
 	private blockDefinitions: { [id: string]: BlockDefinition }
 	private blockModels: { [id: string]: BlockModel }
 	private textureAtlas: TextureAtlas

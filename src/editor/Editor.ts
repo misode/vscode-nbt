@@ -439,7 +439,7 @@ class Editor {
 		} else {
 			this.searchResults = null
 		}
-		if (this.lastReplace && this.searchResults?.[this.searchIndex].path?.equals(this.lastReplace)) {
+		if (this.lastReplace && this.searchResults?.[this.searchIndex]?.path?.equals(this.lastReplace)) {
 			this.searchIndex += 1
 			this.lastReplace = null
 		}
@@ -454,6 +454,7 @@ class Editor {
 			this.lastReplace = result.path
 			this.makeEdit(result.replace(query))
 		}
+		console.log('Done replace!')
 	}
 
 	private doReplaceAll() {
@@ -470,7 +471,7 @@ class Editor {
 		const nameQuery = (element?.querySelector('.name-input') as HTMLInputElement).value
 		const valueQuery = (element?.querySelector('.value-input') as HTMLInputElement).value
 		return {
-			type: typeQuery === 'any' ? undefined : TYPES.indexOf(typeQuery as any),
+			type: typeQuery === 'Any' ? undefined : TYPES.indexOf(typeQuery as any),
 			name: nameQuery || undefined,
 			value: valueQuery || undefined,
 		}

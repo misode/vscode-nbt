@@ -182,7 +182,7 @@ function searchNodesImpl(path: NbtPath, tag: NbtTag, query: SearchQuery, results
 		results.push(path)
 	}
 	if (tag.isCompound()) {
-		Object.keys(tag).sort().forEach(k => {
+		[...tag.keys()].sort().forEach(k => {
 			searchNodesImpl(path.push(k), tag.get(k)!, query, results)
 		})
 	} else if (tag.isListOrArray()) {

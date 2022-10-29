@@ -1,4 +1,5 @@
-import { NbtByte, NbtByteArray, NbtCompound, NbtDouble, NbtFile, NbtFloat, NbtInt, NbtIntArray, NbtList, NbtLong, NbtLongArray, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
+import type { NbtCompound, NbtList } from 'deepslate'
+import { NbtFile, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { getNode, parsePrimitive, replaceNode, searchNodes, serializePrimitive } from '../common/Operations'
@@ -24,21 +25,6 @@ type PathToElements = {
 
 export class TreeEditor implements EditorPanel {
 	static readonly EXPANDABLE_TYPES = new Set([NbtType.Compound, NbtType.List, NbtType.ByteArray, NbtType.IntArray, NbtType.LongArray])
-
-	static readonly DEFAULTS: Record<string, () => NbtTag> = {
-		string: () => NbtString.EMPTY,
-		byte: () => NbtByte.ZERO,
-		short: () => new NbtShort(0),
-		int: () => new NbtInt(0),
-		float: () => new NbtFloat(0),
-		double: () => new NbtDouble(0),
-		long: () => new NbtLong([0, 0]),
-		list: () => new NbtList([]),
-		compound: () => new NbtCompound(new Map()),
-		byteArray: () => new NbtByteArray([]),
-		intArray: () => new NbtIntArray([]),
-		longArray: () => new NbtLongArray([]),
-	}
 
 	protected expanded: Set<string>
 	protected content: HTMLDivElement
@@ -331,7 +317,7 @@ export class TreeEditor implements EditorPanel {
 
 	protected drawIcon(tag: NbtTag) {
 		const el = document.createElement('span')
-		el.setAttribute('data-icon', NbtTag.getName(tag.getId()))
+		el.setAttribute('data-icon', NbtType[tag.getId()])
 		return el
 	}
 
@@ -377,7 +363,7 @@ export class TreeEditor implements EditorPanel {
 
 	protected drawArray(path: NbtPath, tag: NbtTag) {
 		if (!tag.isArray()) {
-			throw new Error(`Trying to draw an array, but got a ${NbtTag.getName(tag.getId())}`)
+			throw new Error(`Trying to draw an array, but got a ${NbtType[tag.getId()]}`)
 		}
 		const el = document.createElement('div')
 		tag.forEach((v, i) => {
@@ -499,7 +485,7 @@ export class TreeEditor implements EditorPanel {
 			typeSelect.addEventListener('change', () => {
 				typeRoot.setAttribute('data-icon', typeSelect.value)
 			})
-			TYPES.filter(t => t !== 'end').forEach(t => {
+			TYPES.filter(t => t !== 'End').forEach(t => {
 				const option = document.createElement('option')
 				option.value = t
 				option.textContent = t.charAt(0).toUpperCase() + t.slice(1).split(/(?=[A-Z])/).join(' ')
@@ -508,13 +494,13 @@ export class TreeEditor implements EditorPanel {
 
 			typeSelect.focus()
 			typeSelect.addEventListener('change', () => {
-				const typeSelectId = TYPES.indexOf(typeSelect.value)
+				const typeSelectId = NbtType[typeSelect.value] as number
 				valueInput.classList.toggle('hidden', this.canExpand(typeSelectId))
 				nbtTag.querySelector('input')?.focus()
 			})
 		} else if (tag.isListOrArray()) {
 			const keyType = tag.getType()
-			typeRoot.setAttribute('data-icon', TYPES[keyType])
+			typeRoot.setAttribute('data-icon', NbtType[keyType])
 			valueInput.focus()
 		}
 
@@ -524,10 +510,10 @@ export class TreeEditor implements EditorPanel {
 		confirmButton.textContent = locale('confirm')
 		const makeEdit = () => {
 			const valueType = (tag.isCompound() || (tag.isList() && tag.length === 0))
-				? TYPES.indexOf(typeSelect.value)
+				? NbtType[typeSelect.value] as number
 				: (tag.isListOrArray() ? tag.getType() : NbtType.End)
 			const last = tag.isCompound() ? keyInput.value : 0
-			let newTag = TreeEditor.DEFAULTS[valueType]()
+			let newTag = NbtTag.create(valueType)
 			if (!this.canExpand(valueType)) {
 				try {
 					newTag = parsePrimitive(valueType, valueInput.value)

@@ -70,5 +70,6 @@ export type ViewMessage = { requestId?: number } & ({
 	},
 } | {
 	type: 'response',
-	body: unknown,
+	body?: unknown,
+	error?: string,
 })

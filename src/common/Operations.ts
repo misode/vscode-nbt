@@ -46,7 +46,7 @@ export function applyEdit(file: NbtFile | NbtRegion | NbtRegion.Ref, edit: NbtEd
 			}
 			const newTag = NbtTag.fromJsonWithId(edit.new)
 			if (!newTag.isCompound()) {
-				throw new Error(`Expected a compound, but got ${NbtTag.getName(newTag.getId())}`)
+				throw new Error(`Expected a compound, but got ${NbtType[newTag.getId()]}`)
 			}
 			file.root = newTag
 		} else {

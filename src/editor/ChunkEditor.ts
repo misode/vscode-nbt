@@ -30,9 +30,9 @@ export class ChunkEditor extends StructureEditor {
 
 		const filledSections = sections.filter(section => {
 			const palette = N
-				? section.has('block_states') && section.getCompound('palette').getList('block_states', NbtType.Compound)
+				? section.getCompound('block_states').getList('palette', NbtType.Compound)
 				: section.has('Palette') && section.getList('Palette', NbtType.Compound)
-			return palette && 
+			return palette &&
 				palette.filter(state => state.getString('Name') !== 'minecraft:air')
 					.length > 0
 		})
@@ -48,7 +48,7 @@ export class ChunkEditor extends StructureEditor {
 		const structure = new Structure([16, maxY - minY + 16, 16])
 		for (const section of filledSections) {
 			const states = N ? section.getCompound('block_states') : section
-			if (!states[K_palette] || !states[K_data]) {
+			if (!states.has(K_palette) || !states.has(K_data)) {
 				continue
 			}
 			const yOffset = section.getNumber('Y') * 16 - minY
@@ -63,7 +63,7 @@ export class ChunkEditor extends StructureEditor {
 			let data = BigInt(0)
 			for (let j = 0; j < 4096; j += 1) {
 				if (j % perLong === 0) {
-					data = toBigInt(blockStates[i])
+					data = toBigInt(blockStates.get(i)?.getAsPair() ?? [0, 0])
 					i += 1
 				}
 				const index = Number((data >> BigInt(bits * (j % perLong))) & bitMask)

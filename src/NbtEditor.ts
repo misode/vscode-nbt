@@ -148,9 +148,9 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 						<div class="btn map-toggle">Map</div>
 						Select Chunk:
 						<label for="chunk-x">X</label>
-						<input id="chunk-x" type="number">
+						<input id="chunk-x" type="number" min="0" max="31">
 						<label for="chunk-z">Z</label>
-						<input id="chunk-z" type="number">
+						<input id="chunk-z" type="number" min="0" max="31">
 					</div>
 					` : ''}
 					<div class="panel-menu"></div>
@@ -233,13 +233,24 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				return
 
 			case 'getChunkData':
-				document.getChunkData(message.body.x, message.body.z).then(chunk => {
-					this.postMessage(panel, {
-						type: 'response',
-						requestId: message.requestId,
-						body: chunk.getRoot().toJson(),
-					})
-				})
+				(async () => {
+					try {
+						document.getChunkData(message.body.x, message.body.z).then(chunk => {
+							this.postMessage(panel, {
+								type: 'response',
+								requestId: message.requestId,
+								body: chunk.getFile().toJson(),
+							})
+						})
+					} catch (e) {
+						vscode.window.showErrorMessage(`Failed to load chunk: ${e.message}`)
+						this.postMessage(panel, {
+							type: 'response',
+							requestId: message.requestId,
+							error: e.message,
+						})
+					}
+				})()
 				return
 
 			case 'error':

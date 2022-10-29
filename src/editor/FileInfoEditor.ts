@@ -16,6 +16,7 @@ export class FileInfoEditor extends TreeEditor {
 		if (file.bedrockHeader) {
 			this.file.root.set('BedrockHeader', new NbtInt(file.bedrockHeader))
 		}
+		super.onInit(this.file)
 	}
 
 	onUpdate(file: NbtFile) {

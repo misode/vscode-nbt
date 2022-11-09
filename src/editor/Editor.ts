@@ -360,10 +360,10 @@ class Editor {
 					const cell = document.createElement('div')
 					cell.classList.add('region-map-chunk')
 					cell.textContent = `${x} ${z}`
-					cell.classList.toggle('empty', chunk === null)
+					cell.classList.toggle('empty', chunk === undefined)
 					cell.classList.toggle('loaded', chunk?.isResolved() ?? false)
 					cell.classList.toggle('invalid', this.invalidChunks.has(`${x} ${z}`))
-					if (chunk !== null) {
+					if (chunk !== undefined) {
 						cell.addEventListener('click', () => {
 							this.selectChunk(x, z)
 						})

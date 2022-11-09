@@ -217,9 +217,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 						type: document.documentData instanceof NbtRegion ? 'region' :
 							document.isStructure ? 'structure' : document.isMap ? 'map' : 'default',
 						readOnly: document.isReadOnly,
-						content: document.documentData instanceof NbtRegion
-							? { chunks: document.documentData.map(c => ({ x: c.x, z: c.z, size: c.getRaw().length })) }
-							: document.documentData.toJson(),
+						content: document.documentData.toJson(),
 					},
 				})
 				return

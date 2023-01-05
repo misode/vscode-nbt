@@ -157,7 +157,9 @@ export class TreeEditor implements EditorPanel {
 
 	protected onKey = (evt: KeyboardEvent) => {
 		const s = this.selected
-		if (evt.key === 'Delete' && s) {
+		if (evt.key == 'a' && s) {
+			this.addTag(s.path, s.tag, s.el)
+		} else if (evt.key === 'Delete' && s) {
 			this.removeTag(s.path, s.tag, s.el)
 		} else if (evt.key === 'F2' && s) {
 			this.renameTag(s.path, s.tag, s.el)
@@ -479,12 +481,9 @@ export class TreeEditor implements EditorPanel {
 		const typeSelect = document.createElement('select')
 		if (tag.isCompound() || (tag.isList() && tag.length === 0)) {
 			typeRoot.classList.add('type-select')
-			typeRoot.setAttribute('data-icon', 'byte')
+			typeRoot.setAttribute('data-icon', 'Byte')
 			typeRoot.append(typeSelect)
 
-			typeSelect.addEventListener('change', () => {
-				typeRoot.setAttribute('data-icon', typeSelect.value)
-			})
 			TYPES.filter(t => t !== 'End').forEach(t => {
 				const option = document.createElement('option')
 				option.value = t
@@ -492,11 +491,33 @@ export class TreeEditor implements EditorPanel {
 				typeSelect.append(option)
 			})
 
-			typeSelect.focus()
-			typeSelect.addEventListener('change', () => {
+			const onChangeType = () => {
+				typeRoot.setAttribute('data-icon', typeSelect.value)
 				const typeSelectId = NbtType[typeSelect.value] as number
 				valueInput.classList.toggle('hidden', this.canExpand(typeSelectId))
-				nbtTag.querySelector('input')?.focus()
+			}
+
+			typeSelect.focus()
+			typeSelect.addEventListener('change', onChangeType)
+			const hotKeys = {
+				c: NbtType.Compound,
+				l: NbtType.List,
+				s: NbtType.String,
+				b: NbtType.Byte,
+				t: NbtType.Short,
+				i: NbtType.Int,
+				g: NbtType.Long,
+				f: NbtType.Float,
+				d: NbtType.Double,
+			}
+			typeSelect.addEventListener('keydown', evt => {
+				if (hotKeys[evt.key]) {
+					typeSelect.value = NbtType[hotKeys[evt.key]]
+					console.log('Hotkey!', evt.key, typeSelect.value)
+					onChangeType()
+					evt.preventDefault()
+					nbtTag.querySelector('input')?.focus()
+				}
 			})
 		} else if (tag.isListOrArray()) {
 			const keyType = tag.getType()

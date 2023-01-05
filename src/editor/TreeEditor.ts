@@ -513,7 +513,6 @@ export class TreeEditor implements EditorPanel {
 			typeSelect.addEventListener('keydown', evt => {
 				if (hotKeys[evt.key]) {
 					typeSelect.value = NbtType[hotKeys[evt.key]]
-					console.log('Hotkey!', evt.key, typeSelect.value)
 					onChangeType()
 					evt.preventDefault()
 					nbtTag.querySelector('input')?.focus()

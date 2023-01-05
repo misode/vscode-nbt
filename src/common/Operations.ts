@@ -172,34 +172,43 @@ export type SearchQuery = {
 
 export function searchNodes(tag: NbtCompound, query: SearchQuery): NbtPath[] {
 	const results: NbtPath[] = []
-	searchNodesImpl(new NbtPath(), tag, query, results)
+	let parsedValue: NbtTag | undefined = undefined
+	try {
+		if (query.value !== undefined) {
+			parsedValue = NbtTag.fromString(query.value)
+		}
+	} catch (e) {}
+	searchNodesImpl(new NbtPath(), tag, query, results, parsedValue)
 	return results
 }
 
-function searchNodesImpl(path: NbtPath, tag: NbtTag, query: SearchQuery, results: NbtPath[]) {
-	if (matchesNode(path, tag, query)) {
+function searchNodesImpl(path: NbtPath, tag: NbtTag, query: SearchQuery, results: NbtPath[], parsedValue: NbtTag | undefined) {
+	if (matchesNode(path, tag, query, parsedValue)) {
 		results.push(path)
 	}
 	if (tag.isCompound()) {
 		[...tag.keys()].sort().forEach(k => {
-			searchNodesImpl(path.push(k), tag.get(k)!, query, results)
+			searchNodesImpl(path.push(k), tag.get(k)!, query, results, parsedValue)
 		})
 	} else if (tag.isListOrArray()) {
 		tag.forEach((v, i) => {
-			searchNodesImpl(path.push(i), v, query, results)
+			searchNodesImpl(path.push(i), v, query, results, parsedValue)
 		})
 	}
 }
 
-export function matchesNode(path: NbtPath, tag: NbtTag, query: SearchQuery): boolean {
+function matchesNode(path: NbtPath, tag: NbtTag, query: SearchQuery, parsedValue: NbtTag | undefined): boolean {
 	const last = path.last()
 	const typeMatches = !query.type || tag.getId() === query.type
 	const nameMatches = !query.name || (typeof last === 'string' && last.includes(query.name))
-	const valueMatches = !query.value || matchesValue(tag, query.value)
+	const valueMatches = !query.value || matchesValue(tag, query.value, parsedValue)
 	return typeMatches && nameMatches && valueMatches
 }
 
-function matchesValue(tag: NbtTag, value: string): boolean {
+function matchesValue(tag: NbtTag, value: string, parsedValue: NbtTag | undefined): boolean {
+	if (parsedValue && tag.getId() == parsedValue.getId() && tag.toString() == parsedValue.toString()) {
+		return true
+	}
 	try {
 		if (tag.isString()) {
 			return tag.getAsString().includes(value)

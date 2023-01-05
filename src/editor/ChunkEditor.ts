@@ -2,7 +2,6 @@ import type { NbtFile } from 'deepslate'
 import { BlockState, NbtType, Structure } from 'deepslate'
 import { vec3 } from 'gl-matrix'
 import { StructureEditor } from './StructureEditor'
-import { toBigInt } from './Util'
 
 const VERSION_21w43a = 2844
 
@@ -63,7 +62,7 @@ export class ChunkEditor extends StructureEditor {
 			let data = BigInt(0)
 			for (let j = 0; j < 4096; j += 1) {
 				if (j % perLong === 0) {
-					data = toBigInt(blockStates.get(i)?.getAsPair() ?? [0, 0])
+					data = blockStates.get(i)?.toBigInt() ?? BigInt(0)
 					i += 1
 				}
 				const index = Number((data >> BigInt(bits * (j % perLong))) & bitMask)

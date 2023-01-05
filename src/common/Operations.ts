@@ -1,7 +1,6 @@
 import type { NbtCompound, NbtFile } from 'deepslate'
 import { NbtByte, NbtDouble, NbtEnd, NbtFloat, NbtInt, NbtLong, NbtRegion, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from './NbtPath'
-import { Snbt } from './Snbt'
 import type { Logger, NbtEdit } from './types'
 
 export function reverseEdit(edit: NbtEdit): NbtEdit {
@@ -205,7 +204,7 @@ function matchesValue(tag: NbtTag, value: string): boolean {
 		if (tag.isString()) {
 			return tag.getAsString().includes(value)
 		} else if (tag.isLong()) {
-			const long = Snbt.parseLong(value)
+			const long = NbtLong.bigintToPair(BigInt(value))
 			return tag.getAsPair()[0] === long[0] && tag.getAsPair()[1] === long[1]
 		} else if (tag.isNumber()) {
 			return tag.getAsNumber() === JSON.parse(value)
@@ -232,7 +231,7 @@ export function replaceNode(tag: NbtTag, path: NbtPath, replace: SearchQuery): N
 
 export function serializePrimitive(tag: NbtTag) {
 	if (tag.isString()) return tag.getAsString()
-	if (tag.isLong()) return Snbt.stringifyLong(tag.getAsPair())
+	if (tag.isLong()) return NbtLong.pairToString(tag.getAsPair())
 	if (tag.isNumber()) return tag.getAsNumber().toFixed()
 	return ''
 }
@@ -243,7 +242,7 @@ export function parsePrimitive(id: number, value: string) {
 		case NbtType.Byte: return new NbtByte(parseInt(value))
 		case NbtType.Short: return new NbtShort(parseInt(value))
 		case NbtType.Int: return new NbtInt(parseInt(value))
-		case NbtType.Long: return new NbtLong(Snbt.parseLong(value))
+		case NbtType.Long: return new NbtLong(BigInt(value))
 		case NbtType.Float: return new NbtFloat(parseFloat(value))
 		case NbtType.Double: return new NbtDouble(parseFloat(value))
 		default: return NbtEnd.INSTANCE

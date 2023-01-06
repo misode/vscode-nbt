@@ -157,9 +157,7 @@ export class TreeEditor implements EditorPanel {
 
 	protected onKey = (evt: KeyboardEvent) => {
 		const s = this.selected
-		if (evt.key == 'a' && s) {
-			this.addTag(s.path, s.tag, s.el)
-		} else if (evt.key === 'Delete' && s) {
+		if (evt.key === 'Delete' && s) {
 			this.removeTag(s.path, s.tag, s.el)
 		} else if (evt.key === 'F2' && s) {
 			this.renameTag(s.path, s.tag, s.el)

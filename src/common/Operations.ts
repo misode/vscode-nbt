@@ -241,7 +241,7 @@ export function replaceNode(tag: NbtTag, path: NbtPath, replace: SearchQuery): N
 export function serializePrimitive(tag: NbtTag) {
 	if (tag.isString()) return tag.getAsString()
 	if (tag.isLong()) return NbtLong.pairToString(tag.getAsPair())
-	if (tag.isNumber()) return tag.getAsNumber().toFixed()
+	if (tag.isNumber()) return tag.getAsNumber().toString()
 	return ''
 }
 

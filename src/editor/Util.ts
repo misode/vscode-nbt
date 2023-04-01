@@ -26,16 +26,3 @@ export function getInt(el: HTMLElement | null) {
 	const value = parseInt((el as HTMLInputElement)?.value)
 	return isNaN(value) ? undefined : value
 }
-
-const dataView = new DataView(new Uint8Array(8).buffer)
-
-export function toBigInt(value: [number, number]): bigint {
-	dataView.setInt32(0, Number(value[0]))
-	dataView.setInt32(4, Number(value[1]))
-	return dataView.getBigInt64(0)
-}
-
-export function fromBigInt(value: bigint): [number, number] {
-	dataView.setBigInt64(0, value)
-	return [dataView.getInt32(0), dataView.getInt32(4)]
-}

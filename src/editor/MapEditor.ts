@@ -1,13 +1,12 @@
-import type { NamedNbtTag } from 'deepslate'
-import { getTag } from 'deepslate'
+import { NbtFile } from 'deepslate'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 
 export class MapEditor implements EditorPanel {
-	protected data: NamedNbtTag
+	protected file: NbtFile
 
 	constructor(protected root: Element, protected vscode: VSCode, protected editHandler: EditHandler, protected readOnly: boolean) {
-		this.data = { name: '', value: {} }
+		this.file = NbtFile.create()
 	}
 
 	reveal() {
@@ -23,18 +22,17 @@ export class MapEditor implements EditorPanel {
 		this.root.append(content)
 	}
 
-	onInit(data: NamedNbtTag) {
-		this.data = data
+	onInit(file: NbtFile) {
+		this.file = file
 	}
 
-	onUpdate(data: NamedNbtTag, edit: NbtEdit) {
-		this.onInit(data)
+	onUpdate(file: NbtFile, edit: NbtEdit) {
+		this.onInit(file)
 	}
 
 	private paint(ctx: CanvasRenderingContext2D) {
 		const img = ctx.createImageData(128, 128)
-		const data = getTag(this.data.value, 'data', 'compound')
-		const colors = getTag(data, 'colors', 'byteArray')
+		const colors = this.file.root.getCompound('data').getByteArray('colors')
 		for (let x = 0; x < 128; x += 1) {
 			for (let z = 0; z < 128; z += 1) {
 				const id = ((colors[x + z * 128] ?? 0) + 256) % 256

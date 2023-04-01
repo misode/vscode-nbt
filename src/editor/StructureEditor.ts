@@ -1,6 +1,6 @@
-import type { BlockPos, NamedNbtTag } from 'deepslate'
-import { getListTag, Structure, StructureRenderer } from 'deepslate'
+import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
+import { mapEdit } from '../common/Operations'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
@@ -14,7 +14,7 @@ declare const stringifiedUvmapping: string
 
 export class StructureEditor implements EditorPanel {
 	private readonly resources: ResourceManager
-	protected data: NamedNbtTag
+	protected file: NbtFile
 	protected structure: Structure
 	private readonly warning: HTMLDivElement
 	private readonly canvas: HTMLCanvasElement
@@ -206,16 +206,16 @@ export class StructureEditor implements EditorPanel {
 		document.removeEventListener('keyup', this.onKeyUp)
 	}
 
-	onInit(data: NamedNbtTag) {
-		this.updateStructure(data)
+	onInit(file: NbtFile) {
+		this.updateStructure(file)
 		vec3.copy(this.cPos, this.structure.getSize())
 		vec3.scale(this.cPos, this.cPos, -0.5)
 		this.cDist = vec3.dist([0, 0, 0], this.cPos) * 1.5
 		this.render()
 	}
 
-	onUpdate(data: NamedNbtTag, edit: NbtEdit) {
-		this.updateStructure(data)
+	onUpdate(file: NbtFile, edit: NbtEdit) {
+		this.updateStructure(file)
 		this.showSidePanel()
 		this.render()
 	}
@@ -235,8 +235,8 @@ export class StructureEditor implements EditorPanel {
 		}
 	}
 
-	protected updateStructure(data: NamedNbtTag) {
-		this.data = data
+	protected updateStructure(file: NbtFile) {
+		this.file = file
 		this.structure = this.loadStructure()
 
 		const [x, y, z] = this.structure.getSize()
@@ -249,7 +249,7 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	protected loadStructure() {
-		return Structure.fromNbt(this.data)
+		return Structure.fromNbt(this.file.root)
 	}
 
 	private buildStructure(structure: Structure) {
@@ -331,14 +331,14 @@ export class StructureEditor implements EditorPanel {
 			if (block.nbt) {
 				const nbtTree = document.createElement('div')
 				sidePanel.append(nbtTree)
-				const blockIndex = getListTag(this.data.value, 'blocks', 'compound')
-					.findIndex(t => JSON.stringify(getListTag(t, 'pos', 'int')) === JSON.stringify(block.pos))
+				const blockIndex = this.file.root.getList('blocks', NbtType.Compound).getItems()
+					.findIndex(t => BlockPos.equals(BlockPos.fromNbt(t.getList('pos')), block.pos))
 				const tree = new TreeEditor(nbtTree, this.vscode, edit => {
-					this.editHandler({
-						ops: edit.ops.map(o => ({... o, path: ['blocks', blockIndex, 'nbt', ...o.path]})),
-					})
+					this.editHandler(mapEdit(edit, e => {
+						return { ...e, path: ['blocks', blockIndex, 'nbt', ...e.path] }
+					}))
 				}, this.readOnly)
-				tree.onInit({ name: '', value: block.nbt })
+				tree.onInit(new NbtFile('', block.nbt, 'none', this.file.littleEndian, undefined))
 				tree.reveal()
 			}
 		} else {
@@ -353,12 +353,12 @@ export class StructureEditor implements EditorPanel {
 				if (this.readOnly) return
 
 				el.addEventListener('change', () => {
-					this.editHandler({ ops: [{
+					this.editHandler({
 						type: 'set',
 						path: ['size', i],
-						old: original,
-						new: parseInt((el as HTMLInputElement).value),
-					}] })
+						old: new NbtInt(original).toJsonWithId(),
+						new: new NbtInt(parseInt((el as HTMLInputElement).value)).toJsonWithId(),
+					})
 				})
 			})
 		}

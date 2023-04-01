@@ -1,9 +1,10 @@
-import type { NamedNbtTag } from 'deepslate'
-import { Snbt } from '../common/Snbt'
+import type { NbtFile } from 'deepslate'
+import { NbtTag } from 'deepslate'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 
 export class SnbtEditor implements EditorPanel {
+	private file: NbtFile
 	private snbt: string
 
 	constructor(private readonly root: Element, private readonly vscode: VSCode, private readonly editHandler: EditHandler, private readonly readOnly: boolean) {
@@ -17,21 +18,25 @@ export class SnbtEditor implements EditorPanel {
 		textarea.classList.add('snbt-editor')
 		textarea.textContent = this.snbt
 		textarea.rows = (this.snbt.match(/\n/g)?.length ?? 0) + 1
-		textarea.readOnly = true
+		textarea.addEventListener('change', () => {
+			const newRoot = NbtTag.fromString(textarea.value)
+			this.editHandler({ type: 'set', path: [], old: this.file.root.toJsonWithId(), new: newRoot.toJsonWithId() })
+		})
 		content.append(textarea)
 		this.root.append(content)
 	}
 
-	onInit(data: NamedNbtTag) {
-		this.snbt = Snbt.stringify('compound', data.value)
+	onInit(file: NbtFile) {
+		this.file = file
+		this.snbt = file.root.toPrettyString('  ')
 		const textarea = this.root.querySelector('.snbt-editor')
 		if (textarea) {
 			textarea.textContent = this.snbt
 		}
 	}
 
-	onUpdate(data: NamedNbtTag) {
-		this.onInit(data)
+	onUpdate(file: NbtFile) {
+		this.onInit(file)
 	}
 
 	menu() {

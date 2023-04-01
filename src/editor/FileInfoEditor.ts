@@ -1,46 +1,26 @@
-import type { NbtFile } from '../common/types'
+import type { NbtFile } from 'deepslate'
+import { NbtInt, NbtString } from 'deepslate'
 import type { EditHandler, VSCode } from './Editor'
 import { TreeEditor } from './TreeEditor'
 
 export class FileInfoEditor extends TreeEditor {
-
 	constructor(root: Element, vscode: VSCode, editHandler: EditHandler, readOnly: boolean) {
 		super(root, vscode, editHandler, true)
 	}
 
-	onFile(file: NbtFile) {
-		if (!file.region) {
-			this.data = {
-				name: '',
-				value: {
-					RootName: {
-						type: 'string',
-						value: file.name,
-					},
-					Endianness: {
-						type: 'string',
-						value: file.littleEndian ? 'little' : 'big',
-					},
-					Compression: {
-						type: 'string',
-						value: file.compression ?? 'none',
-					},
-					...file.bedrockHeader ? {
-						BedrockHeader: {
-							type: 'int',
-							value: file.bedrockHeader,
-						},
-					} : {},
-				},
-			}
+	onInit(file: NbtFile) {
+		this.file.root.clear()
+			.set('RootName', new NbtString(file.name))
+			.set('Endianness', new NbtString(file.littleEndian ? 'little' : 'big'))
+			.set('Compression', new NbtString(file.compression ?? 'none'))
+		if (file.bedrockHeader) {
+			this.file.root.set('BedrockHeader', new NbtInt(file.bedrockHeader))
 		}
+		super.onInit(this.file)
 	}
 
-	onInit() {
-		super.onInit(this.data)
-	}
-
-	onUpdate() {
+	onUpdate(file: NbtFile) {
+		this.onInit(file)
 	}
 
 	menu() {

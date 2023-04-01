@@ -1,8 +1,8 @@
 import type { NbtChunk } from 'deepslate'
-import { getOptional, getTag, loadChunk, readNbt, readRegion, saveChunk, writeNbt, writeRegion } from 'deepslate'
+import { NbtFile, NbtRegion, NbtType } from 'deepslate'
 import * as vscode from 'vscode'
 import { applyEdit, reverseEdit } from './common/Operations'
-import type { Logger, NbtEdit, NbtFile } from './common/types'
+import type { Logger, NbtEdit } from './common/types'
 import { Disposable } from './dispose'
 
 export class NbtDocument extends Disposable implements vscode.CustomDocument {
@@ -18,41 +18,31 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		return new NbtDocument(uri, fileData, logger)
 	}
 
-	private static async readFile(uri: vscode.Uri, logger: Logger): Promise<NbtFile> {
+	private static async readFile(uri: vscode.Uri, logger: Logger): Promise<NbtFile | NbtRegion> {
 		const array = await vscode.workspace.fs.readFile(uri)
 
 		logger.info(`Read file [length=${array.length}, scheme=${uri.scheme}, extension=${uri.path.match(/(?:\.([^.]+))?$/)?.[1]}]`)
 
 		if (uri.scheme === 'git' && array.length === 0) {
-			return {
-				region: false,
-				name: '',
-				value: {},
-			}
+			return NbtFile.create()
 		}
 
 		if (uri.fsPath.endsWith('.mca')) {
-			return {
-				region: true,
-				chunks: readRegion(array),
-			}
+			return NbtRegion.read(array)
 		}
 
 		const littleEndian = uri.fsPath.endsWith('.mcstructure')
-		const result = readNbt(array, { littleEndian })
+		const file = NbtFile.read(array, { littleEndian })
 
-		logger.info(`Parsed NBT [compression=${result.compression ?? 'none'}, littleEndian=${result.littleEndian ?? false}, bedrockHeader=${result.bedrockHeader ?? 'none'}]`)
+		logger.info(`Parsed NBT [compression=${file.compression ?? 'none'}, littleEndian=${file.littleEndian ?? false}, bedrockHeader=${file.bedrockHeader ?? 'none'}]`)
 
-		return {
-			region: false,
-			...result,
-		}
+		return file
 	}
 
 
 	private readonly _uri: vscode.Uri
 
-	private _documentData: NbtFile
+	private _documentData: NbtFile | NbtRegion
 	private readonly _isStructure: boolean
 	private readonly _isMap: boolean
 	private readonly _isReadOnly: boolean
@@ -61,7 +51,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 	private constructor(
 		uri: vscode.Uri,
-		initialContent: NbtFile,
+		initialContent: NbtFile | NbtRegion,
 		private readonly logger: Logger,
 	) {
 		super()
@@ -85,13 +75,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 
 	public get dataVersion() {
 		const file = this._documentData
-		if (file.region) {
-			const firstChunk = file.chunks.find(c => c.data || c.nbt)
-			if (!firstChunk) return undefined
-			loadChunk(firstChunk)
-			return getOptional(() => getTag(firstChunk.nbt!.value, 'DataVersion', 'int'), undefined)
+		if (file instanceof NbtRegion) {
+			const firstChunk = file.getFirstChunk()
+			return firstChunk?.getRoot().getNumber('DataVersion') ?? 0
 		} else {
-			return getOptional(() => getTag(file.value, 'DataVersion', 'int'), undefined)
+			return file.root.getNumber('DataVersion') ?? 0
 		}
 	}
 
@@ -140,13 +128,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	}
 
 	private isStructureData() {
-		if (this._documentData.region) return false
-		const root = this._documentData.value
-		return root['size']?.type === 'list'
-			&& root['size'].value.type === 'int'
-			&& root['size'].value.value.length === 3
-			&& root['blocks']?.type === 'list'
-			&& root['palette']?.type === 'list'
+		if (this._documentData instanceof NbtRegion) return false
+		const root = this._documentData.root
+		return root.hasList('size', NbtType.Int, 3)
+			&& root.hasList('blocks') && root.hasList('palette')
 	}
 
 	private isMapData() {
@@ -154,16 +139,15 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	}
 
 	async getChunkData(x: number, z: number): Promise<NbtChunk> {
-		if (!this._documentData.region) {
+		if (!(this._documentData instanceof NbtRegion)) {
 			throw new Error('File is not a region file')
 		}
 
-		const chunks = this._documentData.chunks
-		const chunk = chunks.find(c => c.x === x && c.z === z)
+		const chunk = this._documentData.findChunk(x, z)
 		if (!chunk) {
 			throw new Error(`Cannot find chunk [${x}, ${z}]`)
 		}
-		return loadChunk(chunk)
+		return chunk
 	}
 
 	async save(cancellation: vscode.CancellationToken): Promise<void> {
@@ -184,16 +168,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 			return
 		}
 
-		if (nbtFile.region) {
-			nbtFile.chunks.filter(c => c.dirty).forEach(chunk => {
-				saveChunk(chunk)
-				chunk.dirty = false
-			})
-		}
-
-		const fileData = nbtFile.region
-			? writeRegion(nbtFile.chunks)
-			: writeNbt(nbtFile.value, nbtFile)
+		const fileData = nbtFile.write()
 
 		await vscode.workspace.fs.writeFile(targetResource, fileData)
 	}
@@ -202,14 +177,7 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		const diskContent = await NbtDocument.readFile(this.uri, this.logger)
 		this._documentData = diskContent
 		this._edits = this._savedEdits
-		this._onDidChangeDocument.fire({
-			ops: [{
-				type: 'set',
-				path: [],
-				old: null,
-				new: this._documentData,
-			}],
-		})
+		// TODO: notify listeners that document has reset
 	}
 
 	async backup(destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {

@@ -1,9 +1,9 @@
-import type { NamedNbtTag } from 'deepslate'
-import { tagNames } from 'deepslate'
-import { NbtPath } from '../common/NbtPath'
+import type { JsonValue } from 'deepslate'
+import { NbtFile, NbtRegion, NbtType } from 'deepslate'
+import type { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
-import { applyEdit } from '../common/Operations'
-import type { EditorMessage, NbtEdit, NbtEditOp, NbtFile, ViewMessage } from '../common/types'
+import { applyEdit, getEditedFile } from '../common/Operations'
+import type { EditorMessage, NbtEdit, ViewMessage } from '../common/types'
 import { ChunkEditor } from './ChunkEditor'
 import { FileInfoEditor } from './FileInfoEditor'
 import { locale } from './Locale'
@@ -16,6 +16,8 @@ import { getInt } from './Util'
 export type VSCode = {
 	postMessage(message: EditorMessage): void,
 }
+
+export const TYPES = Object.keys(NbtType).filter(e => isNaN(Number(e)))
 
 declare function acquireVsCodeApi(): VSCode
 const vscode = acquireVsCodeApi()
@@ -41,9 +43,8 @@ export type SearchResult = {
 export interface EditorPanel {
 	reveal?(): void
 	hide?(): void
-	onFile?(file: NbtFile): void
-	onInit?(file: NamedNbtTag, prefix?: NbtPath): void
-	onUpdate?(file: NamedNbtTag, edit: NbtEdit): void
+	onInit?(file: NbtFile, prefix?: NbtPath): void
+	onUpdate?(file: NbtFile, edit: NbtEdit): void
 	onMessage?(message: ViewMessage): void
 	onSearch?(query: SearchQuery | null): SearchResult[]
 	menu?(): Element[]
@@ -84,7 +85,7 @@ class Editor {
 		}
 
 	private type: string
-	private nbtFile: NbtFile
+	private nbtFile: NbtFile | NbtRegion.Ref
 	private activePanel: string
 	private readOnly: boolean
 
@@ -95,9 +96,11 @@ class Editor {
 	private lastReplace: NbtPath | null = null
 
 	private inMap = false
-	private waitingChunk: Promise<void> | null
-	private chunkResolver: () => unknown
 	private selectedChunk: { x: number, z: number } = { x: 0, z: 0 }
+	private readonly invalidChunks = new Set<string>()
+
+	private readonly messageCallbacks = new Map<number, { res: (data: unknown) => void, rej: (error: string) => void }>()
+	private messageId = 1
 
 	constructor() {
 		window.addEventListener('message', async e => {
@@ -113,13 +116,13 @@ class Editor {
 			this.doSearch()
 		})
 		this.findWidget.querySelectorAll('.type-select select').forEach(select => {
-			['any', ...tagNames.filter(t => t !== 'end')].forEach(t => {
+			['Any', ...TYPES].filter(e => e !== 'End').forEach(t => {
 				const option = document.createElement('option')
 				option.value = t
 				option.textContent = t.charAt(0).toUpperCase() + t.slice(1).split(/(?=[A-Z])/).join(' ')
 				select.append(option)
 			})
-			select.parentElement!.setAttribute('data-icon', 'any')
+			select.parentElement!.setAttribute('data-icon', 'Any')
 		})
 		this.findWidget.querySelector<HTMLElement>('.find-part')?.addEventListener('keyup', evt => {
 			if (evt.key !== 'Enter') {
@@ -215,12 +218,16 @@ class Editor {
 			case 'init':
 				console.log(m.body)
 				this.type = m.body.type
-				this.nbtFile = m.body.content
+				this.nbtFile = m.body.type === 'region'
+					? NbtRegion.fromJson(m.body.content, (x, z) => this.getChunkData(x, z))
+					: NbtFile.fromJson(m.body.content)
+				console.log(this.nbtFile)
 				this.readOnly = m.body.readOnly
-				if (this.nbtFile.region) {
+				if (this.nbtFile instanceof NbtRegion.Ref) {
 					this.type = 'chunk'
-					this.activePanel = this.type
+					this.activePanel = 'default'
 					this.inMap = true
+					this.invalidChunks.clear()
 					this.updateRegionMap()
 				} else {
 					this.setPanel(this.type)
@@ -230,38 +237,45 @@ class Editor {
 			case 'update':
 				try {
 					applyEdit(this.nbtFile, m.body)
-					this.refreshSearch()
-					Object.values(this.panels).forEach(p => p.updated = false)
-					if (this.nbtFile.region) {
-						const chunk = this.nbtFile.chunks.find(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
-						if (chunk?.nbt) {
-							const ops = m.body.ops.map<NbtEditOp>(op => ({ ...op, path: op.path.slice(1) }))
-							this.getPanel()?.onUpdate?.(chunk.nbt, { ops })
-						}
-					} else {
-						this.getPanel()?.onUpdate?.(this.nbtFile, m.body)
+					const { file: editedFile, edit } = getEditedFile(this.nbtFile, m.body)
+					if (editedFile) {
+						this.refreshSearch()
+						Object.values(this.panels).forEach(p => p.updated = false)
+						this.getPanel()?.onUpdate?.(editedFile, edit)
+						this.panels[this.activePanel].updated = true
 					}
-					this.panels[this.activePanel].updated = true
 				} catch (e) {
 					vscode.postMessage({ type: 'error', body: e.message })
 				}
 				return
-			
-			case 'chunk':
-				if (!this.nbtFile.region) {
-					return
+
+			case 'response':
+				const callback = this.messageCallbacks.get(m.requestId ?? 0)
+				if (m.body) {
+					callback?.res(m.body)
+				} else {
+					callback?.rej(m.error ?? 'Unknown response')
 				}
-				const index = this.nbtFile.chunks.findIndex(c => c.x === m.body.x && c.z === m.body.z)
-				this.nbtFile.chunks[index] = m.body
-				if (this.inMap) {
-					this.updateRegionMap()
-				}
-				this.chunkResolver()
 				return
 
 			default:
 				this.panels[this.type].editor().onMessage?.(m)
 		}
+	}
+
+	private async sendMessageWithResponse(message: EditorMessage) {
+		const requestId = this.messageId++
+		const promise = new Promise((res, rej) => {
+			this.messageCallbacks.set(requestId, { res, rej })
+		})
+		vscode.postMessage({ ...message, requestId })
+		return promise
+	}
+
+	private async getChunkData(x: number, z: number) {
+		const data = await this.sendMessageWithResponse({ type: 'getChunkData', body: { x, z } })
+		const chunk = NbtFile.fromJson(data as JsonValue)
+		return chunk
 	}
 
 	private getPanel(): EditorPanel | undefined {
@@ -277,17 +291,13 @@ class Editor {
 		setTimeout(async () => {
 			if (!this.panels[panel].updated) {
 				try {
-					if (this.nbtFile.region) {
-						if (this.waitingChunk !== null) {
-							await this.waitingChunk
-						}
-						const chunkIndex = this.nbtFile.chunks.findIndex(c => c.x === this.selectedChunk.x && c.z === this.selectedChunk.z)
-						const chunk = this.nbtFile.chunks[chunkIndex]
-						if (chunk?.nbt) {
-							editorPanel.onInit?.(chunk.nbt, new NbtPath([chunkIndex]))
+					if (this.nbtFile instanceof NbtRegion.Ref) {
+						const chunk = this.nbtFile.findChunk(this.selectedChunk.x, this.selectedChunk.z)
+						const file = chunk?.getFile()
+						if (chunk && file) {
+							editorPanel.onInit?.(file)
 						}
 					} else {
-						editorPanel.onFile?.(this.nbtFile)
 						editorPanel.onInit?.(this.nbtFile)
 					}
 				} catch (e) {
@@ -333,27 +343,29 @@ class Editor {
 	}
 
 	private updateRegionMap() {
-		if (!this.nbtFile?.region) {
+		if (!(this.nbtFile instanceof NbtRegion.Ref)) {
 			return
 		}
 		document.querySelector('.region-menu .btn')?.classList.toggle('active', this.inMap)
 		document.querySelector('.panel-menu')?.classList.toggle('hidden', this.inMap)
 		document.querySelector('.nbt-editor')?.classList.toggle('hidden', this.inMap)
 		
+		document.querySelector('.region-map')?.remove()
 		if (this.inMap) {
 			const map = document.createElement('div')
 			map.classList.add('region-map')
 			for (let z = 0; z < 32; z += 1) {
 				for (let x = 0; x < 32; x += 1) {
-					const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
+					const chunk = this.nbtFile.findChunk(x, z)
 					const cell = document.createElement('div')
 					cell.classList.add('region-map-chunk')
 					cell.textContent = `${x} ${z}`
 					cell.classList.toggle('empty', chunk === undefined)
-					cell.classList.toggle('loaded', chunk?.nbt !== undefined)
+					cell.classList.toggle('loaded', chunk?.isResolved() ?? false)
+					cell.classList.toggle('invalid', this.invalidChunks.has(`${x} ${z}`))
 					if (chunk !== undefined) {
 						cell.addEventListener('click', () => {
-							this.requestChunk(x, z)				
+							this.selectChunk(x, z)
 						})
 					}
 					cell.setAttribute('data-pos', `${x} ${z}`)
@@ -361,52 +373,50 @@ class Editor {
 				}
 			}
 			document.body.append(map)
-		} else {
-			document.querySelector('.region-map')?.remove()
 		}
 	}
 
 	private refreshChunk() {
-		if (!this.nbtFile?.region) {
+		if (!(this.nbtFile instanceof NbtRegion.Ref)) {
 			return
 		}
 		const x = getInt(document.getElementById('chunk-x')) ?? 0
 		const z = getInt(document.getElementById('chunk-z')) ?? 0
-		this.requestChunk(x, z)
+		this.selectChunk(x, z)
 	}
 
-	private requestChunk(x: number, z: number) {
-		if (!this.nbtFile?.region) {
+	private async selectChunk(x: number, z: number) {
+		if (!(this.nbtFile instanceof NbtRegion.Ref)) {
 			return
 		}
+		x = Math.max(0, Math.min(31, Math.floor(x)))
+		z = Math.max(0, Math.min(31, Math.floor(z)));
+		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
+		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
 		if (this.selectedChunk.x === x && this.selectedChunk.z === z) {
 			this.inMap = false
 			this.updateRegionMap()
 			return
 		}
-		this.selectedChunk = { x, z };
-		(document.getElementById('chunk-x') as HTMLInputElement).value = `${x}`;
-		(document.getElementById('chunk-z') as HTMLInputElement).value = `${z}`
-		const chunk = this.nbtFile.chunks.find(c => c.x === x && c.z === z)
-		document.querySelector('.region-menu')?.classList.toggle('invalid', !chunk)
+		this.selectedChunk = { x, z }
+		const chunk = this.nbtFile.findChunk(x, z)
 		if (!chunk) {
+			this.invalidChunks.add(`${x} ${z}`)
+			document.querySelector('.region-menu')?.classList.add('invalid')
+			this.updateRegionMap()
 			return
 		}
 		Object.values(this.panels).forEach(p => p.updated = false)
-		this.waitingChunk = null
-		if (chunk.nbt) {
-			this.setPanel(this.activePanel)
-		} else {
-			this.waitingChunk = new Promise((res) => {
-				this.chunkResolver = () => {
-					if (this.selectedChunk.x === x && this.selectedChunk.z === z) {
-						this.waitingChunk = null
-						res()
-					}
-				}
-			})
-			vscode.postMessage({ type: 'getChunkData', body: { x, z } })
+		try {
+			await chunk.getFileAsync()
+		} catch (e) {
+			this.invalidChunks.add(`${x} ${z}`)
+			document.querySelector('.region-menu')?.classList.add('invalid')
+			this.updateRegionMap()
+			return
 		}
+		document.querySelector('.region-menu')?.classList.remove('invalid')
+		this.setPanel(this.activePanel)
 		this.inMap = false
 		this.updateRegionMap()
 		this.setPanel(this.activePanel)
@@ -429,7 +439,7 @@ class Editor {
 		} else {
 			this.searchResults = null
 		}
-		if (this.lastReplace && this.searchResults?.[this.searchIndex].path?.equals(this.lastReplace)) {
+		if (this.lastReplace && this.searchResults?.[this.searchIndex]?.path?.equals(this.lastReplace)) {
 			this.searchIndex += 1
 			this.lastReplace = null
 		}
@@ -444,14 +454,15 @@ class Editor {
 			this.lastReplace = result.path
 			this.makeEdit(result.replace(query))
 		}
+		console.log('Done replace!')
 	}
 
 	private doReplaceAll() {
 		if (!this.searchResults) return
 		const query = this.getQuery(this.findWidget.querySelector('.replace-part'))
 		if (query.name || query.value || query.type) {
-			const ops = this.searchResults.flatMap(r => r.replace(query).ops)
-			this.makeEdit({ ops })
+			const edits = this.searchResults.map(r => r.replace(query))
+			this.makeEdit({ type: 'composite', edits })
 		}
 	}
 
@@ -460,7 +471,7 @@ class Editor {
 		const nameQuery = (element?.querySelector('.name-input') as HTMLInputElement).value
 		const valueQuery = (element?.querySelector('.value-input') as HTMLInputElement).value
 		return {
-			type: typeQuery === 'any' ? undefined : typeQuery,
+			type: typeQuery === 'Any' ? undefined : TYPES.indexOf(typeQuery as any),
 			name: nameQuery || undefined,
 			value: valueQuery || undefined,
 		}

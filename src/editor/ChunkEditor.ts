@@ -55,6 +55,12 @@ export class ChunkEditor extends StructureEditor {
 			const yOffset = section.getNumber('Y') * 16 - minY
 			const palette = states.getList(K_palette, NbtType.Compound)
 			const blockStates = states.getLongArray(K_data)
+			const tempDataview = new DataView(new Uint8Array(8).buffer)
+			const statesData = blockStates.map(long => {
+				tempDataview.setInt32(0, Number(long.getAsPair()[0]))
+				tempDataview.setInt32(4, Number(long.getAsPair()[1]))
+				return tempDataview.getBigUint64(0)
+			})
 
 			const bits = Math.max(4, Math.ceil(Math.log2(palette.length)))
 
@@ -64,13 +70,13 @@ export class ChunkEditor extends StructureEditor {
 
 			const bitMask = BigInt(Math.pow(2, bits) - 1)
 			let state = 0
-			let data = blockStates.get(state)?.toBigInt() ?? BIG_0
+			let data = statesData[state]
 			let dataLength = BIG_64
 
 			for (let j = 0; j < 4096; j += 1) {
 				if (dataLength < bits) {
 					state += 1
-					const newData = blockStates.get(state)?.toBigInt() ?? BIG_0
+					const newData = statesData[state]
 					if (stretches) {
 						data = (newData << dataLength) | data
 						dataLength += BIG_64

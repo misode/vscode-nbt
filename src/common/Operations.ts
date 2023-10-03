@@ -1,12 +1,11 @@
-import type { NbtCompound, NbtFile } from 'deepslate'
-import { NbtByte, NbtDouble, NbtEnd, NbtFloat, NbtInt, NbtLong, NbtRegion, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
+import { NbtByte, NbtChunk, NbtCompound, NbtDouble, NbtEnd, NbtFile, NbtFloat, NbtInt, NbtLong, NbtRegion, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from './NbtPath'
 import type { Logger, NbtEdit } from './types'
 
 export function reverseEdit(edit: NbtEdit): NbtEdit {
 	switch(edit.type) {
 		case 'composite': return { ...edit, edits: [...edit.edits].reverse().map(reverseEdit) }
-		case 'chunk': return edit
+		case 'chunk': return { ...edit, edit: reverseEdit(edit.edit) }
 		case 'set': return { ...edit, new: edit.old, old: edit.new }
 		case 'add': return { ...edit, type: 'remove' }
 		case 'remove': return { ...edit, type: 'add' }
@@ -32,9 +31,13 @@ export function applyEdit(file: NbtFile | NbtRegion | NbtRegion.Ref, edit: NbtEd
 		const chunkFile = chunk?.getFile()
 		if (chunkFile === undefined) {
 			// chunk does not exist or the ref is not loaded, so no need to apply any edits.
+			logger?.error(`Cannot apply chunk edit, chunk x=${edit.x} z=${edit.z} is not loaded or does not exist`)
 			return
 		}
 		applyEdit(chunkFile, edit.edit, logger)
+		if (chunk instanceof NbtChunk) {
+			chunk.markDirty()
+		}
 	} else {
 		if (edit.type === 'chunk') {
 			throw new Error('Cannot apply chunk edit, this is not a region file')

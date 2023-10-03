@@ -494,6 +494,9 @@ class Editor {
 
 	private makeEdit(edit: NbtEdit) {
 		if (this.readOnly) return
+		if (this.nbtFile instanceof NbtRegion.Ref) {
+			edit = { type: 'chunk', ...this.selectedChunk, edit }
+		}
 		console.warn('Edit', edit)
 		vscode.postMessage({ type: 'edit', body: edit })
 	}

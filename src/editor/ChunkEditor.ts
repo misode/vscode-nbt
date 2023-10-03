@@ -3,6 +3,7 @@ import { BlockState, NbtType, Structure } from 'deepslate'
 import { vec3 } from 'gl-matrix'
 import { StructureEditor } from './StructureEditor'
 
+const VERSION_20w17a = 2529
 const VERSION_21w43a = 2844
 
 export class ChunkEditor extends StructureEditor {
@@ -22,6 +23,7 @@ export class ChunkEditor extends StructureEditor {
 
 		const dataVersion = this.file.root.getNumber('DataVersion')
 		const N = dataVersion >= VERSION_21w43a
+		const stretches = dataVersion < VERSION_20w17a
 
 		const sections = N
 			? this.file.root.getList('sections', NbtType.Compound)
@@ -55,23 +57,37 @@ export class ChunkEditor extends StructureEditor {
 			const blockStates = states.getLongArray(K_data)
 
 			const bits = Math.max(4, Math.ceil(Math.log2(palette.length)))
-			const bitMask = BigInt(Math.pow(2, bits) - 1)
-			const perLong = Math.floor(64 / bits)
 
-			let i = 0
-			let data = BigInt(0)
+			const BIG_bits = BigInt(bits)
+			const BIG_0 = BigInt(0)
+			const BIG_64 = BigInt(64)
+
+			const bitMask = BigInt(Math.pow(2, bits) - 1)
+			let state = 0
+			let data = blockStates.get(state)?.toBigInt() ?? BIG_0
+			let dataLength = BIG_64
+
 			for (let j = 0; j < 4096; j += 1) {
-				if (j % perLong === 0) {
-					data = blockStates.get(i)?.toBigInt() ?? BigInt(0)
-					i += 1
+				if (dataLength < bits) {
+					state += 1
+					const newData = blockStates.get(state)?.toBigInt() ?? BIG_0
+					if (stretches) {
+						data = (newData << dataLength) | data
+						dataLength += BIG_64
+					} else {
+						data = newData
+						dataLength = BIG_64
+					}
 				}
-				const index = Number((data >> BigInt(bits * (j % perLong))) & bitMask)
-				const state = palette.get(index)
-				if (state) {
+				const paletteId = data & bitMask
+				const blockState = palette.get(Number(paletteId))
+				if (blockState) {
 					const pos: [number, number, number] = [j & 0xF, yOffset + (j >> 8), (j >> 4) & 0xF]
-					const block = BlockState.fromNbt(state)
+					const block = BlockState.fromNbt(blockState)
 					structure.addBlock(pos, block.getName(), block.getProperties())
 				}
+				data >>= BIG_bits
+				dataLength -= BIG_bits
 			}
 		}
 		console.log(structure)

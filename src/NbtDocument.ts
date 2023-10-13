@@ -31,8 +31,23 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 			return NbtRegion.read(array)
 		}
 
-		const littleEndian = uri.fsPath.endsWith('.mcstructure')
-		const file = NbtFile.read(array, { littleEndian })
+		let littleEndian = uri.fsPath.endsWith('.mcstructure')
+		let file: NbtFile
+		try {
+			file = NbtFile.read(array, { littleEndian, bedrockHeader: littleEndian })
+			if (!littleEndian && file.root.size === 0) {
+				// if the file is empty, we try to read using little-endian
+				const bedrockFile = NbtFile.read(array, { littleEndian: true, bedrockHeader: true })
+				if (bedrockFile.root.size > 0) {
+					littleEndian = true
+					file = bedrockFile
+				}
+			}
+		} catch (e) {
+			// if reading throws, we try to read using opposite endianness
+			littleEndian = !littleEndian
+			file = NbtFile.read(array, { littleEndian, bedrockHeader: littleEndian })
+		}
 
 		logger.info(`Parsed NBT [compression=${file.compression ?? 'none'}, littleEndian=${file.littleEndian ?? false}, bedrockHeader=${file.bedrockHeader ?? 'none'}]`)
 

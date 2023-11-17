@@ -1,10 +1,11 @@
-import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
+import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureProvider, StructureRenderer } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
 import { mapEdit } from '../common/Operations'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
+import { litematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
 
@@ -15,7 +16,7 @@ declare const stringifiedUvmapping: string
 export class StructureEditor implements EditorPanel {
 	private readonly resources: ResourceManager
 	protected file: NbtFile
-	protected structure: Structure
+	protected structure: StructureProvider
 	private readonly warning: HTMLDivElement
 	private readonly canvas: HTMLCanvasElement
 	private readonly canvas2: HTMLCanvasElement
@@ -249,10 +250,16 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	protected loadStructure() {
+		if (this.file.root.get('BlockData')?.isByteArray() && this.file.root.hasCompound('Palette')) {
+			return spongeToStructure(this.file.root)
+		}
+		if (this.file.root.hasCompound('Regions')) {
+			return litematicToStructure(this.file.root)
+		}
 		return Structure.fromNbt(this.file.root)
 	}
 
-	private buildStructure(structure: Structure) {
+	private buildStructure(structure: StructureProvider) {
 		this.renderer.setStructure(structure)
 		this.renderer2.setStructure(structure)
 	}

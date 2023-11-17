@@ -143,10 +143,17 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 	}
 
 	private isStructureData() {
-		if (this._documentData instanceof NbtRegion) return false
+		if (this._documentData instanceof NbtRegion) {
+			return false // region file
+		}
+		if (this.uri.fsPath.endsWith('.schem') || this.uri.fsPath.endsWith('.schematic') || this.uri.fsPath.endsWith('.litematic')) {
+			return true // schematic
+		}
 		const root = this._documentData.root
-		return root.hasList('size', NbtType.Int, 3)
-			&& root.hasList('blocks') && root.hasList('palette')
+		if (root.hasList('size', NbtType.Int, 3) && root.hasList('blocks') && root.hasList('palette')) {
+			return true // vanilla structure
+		}
+		return false // anything else
 	}
 
 	private isMapData() {

@@ -71,8 +71,9 @@ export function litematicToStructure(root: NbtCompound) {
 			return tempDataview.getBigUint64(0)
 		})
 
-		const bits = Math.max(4, Math.ceil(Math.log2(palette.length)))
+		const bits = Math.ceil(Math.log2(palette.length)) // unlike chunks, bits is not at least 4
 		const bigBits = BigInt(bits)
+		const big0 = BigInt(0)
 		const big64 = BigInt(64)
 		const bitMask = BigInt(Math.pow(2, bits) - 1)
 		let state = 0
@@ -83,7 +84,11 @@ export function litematicToStructure(root: NbtCompound) {
 		for (let j = 0; j < volume; j += 1) {
 			if (dataLength < bits) {
 				state += 1
-				const newData = statesData[state]
+				let newData = statesData[state]
+				if (newData === undefined) {
+					console.error(`Out of bounds states access ${state}`)
+					newData = big0
+				}
 				if (stretches) {
 					data = (newData << dataLength) | data
 					dataLength += big64
@@ -93,7 +98,11 @@ export function litematicToStructure(root: NbtCompound) {
 				}
 			}
 
-			const paletteId = Number(data & bitMask)
+			let paletteId = Number(data & bitMask)
+			if (paletteId > palette.length - 1) {
+				console.error(`Invalid palette ID ${paletteId}`)
+				paletteId = 0
+			}
 			arr.push(paletteId)
 			data >>= bigBits
 			dataLength -= bigBits

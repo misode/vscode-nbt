@@ -1,4 +1,4 @@
-import { BlockPos, PlacedBlock, StructureProvider } from "deepslate";
+import { BlockPos, PlacedBlock, Structure, StructureProvider } from "deepslate";
 
 export type StructureRegion = {
 	pos: BlockPos,
@@ -30,11 +30,19 @@ export class MultiStructure implements StructureProvider {
 
 	getBlocks(): PlacedBlock[] {
 		return this.regions.flatMap(r => {
-			return r.structure.getBlocks().map(b => ({
-				pos: BlockPos.add(r.pos, b.pos),
-				state: b.state,
-				...b.nbt ? { nbt: b.nbt } : {},
-			}))
+			try {
+				return r.structure.getBlocks().map(b => ({
+					pos: BlockPos.add(r.pos, b.pos),
+					state: b.state,
+					...b.nbt ? { nbt: b.nbt } : {},
+				}))
+			} catch (e) {
+				if (e instanceof Error) {
+					console.log((r.structure as Structure)['blocks'])
+					e.message = e.message.replace(' in structure ', ` in structure region "${r.name}" `)
+				}
+				throw e
+			}
 		})
 	}
 

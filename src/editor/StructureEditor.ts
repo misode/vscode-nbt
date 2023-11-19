@@ -1,11 +1,12 @@
-import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureProvider, StructureRenderer } from 'deepslate'
+import type { StructureProvider } from 'deepslate'
+import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
 import { mapEdit } from '../common/Operations'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
-import { litematicToStructure, spongeToStructure } from './Schematics'
+import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
 
@@ -255,6 +256,9 @@ export class StructureEditor implements EditorPanel {
 		}
 		if (this.file.root.hasCompound('Regions')) {
 			return litematicToStructure(this.file.root)
+		}
+		if (this.file.root.get('Blocks')?.isByteArray() && this.file.root.get('Data')?.isByteArray()) {
+			return schematicToStructure(this.file.root)
 		}
 		return Structure.fromNbt(this.file.root)
 	}

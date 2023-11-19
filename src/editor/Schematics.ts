@@ -1,5 +1,9 @@
-import { BlockPos, BlockState, NbtCompound, NbtType, Structure } from "deepslate";
-import { MultiStructure, StructureRegion } from "./MultiStructure";
+import type { BlockPos, NbtCompound } from 'deepslate'
+import { BlockState, NbtType, Structure } from 'deepslate'
+import { fromAlphaMaterial } from './AlphaMaterials'
+import type { StructureRegion } from './MultiStructure'
+import { MultiStructure } from './MultiStructure'
+import { parseBlockState } from './Util'
 
 export function spongeToStructure(root: NbtCompound) {
 	const width = root.getNumber('Width')
@@ -10,15 +14,7 @@ export function spongeToStructure(root: NbtCompound) {
 	const palette: BlockState[] = []
 	for (const key of schemPalette.keys()) {
 		const id = schemPalette.getNumber(key)
-		const stateStart = key.indexOf('[')
-		if (stateStart === -1) {
-			palette[id] = new BlockState(key)
-		} else {
-			const blockId = key.substring(0, stateStart)
-			const states = key.substring(stateStart + 1, key.length - 1).split(',')
-			const properties = Object.fromEntries(states.map(e => e.split('=') as [string, string]))
-			palette[id] = new BlockState(blockId, properties)
-		}
+		palette[id] = parseBlockState(key)
 	}
 
 	const blockData = root.getByteArray('BlockData')
@@ -133,4 +129,26 @@ export function litematicToStructure(root: NbtCompound) {
 	}
 
 	return new MultiStructure([width, height, length], regions)
+}
+
+export function schematicToStructure(root: NbtCompound) {
+	const width = root.getNumber('Width')
+	const height = root.getNumber('Height')
+	const length = root.getNumber('Length')
+	
+	const blocksArray = root.getByteArray('Blocks').map(e => e.getAsNumber())
+	const dataArray = root.getByteArray('Data').map(e => e.getAsNumber())
+
+	const structure = new Structure([width, height, length])
+	for (let x = 0; x < width; x += 1) {
+		for (let y = 0; y < height; y += 1) {
+			for (let z = 0; z < length; z += 1) {
+				const i = (y * width * length) + z * width + x
+				const blockStata = fromAlphaMaterial(blocksArray[i], dataArray[i])
+				structure.addBlock([x, y, z], blockStata.getName(), blockStata.getProperties())
+			}
+		}
+	}
+
+	return structure
 }

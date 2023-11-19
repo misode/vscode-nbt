@@ -93,6 +93,11 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 		if (file instanceof NbtRegion) {
 			const firstChunk = file.getFirstChunk()
 			return firstChunk?.getRoot().getNumber('DataVersion') ?? 0
+		} else if (file.root.has('Blocks') && file.root.has('Data')) {
+			// schematic files don't have DataVersion
+			// should be 1.12 but mcmeta doesn't have that, so using 1.14
+			// TODO: handle {Materials:"Pocket"} differently
+			return 1952
 		} else {
 			return file.root.getNumber('DataVersion') ?? 0
 		}

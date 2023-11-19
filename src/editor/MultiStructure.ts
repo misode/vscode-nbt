@@ -1,4 +1,5 @@
-import { BlockPos, PlacedBlock, Structure, StructureProvider } from "deepslate";
+import type { PlacedBlock, Structure, StructureProvider } from 'deepslate'
+import { BlockPos } from 'deepslate'
 
 export type StructureRegion = {
 	pos: BlockPos,

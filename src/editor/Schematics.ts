@@ -1,9 +1,13 @@
-import type { BlockPos, NbtCompound } from 'deepslate'
-import { BlockState, NbtType, Structure } from 'deepslate'
+import type { BlockPos } from 'deepslate'
+import { BlockState, NbtCompound, NbtIntArray, NbtType, Structure } from 'deepslate'
 import { fromAlphaMaterial } from './AlphaMaterials'
 import type { StructureRegion } from './MultiStructure'
 import { MultiStructure } from './MultiStructure'
 import { parseBlockState } from './Util'
+
+function getTriple(tag: NbtCompound): BlockPos {
+	return [tag.getNumber('x'), tag.getNumber('y'), tag.getNumber('z')]
+}
 
 export function spongeToStructure(root: NbtCompound) {
 	const width = root.getNumber('Width')
@@ -18,6 +22,13 @@ export function spongeToStructure(root: NbtCompound) {
 	}
 
 	const blockData = root.getByteArray('BlockData')
+	const blockEntities = new Map<string, NbtCompound>()
+	root.getList('BlockEntities', NbtType.Compound).forEach((tag) => {
+		const pos = tag.getIntArray('Pos').toString()
+		const copy = NbtCompound.fromJson(tag.toJson())
+		copy.delete('Pos')
+		blockEntities.set(pos, copy)
+	})
 	const blocks: { pos: BlockPos, state: number, nbt?: NbtCompound }[] = []
 	let i = 0
 	for (let x = 0; x < width; x += 1) {
@@ -25,22 +36,21 @@ export function spongeToStructure(root: NbtCompound) {
 			for (let y = 0; y < height; y += 1) {
 				// TODO: support palettes larger than 128
 				const id = blockData.get(i)?.getAsNumber() ?? 0
+				const pos = new NbtIntArray([x, y, z]).toString()
 				i += 1
 				blocks.push({
 					pos: [x, y, z],
 					state: id,
+					nbt: blockEntities.get(pos),
 				})
 			}
 		}
 	}
-	
+
 	return new Structure([width, height, length], palette, blocks)
 }
 
 export function litematicToStructure(root: NbtCompound) {
-	function getTriple(tag: NbtCompound): BlockPos {
-		return [tag.getNumber('x'), tag.getNumber('y'), tag.getNumber('z')]
-	}
 	const enclosingSize = root.getCompound('Metadata').getCompound('EnclosingSize')
 	const [width, height, length] = getTriple(enclosingSize)
 
@@ -103,12 +113,26 @@ export function litematicToStructure(root: NbtCompound) {
 			data >>= bigBits
 			dataLength -= bigBits
 		}
-		const blocks: { pos: BlockPos, state: number }[] = []
+		const blocks: { pos: BlockPos, state: number, nbt?: NbtCompound }[] = []
+		const blockEntities = new Map<string, NbtCompound>()
+		region.getList('TileEntities', NbtType.Compound).forEach((tag) => {
+			const pos = getTriple(tag).toString()
+			const copy = NbtCompound.fromJson(tag.toJson())
+			copy.delete('x')
+			copy.delete('y')
+			copy.delete('z')
+			blockEntities.set(pos, copy)
+		})
 		for (let x = 0; x < size[0]; x += 1) {
 			for (let y = 0; y < size[1]; y += 1) {
 				for (let z = 0; z < size[2]; z += 1) {
 					const index = (y * size[0] * size[2]) + z * size[0] + x
-					blocks.push({ pos: [x, y, z], state: arr[index] })
+					const pos = [x, y, z].toString()
+					blocks.push({
+						pos: [x, y, z],
+						state: arr[index],
+						nbt: blockEntities.get(pos),
+					})
 				}
 			}
 		}
@@ -139,13 +163,24 @@ export function schematicToStructure(root: NbtCompound) {
 	const blocksArray = root.getByteArray('Blocks').map(e => e.getAsNumber())
 	const dataArray = root.getByteArray('Data').map(e => e.getAsNumber())
 
+	const blockEntities = new Map<string, NbtCompound>()
+	root.getList('TileEntities', NbtType.Compound).forEach((tag) => {
+		const pos = getTriple(tag).toString()
+		const copy = NbtCompound.fromJson(tag.toJson())
+		copy.delete('x')
+		copy.delete('y')
+		copy.delete('z')
+		blockEntities.set(pos, copy)
+	})
+
 	const structure = new Structure([width, height, length])
 	for (let x = 0; x < width; x += 1) {
 		for (let y = 0; y < height; y += 1) {
 			for (let z = 0; z < length; z += 1) {
 				const i = (y * width * length) + z * width + x
 				const blockStata = fromAlphaMaterial(blocksArray[i], dataArray[i])
-				structure.addBlock([x, y, z], blockStata.getName(), blockStata.getProperties())
+				const nbt = blockEntities.get([x, y, z].toString())
+				structure.addBlock([x, y, z], blockStata.getName(), blockStata.getProperties(), nbt)
 			}
 		}
 	}

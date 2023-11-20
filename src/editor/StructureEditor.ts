@@ -68,7 +68,7 @@ export class StructureEditor implements EditorPanel {
 			this.warning.classList.remove('active')
 			this.root.innerHTML = '<div class="spinner"></div>'
 			setTimeout(() => {
-				this.buildStructure(this.structure)
+				this.buildStructure()
 				this.reveal()
 				this.render()
 			})
@@ -247,7 +247,7 @@ export class StructureEditor implements EditorPanel {
 			return
 		}
 
-		this.buildStructure(this.structure)
+		this.buildStructure()
 	}
 
 	protected loadStructure() {
@@ -263,9 +263,13 @@ export class StructureEditor implements EditorPanel {
 		return Structure.fromNbt(this.file.root)
 	}
 
-	private buildStructure(structure: StructureProvider) {
-		this.renderer.setStructure(structure)
-		this.renderer2.setStructure(structure)
+	private buildStructure() {
+		const [x, y, z] = this.structure.getSize()
+		const skipInvisibleBlocks = x * y * z > 48 * 48 * 48
+		this.renderer.useInvisibleBlocks = !skipInvisibleBlocks
+		this.renderer2.useInvisibleBlocks = !skipInvisibleBlocks
+		this.renderer.setStructure(this.structure)
+		this.renderer2.setStructure(this.structure)
 	}
 
 	menu() {

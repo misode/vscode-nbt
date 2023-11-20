@@ -1,5 +1,4 @@
-import { computeIfAbsent } from 'deepslate'
-import { parseBlockState } from './Util'
+import { BlockState, computeIfAbsent } from 'deepslate'
 
 // https://github.com/EngineHub/WorldEdit/blob/master/worldedit-core/src/main/resources/com/sk89q/worldedit/world/registry/legacy.json
 const alphaMaterials = {
@@ -1696,5 +1695,5 @@ for (const [id, state] of Object.entries(alphaMaterials)) {
 
 export function fromAlphaMaterial(block: number, data: number) {
 	const str = blockMap.get(block)?.get(data) ?? 'air'
-	return parseBlockState(str)
+	return BlockState.parse(str)
 }

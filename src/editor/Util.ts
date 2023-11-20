@@ -1,4 +1,3 @@
-import { BlockState } from 'deepslate'
 import { vec3 } from 'gl-matrix'
 
 const dec2hex = (dec: number) => ('0' + dec.toString(16)).substr(-2)
@@ -26,16 +25,4 @@ export function negVec3(a: vec3) {
 export function getInt(el: HTMLElement | null) {
 	const value = parseInt((el as HTMLInputElement)?.value)
 	return isNaN(value) ? undefined : value
-}
-
-export function parseBlockState(str: string) {
-	const stateStart = str.indexOf('[')
-	if (stateStart === -1) {
-		return new BlockState(str)
-	} else {
-		const blockId = str.substring(0, stateStart)
-		const states = str.substring(stateStart + 1, str.length - 1).split(',')
-		const properties = Object.fromEntries(states.map(e => e.split('=') as [string, string]))
-		return new BlockState(blockId, properties)
-	}
 }

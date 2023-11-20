@@ -3,7 +3,6 @@ import { BlockState, NbtCompound, NbtIntArray, NbtType, Structure } from 'deepsl
 import { fromAlphaMaterial } from './AlphaMaterials'
 import type { StructureRegion } from './MultiStructure'
 import { MultiStructure } from './MultiStructure'
-import { parseBlockState } from './Util'
 
 function getTriple(tag: NbtCompound): BlockPos {
 	return [tag.getNumber('x'), tag.getNumber('y'), tag.getNumber('z')]
@@ -18,7 +17,7 @@ export function spongeToStructure(root: NbtCompound) {
 	const palette: BlockState[] = []
 	for (const key of schemPalette.keys()) {
 		const id = schemPalette.getNumber(key)
-		palette[id] = parseBlockState(key)
+		palette[id] = BlockState.parse(key)
 	}
 
 	const blockData = root.getByteArray('BlockData')

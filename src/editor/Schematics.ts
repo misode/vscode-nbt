@@ -30,9 +30,9 @@ export function spongeToStructure(root: NbtCompound) {
 	})
 	const blocks: { pos: BlockPos, state: number, nbt?: NbtCompound }[] = []
 	let i = 0
-	for (let z = 0; z < length; z += 1) {
-		for (let x = 0; x < width; x += 1) {
-			for (let y = 0; y < height; y += 1) {
+	for (let y = 0; y < height; y += 1) {
+		for (let z = 0; z < length; z += 1) {
+			for (let x = 0; x < width; x += 1) {
 				// TODO: support palettes larger than 128
 				const id = blockData.get(i)?.getAsNumber() ?? 0
 				const pos = new NbtIntArray([x, y, z]).toString()

@@ -368,6 +368,11 @@ span.nbt-value {
 	display: none;
 }
 
+.btn.unavailable {
+	cursor: unset;
+	background-color: var(--vscode-button-secondaryBackground);	
+}
+
 .btn:not(:last-child) {
 	margin-right: 5px;
 }

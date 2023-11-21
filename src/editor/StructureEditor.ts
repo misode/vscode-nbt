@@ -240,14 +240,22 @@ export class StructureEditor implements EditorPanel {
 	protected updateStructure(file: NbtFile) {
 		this.file = file
 		this.structure = this.loadStructure()
+		const isLarge = this.isLarge()
+		const toggle = document.querySelector('.invisible-blocks-toggle')
+		toggle?.classList.toggle('unavailable', isLarge)
+		toggle?.setAttribute('title', isLarge ? locale('invisibleBlocksUnavailable') : '')
 
-		const [x, y, z] = this.structure.getSize()
-		if (x * y * z > 48 * 48 * 48) {
+		if (isLarge) {
 			this.warning.classList.add('active')
 			return
 		}
 
 		this.buildStructure()
+	}
+
+	protected isLarge() {
+		const [x, y, z] = this.structure.getSize()
+		return x * y * z > 48 * 48 * 48
 	}
 
 	protected loadStructure() {
@@ -264,10 +272,9 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	private buildStructure() {
-		const [x, y, z] = this.structure.getSize()
-		const skipInvisibleBlocks = x * y * z > 48 * 48 * 48
-		this.renderer.useInvisibleBlocks = !skipInvisibleBlocks
-		this.renderer2.useInvisibleBlocks = !skipInvisibleBlocks
+		const isLarge = this.isLarge()
+		this.renderer.useInvisibleBlocks = !isLarge
+		this.renderer2.useInvisibleBlocks = !isLarge
 		this.renderer.setStructure(this.structure)
 		this.renderer2.setStructure(this.structure)
 	}
@@ -284,10 +291,11 @@ export class StructureEditor implements EditorPanel {
 		})
 
 		const invisibleBlocksToggle = document.createElement('div')
-		invisibleBlocksToggle.classList.add('btn')
+		invisibleBlocksToggle.classList.add('btn', 'invisible-blocks-toggle')
 		invisibleBlocksToggle.textContent = locale('invisibleBlocks')
 		invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
 		invisibleBlocksToggle.addEventListener('click', () => {
+			if (!this.renderer.useInvisibleBlocks) return
 			this.invisibleBlocksActive = !this.invisibleBlocksActive
 			invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
 			this.render()

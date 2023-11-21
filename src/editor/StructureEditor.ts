@@ -334,6 +334,8 @@ export class StructureEditor implements EditorPanel {
 		this.root.querySelector('.side-panel')?.remove()
 		const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
 
+		const readOnly = this.readOnly || !this.file.root.hasList('size', NbtType.Int, 3)
+
 		const sidePanel = document.createElement('div')
 		sidePanel.classList.add('side-panel')
 		this.root.append(sidePanel)
@@ -360,20 +362,23 @@ export class StructureEditor implements EditorPanel {
 					this.editHandler(mapEdit(edit, e => {
 						return { ...e, path: ['blocks', blockIndex, 'nbt', ...e.path] }
 					}))
-				}, this.readOnly)
+				}, readOnly)
 				tree.onInit(new NbtFile('', block.nbt, 'none', this.file.littleEndian, undefined))
 				tree.reveal()
 			}
 		} else {
 			sidePanel.innerHTML = `
 				<div class="structure-size">
-					<label>Size</label><input type="number"><input type="number"><input type="number">
+					<label>Size</label>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
 				</div>
 			`
 			sidePanel.querySelectorAll('.structure-size input').forEach((el, i) => {
 				const original = this.structure.getSize()[i];
 				(el as HTMLInputElement).value = original.toString()
-				if (this.readOnly) return
+				if (readOnly) return
 
 				el.addEventListener('change', () => {
 					this.editHandler({

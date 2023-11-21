@@ -20,7 +20,7 @@ export function spongeToStructure(root: NbtCompound) {
 		palette[id] = BlockState.parse(key)
 	}
 
-	const blockData = root.getByteArray('BlockData')
+	const blockData = root.getByteArray('BlockData').map(e => e.getAsNumber())
 	const blockEntities = new Map<string, NbtCompound>()
 	root.getList('BlockEntities', NbtType.Compound).forEach((tag) => {
 		const pos = tag.getIntArray('Pos').toString()
@@ -33,10 +33,13 @@ export function spongeToStructure(root: NbtCompound) {
 	for (let y = 0; y < height; y += 1) {
 		for (let z = 0; z < length; z += 1) {
 			for (let x = 0; x < width; x += 1) {
-				// TODO: support palettes larger than 128
-				const id = blockData.get(i)?.getAsNumber() ?? 0
-				const pos = new NbtIntArray([x, y, z]).toString()
+				let id = blockData[i] ?? 0
 				i += 1
+				if (id > 127) {
+					id += ((blockData[i] ?? 0) - 1) << 7
+					i += 1
+				}
+				const pos = new NbtIntArray([x, y, z]).toString()
 				blocks.push({
 					pos: [x, y, z],
 					state: id,

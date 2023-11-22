@@ -1,3 +1,4 @@
+import type { StructureProvider } from 'deepslate'
 import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
 import { mapEdit } from '../common/Operations'
@@ -5,6 +6,7 @@ import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
+import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
 
@@ -15,7 +17,7 @@ declare const stringifiedUvmapping: string
 export class StructureEditor implements EditorPanel {
 	private readonly resources: ResourceManager
 	protected file: NbtFile
-	protected structure: Structure
+	protected structure: StructureProvider
 	private readonly warning: HTMLDivElement
 	private readonly canvas: HTMLCanvasElement
 	private readonly canvas2: HTMLCanvasElement
@@ -66,7 +68,7 @@ export class StructureEditor implements EditorPanel {
 			this.warning.classList.remove('active')
 			this.root.innerHTML = '<div class="spinner"></div>'
 			setTimeout(() => {
-				this.buildStructure(this.structure)
+				this.buildStructure()
 				this.reveal()
 				this.render()
 			})
@@ -238,23 +240,43 @@ export class StructureEditor implements EditorPanel {
 	protected updateStructure(file: NbtFile) {
 		this.file = file
 		this.structure = this.loadStructure()
+		const isLarge = this.isLarge()
+		const toggle = document.querySelector('.invisible-blocks-toggle')
+		toggle?.classList.toggle('unavailable', isLarge)
+		toggle?.setAttribute('title', isLarge ? locale('invisibleBlocksUnavailable') : '')
 
-		const [x, y, z] = this.structure.getSize()
-		if (x * y * z > 48 * 48 * 48) {
+		if (isLarge) {
 			this.warning.classList.add('active')
 			return
 		}
 
-		this.buildStructure(this.structure)
+		this.buildStructure()
+	}
+
+	protected isLarge() {
+		const [x, y, z] = this.structure.getSize()
+		return x * y * z > 48 * 48 * 48
 	}
 
 	protected loadStructure() {
+		if (this.file.root.get('BlockData')?.isByteArray() && this.file.root.hasCompound('Palette')) {
+			return spongeToStructure(this.file.root)
+		}
+		if (this.file.root.hasCompound('Regions')) {
+			return litematicToStructure(this.file.root)
+		}
+		if (this.file.root.get('Blocks')?.isByteArray() && this.file.root.get('Data')?.isByteArray()) {
+			return schematicToStructure(this.file.root)
+		}
 		return Structure.fromNbt(this.file.root)
 	}
 
-	private buildStructure(structure: Structure) {
-		this.renderer.setStructure(structure)
-		this.renderer2.setStructure(structure)
+	private buildStructure() {
+		const isLarge = this.isLarge()
+		this.renderer.useInvisibleBlocks = !isLarge
+		this.renderer2.useInvisibleBlocks = !isLarge
+		this.renderer.setStructure(this.structure)
+		this.renderer2.setStructure(this.structure)
 	}
 
 	menu() {
@@ -269,10 +291,11 @@ export class StructureEditor implements EditorPanel {
 		})
 
 		const invisibleBlocksToggle = document.createElement('div')
-		invisibleBlocksToggle.classList.add('btn')
+		invisibleBlocksToggle.classList.add('btn', 'invisible-blocks-toggle')
 		invisibleBlocksToggle.textContent = locale('invisibleBlocks')
 		invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
 		invisibleBlocksToggle.addEventListener('click', () => {
+			if (!this.renderer.useInvisibleBlocks) return
 			this.invisibleBlocksActive = !this.invisibleBlocksActive
 			invisibleBlocksToggle.classList.toggle('active', this.invisibleBlocksActive)
 			this.render()
@@ -311,6 +334,8 @@ export class StructureEditor implements EditorPanel {
 		this.root.querySelector('.side-panel')?.remove()
 		const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
 
+		const readOnly = this.readOnly || !this.file.root.hasList('size', NbtType.Int, 3)
+
 		const sidePanel = document.createElement('div')
 		sidePanel.classList.add('side-panel')
 		this.root.append(sidePanel)
@@ -337,20 +362,23 @@ export class StructureEditor implements EditorPanel {
 					this.editHandler(mapEdit(edit, e => {
 						return { ...e, path: ['blocks', blockIndex, 'nbt', ...e.path] }
 					}))
-				}, this.readOnly)
+				}, readOnly)
 				tree.onInit(new NbtFile('', block.nbt, 'none', this.file.littleEndian, undefined))
 				tree.reveal()
 			}
 		} else {
 			sidePanel.innerHTML = `
 				<div class="structure-size">
-					<label>Size</label><input type="number"><input type="number"><input type="number">
+					<label>Size</label>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
+					<input type="number" ${readOnly ? 'readonly' : ''}>
 				</div>
 			`
 			sidePanel.querySelectorAll('.structure-size input').forEach((el, i) => {
 				const original = this.structure.getSize()[i];
 				(el as HTMLInputElement).value = original.toString()
-				if (this.readOnly) return
+				if (readOnly) return
 
 				el.addEventListener('change', () => {
 					this.editHandler({

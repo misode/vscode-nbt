@@ -9,6 +9,7 @@ const LOCALES = {
 	renameTag: 'Rename',
 	grid: 'Show Grid',
 	invisibleBlocks: 'Show Invisible Blocks',
+	invisibleBlocksUnavailable: 'Invisible blocks is unavailable for large structures',
 	'panel.structure': '3D',
 	'panel.chunk': '3D',
 	'panel.map': 'Map',

@@ -63,15 +63,12 @@ export class ChunkEditor extends StructureEditor {
 			})
 
 			const bits = Math.max(4, Math.ceil(Math.log2(palette.length)))
-
-			const BIG_bits = BigInt(bits)
-			const BIG_0 = BigInt(0)
-			const BIG_64 = BigInt(64)
-
+			const bigBits = BigInt(bits)
+			const big64 = BigInt(64)
 			const bitMask = BigInt(Math.pow(2, bits) - 1)
 			let state = 0
 			let data = statesData[state]
-			let dataLength = BIG_64
+			let dataLength = big64
 
 			for (let j = 0; j < 4096; j += 1) {
 				if (dataLength < bits) {
@@ -79,10 +76,10 @@ export class ChunkEditor extends StructureEditor {
 					const newData = statesData[state]
 					if (stretches) {
 						data = (newData << dataLength) | data
-						dataLength += BIG_64
+						dataLength += big64
 					} else {
 						data = newData
-						dataLength = BIG_64
+						dataLength = big64
 					}
 				}
 				const paletteId = data & bitMask
@@ -92,8 +89,8 @@ export class ChunkEditor extends StructureEditor {
 					const block = BlockState.fromNbt(blockState)
 					structure.addBlock(pos, block.getName(), block.getProperties())
 				}
-				data >>= BIG_bits
-				dataLength -= BIG_bits
+				data >>= bigBits
+				dataLength -= bigBits
 			}
 		}
 		console.log(structure)

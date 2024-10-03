@@ -359,11 +359,12 @@ export const OPAQUE_BLOCKS = new Set([
 	'minecraft:yellow_wool',
 ])
 
-export const TRANSPARENT_BLOCKS = new Set([
+export const TRANSLUCENT_BLOCKS = new Set([
 	'minecraft:black_stained_glass',
 	'minecraft:black_stained_glass_pane',
 	'minecraft:blue_stained_glass',
 	'minecraft:blue_stained_glass_pane',
+	'minecraft:bubble_column',
 	'minecraft:brown_stained_glass',
 	'minecraft:brown_stained_glass_pane',
 	'minecraft:cyan_stained_glass',
@@ -375,6 +376,8 @@ export const TRANSPARENT_BLOCKS = new Set([
 	'minecraft:green_stained_glass_pane',
 	'minecraft:honey_block',
 	'minecraft:ice',
+	'minecraft:kelp',
+	'minecraft:kelp_plant',
 	'minecraft:light_blue_stained_glass',
 	'minecraft:light_blue_stained_glass_pane',
 	'minecraft:light_gray_stained_glass',
@@ -391,7 +394,9 @@ export const TRANSPARENT_BLOCKS = new Set([
 	'minecraft:purple_stained_glass_pane',
 	'minecraft:red_stained_glass',
 	'minecraft:red_stained_glass_pane',
+	'minecraft:seagrass',
 	'minecraft:slime_block',
+	'minecraft:tall_seagrass',
 	'minecraft:water',
 	'minecraft:white_stained_glass',
 	'minecraft:white_stained_glass_pane',

@@ -1,6 +1,6 @@
 import type { BlockDefinitionProvider, BlockFlagsProvider, BlockModelProvider, BlockPropertiesProvider, TextureAtlasProvider } from 'deepslate'
 import { BlockDefinition, BlockModel, Identifier, TextureAtlas, upperPowerOfTwo } from 'deepslate'
-import { NON_SELF_CULLING, OPAQUE_BLOCKS, TRANSPARENT_BLOCKS } from './BlockFlags'
+import { NON_SELF_CULLING, OPAQUE_BLOCKS, TRANSLUCENT_BLOCKS } from './BlockFlags'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider, TextureAtlasProvider {
 	private blockDefinitions: { [id: string]: BlockDefinition }
@@ -45,7 +45,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		const str = id.toString()
 		return {
 			opaque: OPAQUE_BLOCKS.has(str),
-			semi_transparent: TRANSPARENT_BLOCKS.has(str),
+			semi_transparent: TRANSLUCENT_BLOCKS.has(str),
 			self_culling: !NON_SELF_CULLING.has(str),
 		}
 	}
@@ -60,13 +60,13 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 
 	public loadBlockDefinitions(definitions: any) {
 		Object.keys(definitions).forEach(id => {
-			this.blockDefinitions[Identifier.create(id).toString()] = BlockDefinition.fromJson(id, definitions[id])
+			this.blockDefinitions[Identifier.create(id).toString()] = BlockDefinition.fromJson(definitions[id])
 		})
 	}
 
 	public loadBlockModels(models: any) {
 		Object.keys(models).forEach(id => {
-			this.blockModels[Identifier.create(id).toString()] = BlockModel.fromJson(id, models[id])
+			this.blockModels[Identifier.create(id).toString()] = BlockModel.fromJson(models[id])
 		})
 		Object.values(this.blockModels).forEach(m => m.flatten(this))
 	}

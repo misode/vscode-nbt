@@ -59,8 +59,6 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	): Promise<void> {
 		this.webviews.add(document.uri, webviewPanel)
 
-		const assets = await getAssets(document.dataVersion, this.logger)
-
 		webviewPanel.webview.options = {
 			enableScripts: true,
 			localResourceRoots: [
@@ -68,7 +66,17 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				vscode.Uri.file(this._context.extensionPath),
 			],
 		}
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, assets.version, document.isStructure, document.documentData instanceof NbtRegion)
+
+		const isStructure = document.isStructure
+		const isRegion = document.documentData instanceof NbtRegion
+		let version = ''
+
+		if (isStructure || isRegion) {
+			const assets = await getAssets(document.dataVersion, this.logger)
+			version = assets.version
+		}
+
+		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, version, isStructure, isRegion)
 
 		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
 	}

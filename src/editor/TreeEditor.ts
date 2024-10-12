@@ -214,17 +214,14 @@ export class TreeEditor implements EditorPanel {
 				}
 
 				if (!this.expanded.has(this.selected.path.toString())) {
+					// Expandable and not yet expanded. Expand!
+
 					this.expand(this.selected.path)
 					this.openBody(this.selected.path, this.selected.tag, this.selected.el)
 					return
 				}
 
-				// Expandable! We'll expand, then select the first (probably)
-				// item in the children.
-				this.expand(this.selected.path)
-
-				await this.openBody(this.selected.path, selectedTag, selectedEntry.element)
-
+				// Expandable and expanded. Try to enter the container.
 				this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
 				return
 			}

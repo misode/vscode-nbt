@@ -299,8 +299,7 @@ export class TreeEditor implements EditorPanel {
 		} = this.getNodeInfo(this.selected.path.pop())
 		
 		if (!parentEntry || !parentTag) {
-			// either in root node, or a bug elsewhere (child with no parent)
-			return
+			throw new Error('Failed to retrieve parent')
 		}
 
 		if (!parentEntry?.childs) {

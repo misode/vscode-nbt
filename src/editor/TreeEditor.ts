@@ -338,7 +338,7 @@ export class TreeEditor implements EditorPanel {
 			if (typeof selectedKey !== 'string') {
 				throw new Error('non-string key in an NbtCompound')
 			}
-			const nextTagInfo = TreeEditor.compoundGetNextSiblingKey(parentTag, selectedKey, offset)
+			const nextTagInfo = TreeEditor.compoundGetNextSibling(parentTag, selectedKey, offset)
 			if (nextTagInfo === undefined) {
 				// There were no more entries available in that direction
 				if (direction === 'up') {
@@ -454,7 +454,7 @@ export class TreeEditor implements EditorPanel {
 	 * @returns the key of the 'next sibling'. Undefined if `key` does not exist
 	 * in the NbtCompound
 	 */
-	private static compoundGetNextSiblingKey(nbtCompund: NbtCompound, key: string, offset = 1): [string, NbtTag] | undefined {
+	private static compoundGetNextSibling(nbtCompund: NbtCompound, key: string, offset = 1): [string, NbtTag] | undefined {
 		const keys = [...nbtCompund.keys()].sort()
 		const idx = keys.indexOf(key)
 		if (idx === -1){

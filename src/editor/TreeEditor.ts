@@ -1,4 +1,4 @@
-import type { NbtCompound, NbtList } from 'deepslate'
+import type { NbtAbstractList, NbtCompound, NbtList } from 'deepslate'
 import { NbtFile, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
@@ -12,6 +12,12 @@ export type SelectedTag = {
 	path: NbtPath,
 	tag: NbtTag,
 	el: Element,
+}
+
+type NodeInfo = {
+	path: NbtPath,
+	tag: NbtTag,
+	entry: PathToElements | undefined,
 }
 
 export type EditingTag = Omit<SelectedTag, 'path'> & { path: NbtPath | null }
@@ -157,18 +163,355 @@ export class TreeEditor implements EditorPanel {
 
 	protected onKey = (evt: KeyboardEvent) => {
 		const s = this.selected
-		if (evt.key === 'Delete' && s) {
-			this.removeTag(s.path, s.tag, s.el)
-		} else if (evt.key === 'F2' && s) {
-			this.renameTag(s.path, s.tag, s.el)
-		} else if (evt.key === 'Escape') {
-			if (this.editing === null) {
-				this.select(null)
-			} else {
-				this.clearEditing()
+		const e = this.editing
+		this.handleMoveKey(evt)
+		if (s) {
+			switch (evt.key) {
+				case 'Delete':
+					this.removeTag(s.path, s.tag, s.el)
+					return
+				case 'F2':
+					this.renameTag(s.path, s.tag, s.el)
+					return
+					
+			}
+		} else {
+			switch (evt.key) {
+				case 'Escape':
+					if (e === null) {
+						this.select(null)
+					} else {
+						this.clearEditing()
+					}
+					return
 			}
 		}
 	}
+
+	private readonly handleMoveKey = async (evt: KeyboardEvent): Promise<void> => {
+		if (!this.selected || this.editing) {
+			return
+		}
+
+		const selectedEntry = this.getPathEntry(this.selected.path)
+		const selectedTag = getNode(this.file.root, this.selected.path)
+		if (!selectedEntry || !selectedEntry.element) {
+			// The operations below this point all require a selected node to
+			// work. So we'll early-out here. It may make sense to select the
+			// root node by default in this case?
+			return
+		}
+
+		switch (evt.key) {
+			case 'ArrowRight':
+			case 'l': {
+				if (!this.canExpand(selectedTag)) {
+					// Not expandable, we'll advance along the line of siblings
+					// to the next expandable item instead
+					this.moveVerticalToExpandable('down')
+					return
+				}
+
+				if (!this.expanded.has(this.selected.path.toString())) {
+					this.expand(this.selected.path)
+					this.openBody(this.selected.path, this.selected.tag, this.selected.el)
+					return
+				}
+
+				// Expandable! We'll expand, then select the first (probably)
+				// item in the children.
+				this.expand(this.selected.path)
+
+				await this.openBody(this.selected.path, selectedTag, selectedEntry.element)
+
+				if (!selectedEntry?.childs) {
+					throw new Error('Incorrect dev assumption, expended a node, but it had null/undefined children!')
+				}
+				const firstChildKey = Object.keys(selectedEntry.childs)[0]
+				if (!firstChildKey) {
+					return
+				}
+
+				const firstChild = selectedEntry.childs[firstChildKey]
+				if (!firstChild?.element) {
+					throw new Error('Incorrect dev assumption, found a child with no Element!')
+				}
+				const firstChildPath = this.selected.path.push(firstChildKey)
+				this.select({
+					el: firstChild.element,
+					path: firstChildPath,
+					tag: getNode(this.file.root, firstChildPath),
+				})
+				return
+			}
+			case 'ArrowDown':
+			case 'j': {
+				this.moveVertical('down')
+				return
+			}
+			case 'ArrowUp':
+			case 'k': {
+				this.moveVertical('up')
+				return
+			}
+			case 'ArrowLeft':
+			case 'h': {
+				if (this.expanded.has(this.selected.path.toString())) {
+					this.collapse(this.selected.path)
+					this.closeBody(this.selected.path, this.selected.el)
+					return
+				}
+
+				this.selectParent()
+		
+				return
+			}
+		}
+	}
+
+	private getNodeInfo(path: NbtPath): NodeInfo {
+		const entry = this.getPathEntry(path)
+		const tag = getNode(this.file.root, path)
+		return {
+			path,
+			entry,
+			tag,
+		}
+	}
+
+	private selectParent(): void {
+		if (!this.selected) {
+			return
+		}
+		const parent = this.getNodeInfo(this.selected.path.pop())
+		if (!parent.entry?.element || !parent.tag) {
+			// either in root node, or a bug elsewhere (child with no parent)
+			return
+		}
+		
+		this.select({...parent, el: parent.entry.element})
+	}
+
+	private selectFirstChildIfOpen(nodeInfo: NodeInfo): void {
+		if (!nodeInfo.entry?.childs) {
+			return
+		}
+		if (!this.expanded.has(nodeInfo.path.toString())) {
+			return
+		}
+		const firstChildKey = Object.keys(nodeInfo.entry.childs)[0]
+		if (!firstChildKey) {
+			return
+		}
+
+		const firstChild = nodeInfo.entry.childs[firstChildKey]
+		if (!firstChild?.element) {
+			throw new Error('Incorrect dev assumption, found a child with no Element!')
+		}
+		const firstChildPath = nodeInfo.path.push(firstChildKey)
+		console.log({
+			el: firstChild.element,
+			path: firstChildPath,
+			tag: getNode(this.file.root, firstChildPath),
+		})
+		this.select({
+			el: firstChild.element,
+			path: firstChildPath,
+			tag: getNode(this.file.root, firstChildPath),
+		})
+	}
+
+	private moveVertical(direction: 'up' | 'down'): void {
+		if (!this.selected || this.editing) {
+			return
+		}
+		const offset = direction === 'up' ? -1 : 1
+		const selectedKey = this.selected.path.last()
+		if (selectedKey === undefined) {
+			// This is the root node. Limited operations available.
+			if (direction === 'down') {
+				this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
+			}
+			return
+		}
+
+		const {
+			path: parentPath,
+			entry: parentEntry,
+			tag: parentTag,
+		} = this.getNodeInfo(this.selected.path.pop())
+		
+		if (!parentEntry || !parentTag) {
+			// either in root node, or a bug elsewhere (child with no parent)
+			return
+		}
+
+		if (!parentEntry?.childs) {
+			throw new Error("We're in a child with a parent that has no children!?")
+		}
+
+		if (parentTag.isCompound()) {
+			if (typeof selectedKey !== 'string') {
+				throw new Error('non-string key in an NbtCompound')
+			}
+			const nextTagInfo = TreeEditor.compoundGetNextSiblingKey(parentTag, selectedKey, offset)
+			if (nextTagInfo === undefined) {
+				// There were no more entries available in that direction
+				if (direction === 'up') {
+					this.selectParent()
+				}
+				if (direction === 'down') {
+					this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
+				}
+				return
+			}
+			const [nextKey, nextTag] = nextTagInfo
+			const nextPath = parentPath.push(nextKey)
+			const nextElement = this.getPathElement(nextPath)
+			if (nextElement === undefined) {
+				throw new Error('failed to resolve sibling Element after finding a nextKey')
+			}
+
+			this.select({
+				el: nextElement,
+				path: nextPath,
+				tag: nextTag,
+			})	
+		}
+
+		if (parentTag.isListOrArray()) {
+			const selectedKey = this.selected.path.last()
+			if (typeof selectedKey !== 'number') {
+				throw new Error('non-number key in an Nbt List or Array')
+			}
+			const nextKey = selectedKey + offset
+			if (nextKey < 0) {
+				// There were no more entries available in that direction
+				if (direction === 'up') {
+					this.selectParent()
+					return
+				}
+				if (direction === 'down') {
+					this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
+				}
+			}
+			const nextPath = parentPath.push(nextKey)
+			const nextTag = parentTag.get(nextKey)
+			const nextElement = this.getPathElement(nextPath)
+			if (nextTag === undefined) {
+				throw new Error('failed to resolve sibling nbt tag after finding a nextKey')
+			}
+			if (nextElement === undefined) {
+				throw new Error('failed to resolve sibling Element after finding a nextKey')
+			}
+
+			this.select({
+				el: nextElement,
+				path: nextPath,
+				tag: nextTag,
+			})	
+		}
+
+		return
+	}
+
+	private moveVerticalToExpandable(direction: 'up' | 'down'): void {
+		if (!this.selected || this.editing) {
+			return
+		}
+
+		const parentPath = this.selected.path.pop()
+		const parent = getNode(this.file.root, this.selected.path.pop())
+		const nextExpandable = parent.isCompound() ? TreeEditor.compoundGetNextSiblingSearch(parent, this.selected.path.last() as string, direction, (_key, value) => value.isCompound() || value.isListOrArray())
+			: parent.isListOrArray() ? TreeEditor.listGetNextSiblingSearch(parent, this.selected.path.last() as number, direction, (_key, value) => value.isCompound() || value.isListOrArray())
+				: undefined
+
+		if (nextExpandable) {
+			const [nextExpandableKey, nextExpandableTag] = nextExpandable
+			const nextExpandablePath = parentPath.push(nextExpandableKey)
+			const nextExpandableElement = this.getPathElement(nextExpandablePath)
+			if (nextExpandableElement === undefined) {
+				throw new Error('failed to resolve next expandable sibling element')
+			}
+			this.select({
+				el: nextExpandableElement,
+				path: nextExpandablePath,
+				tag: nextExpandableTag,
+			})
+		}
+	}
+
+	/**
+	 * Gets the 'next sibling' in an NbtCompound. i.e. the element `offset` away
+	 * from the element specified by `key`
+	 *
+	 * @returns the key of the 'next sibling'. Undefined if `key` does not exist
+	 * in the NbtCompound
+	 */
+	private static compoundGetNextSiblingKey(nbtCompund: NbtCompound, key: string, offset = 1): [string, NbtTag] | undefined {
+		const keys = [...nbtCompund.keys()].sort()
+		const idx = keys.indexOf(key)
+		if (idx === -1){
+			return undefined 
+		} 
+		
+		const foundKey =  keys[idx + offset]
+		if (foundKey === undefined) {
+			return undefined
+		}
+		const foundValue = nbtCompund.get(foundKey)
+		if (!foundValue) {
+			throw new Error('key in NbtCompound had no value')
+		}
+		return [foundKey, foundValue]
+	}
+
+	private static compoundGetNextSiblingSearch(
+		nbtCompund: NbtCompound,
+		key: string,
+		direction: 'up' | 'down',
+		predicate: (key: string, nbtTag: NbtTag) => boolean,
+	): [string, NbtTag] | undefined {
+		const keys = direction === 'down'
+			? [...nbtCompund.keys()].sort()
+			: [...nbtCompund.keys()].sort().reverse()
+		const targetIdx = keys.indexOf(key)
+		if (targetIdx === -1) {
+			return undefined
+		}
+
+		for (let i = targetIdx + 1; i < keys.length; i++) {
+			const k = keys[i]
+			const v = nbtCompund.get(k)!
+			if (predicate(k, v)) {
+				return [k, v]
+			}
+		}
+		return undefined
+	}
+
+	private static listGetNextSiblingSearch<T extends NbtTag>(
+		nbtList: NbtAbstractList<T>,
+		startIdx: number,
+		direction: 'up' | 'down',
+		predicate: (key: number, nbtTag: NbtTag) => boolean,
+	): [number, NbtTag] | undefined {
+		if (startIdx < 0 || startIdx >= nbtList.length) {
+			throw new Error(`invalid value for startIdx, '${startIdx}'`)
+		}
+
+		const items = direction === 'down'
+			? nbtList.getItems()
+			: nbtList.getItems().reverse()
+		for (let i = 0; i < items.length; i++) {
+			const v = items[i]
+			if (predicate(i, v)) {
+				return [i, v]
+			}
+		}
+		return undefined
+	}
+	
 
 	protected redraw() {
 		this.pathToElement = { childs: {} }
@@ -215,7 +558,7 @@ export class TreeEditor implements EditorPanel {
 		btnRemoveTag?.classList.toggle('disabled', !this.selected || this.selected.path.length() === 0)
 	}
 
-	protected setPathElement(path: NbtPath, el: Element) {
+	protected setPathElement(path: NbtPath, el: Element): void {
 		let node = this.pathToElement
 		for (const e of path.arr) {
 			if (!node.childs) node.childs = {}
@@ -225,13 +568,17 @@ export class TreeEditor implements EditorPanel {
 		node.element = el
 	}
 
-	protected getPathElement(path: NbtPath) {
+	protected getPathElement(path: NbtPath): Element | undefined {
+		return this.getPathEntry(path)?.element
+	}
+
+	protected getPathEntry(path: NbtPath): PathToElements | undefined {
 		let node = this.pathToElement
 		for (const e of path.arr) {
 			if (!node.childs || !node.childs[e]) return undefined
 			node = node.childs[e]
 		}
-		return node.element
+		return node
 	}
 
 	protected drawTag(path: NbtPath, tag: NbtTag) {

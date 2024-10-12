@@ -205,6 +205,7 @@ export class TreeEditor implements EditorPanel {
 		switch (evt.key) {
 			case 'ArrowRight':
 			case 'l': {
+				evt.preventDefault()
 				if (!this.canExpand(selectedTag)) {
 					// Not expandable, we'll advance along the line of siblings
 					// to the next expandable item instead
@@ -224,38 +225,24 @@ export class TreeEditor implements EditorPanel {
 
 				await this.openBody(this.selected.path, selectedTag, selectedEntry.element)
 
-				if (!selectedEntry?.childs) {
-					throw new Error('Incorrect dev assumption, expended a node, but it had null/undefined children!')
-				}
-				const firstChildKey = Object.keys(selectedEntry.childs)[0]
-				if (!firstChildKey) {
-					return
-				}
-
-				const firstChild = selectedEntry.childs[firstChildKey]
-				if (!firstChild?.element) {
-					throw new Error('Incorrect dev assumption, found a child with no Element!')
-				}
-				const firstChildPath = this.selected.path.push(firstChildKey)
-				this.select({
-					el: firstChild.element,
-					path: firstChildPath,
-					tag: getNode(this.file.root, firstChildPath),
-				})
+				this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
 				return
 			}
 			case 'ArrowDown':
 			case 'j': {
+				evt.preventDefault()
 				this.moveVertical('down')
 				return
 			}
 			case 'ArrowUp':
 			case 'k': {
+				evt.preventDefault()
 				this.moveVertical('up')
 				return
 			}
 			case 'ArrowLeft':
 			case 'h': {
+				evt.preventDefault()
 				if (this.expanded.has(this.selected.path.toString())) {
 					this.collapse(this.selected.path)
 					this.closeBody(this.selected.path, this.selected.el)
@@ -290,6 +277,7 @@ export class TreeEditor implements EditorPanel {
 		}
 		
 		this.select({...parent, el: parent.entry.element})
+		TreeEditor.scrollIntoViewIfNeeded(parent.entry.element)
 	}
 
 	private selectFirstChildIfOpen(nodeInfo: NodeInfo): void {
@@ -299,8 +287,8 @@ export class TreeEditor implements EditorPanel {
 		if (!this.expanded.has(nodeInfo.path.toString())) {
 			return
 		}
-		const firstChildKey = Object.keys(nodeInfo.entry.childs)[0]
-		if (!firstChildKey) {
+		const firstChildKey = TreeEditor.getFirstChildKey(nodeInfo.tag)
+		if (firstChildKey === undefined) {
 			return
 		}
 
@@ -309,16 +297,12 @@ export class TreeEditor implements EditorPanel {
 			throw new Error('Incorrect dev assumption, found a child with no Element!')
 		}
 		const firstChildPath = nodeInfo.path.push(firstChildKey)
-		console.log({
-			el: firstChild.element,
-			path: firstChildPath,
-			tag: getNode(this.file.root, firstChildPath),
-		})
 		this.select({
 			el: firstChild.element,
 			path: firstChildPath,
 			tag: getNode(this.file.root, firstChildPath),
 		})
+		TreeEditor.scrollIntoViewIfNeeded(firstChild.element)
 	}
 
 	private moveVertical(direction: 'up' | 'down'): void {
@@ -377,6 +361,7 @@ export class TreeEditor implements EditorPanel {
 				path: nextPath,
 				tag: nextTag,
 			})	
+			TreeEditor.scrollIntoViewIfNeeded(nextElement)
 		}
 
 		if (parentTag.isListOrArray()) {
@@ -385,15 +370,14 @@ export class TreeEditor implements EditorPanel {
 				throw new Error('non-number key in an Nbt List or Array')
 			}
 			const nextKey = selectedKey + offset
-			if (nextKey < 0) {
-				// There were no more entries available in that direction
-				if (direction === 'up') {
-					this.selectParent()
-					return
-				}
-				if (direction === 'down') {
-					this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
-				}
+			// There were no more entries available in that direction
+			if (nextKey < 0 && direction === 'up') {
+				this.selectParent()
+				return
+			}
+			if (nextKey >= parentTag.length && direction === 'down') {
+				this.selectFirstChildIfOpen(this.getNodeInfo(this.selected.path))
+				return
 			}
 			const nextPath = parentPath.push(nextKey)
 			const nextTag = parentTag.get(nextKey)
@@ -410,6 +394,7 @@ export class TreeEditor implements EditorPanel {
 				path: nextPath,
 				tag: nextTag,
 			})	
+			TreeEditor.scrollIntoViewIfNeeded(nextElement)
 		}
 
 		return
@@ -438,7 +423,28 @@ export class TreeEditor implements EditorPanel {
 				path: nextExpandablePath,
 				tag: nextExpandableTag,
 			})
+			TreeEditor.scrollIntoViewIfNeeded(nextExpandableElement)
 		}
+	}
+
+	private static scrollIntoViewIfNeeded(target: Element): void {
+		if (target.getBoundingClientRect().bottom > window.innerHeight) {
+			target.scrollIntoView(false)
+		}
+		
+		if (target.getBoundingClientRect().top < 0) {
+			target.scrollIntoView()
+		} 
+	}
+
+	private static getFirstChildKey(nbt: NbtTag): string | number | undefined {
+		if (nbt.isListOrArray() && nbt.length > 0) {
+			return 0
+		}
+		if (nbt.isCompound()) {
+			return [...nbt.keys()].sort()[0]
+		}
+		return undefined
 	}
 
 	/**

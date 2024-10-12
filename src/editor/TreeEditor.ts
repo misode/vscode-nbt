@@ -205,7 +205,7 @@ export class TreeEditor implements EditorPanel {
 		switch (evt.key) {
 			case 'ArrowRight':
 			case 'l': {
-				evt.preventDefault()
+				evt.preventDefault() // no scroll
 				if (!this.canExpand(selectedTag)) {
 					// Not expandable, we'll advance along the line of siblings
 					// to the next expandable item instead
@@ -227,19 +227,19 @@ export class TreeEditor implements EditorPanel {
 			}
 			case 'ArrowDown':
 			case 'j': {
-				evt.preventDefault()
+				evt.preventDefault() // no scroll
 				this.moveVertical('down')
 				return
 			}
 			case 'ArrowUp':
 			case 'k': {
-				evt.preventDefault()
+				evt.preventDefault() // no scroll
 				this.moveVertical('up')
 				return
 			}
 			case 'ArrowLeft':
 			case 'h': {
-				evt.preventDefault()
+				evt.preventDefault() // no scroll
 				if (this.expanded.has(this.selected.path.toString())) {
 					this.collapse(this.selected.path)
 					this.closeBody(this.selected.path, this.selected.el)

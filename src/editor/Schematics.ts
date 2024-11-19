@@ -79,7 +79,8 @@ export function litematicToStructure(root: NbtCompound) {
 			return tempDataview.getBigUint64(0)
 		})
 
-		const bits = Math.ceil(Math.log2(palette.length)) // unlike chunks, bits is not at least 4
+		// litematica use at least 2 bits for palette indices (https://github.com/misode/vscode-nbt/issues/76)
+		const bits = Math.max(2, Math.ceil(Math.log2(palette.length)))
 		const bigBits = BigInt(bits)
 		const big0 = BigInt(0)
 		const big64 = BigInt(64)

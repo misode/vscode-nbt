@@ -68,7 +68,7 @@
 	"dependencies": {
 		"deepslate": "^0.22.2",
 		"env-paths": "^2.2.1",
-		"follow-redirects": "^1.14.8",
+		"follow-redirects": "^1.15.6",
 		"gl-matrix": "^3.4.3",
 		"tar": "^6.1.11",
 		"vscode-codicons": "^0.0.14"

@@ -41,6 +41,10 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		return this.textureAtlas.getTextureAtlas()
 	}
 
+	public getPixelSize(): number {
+		return this.textureAtlas.getPixelSize()
+	}
+
 	public getBlockFlags(id: Identifier) {
 		const str = id.toString()
 		return {

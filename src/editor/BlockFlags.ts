@@ -440,6 +440,9 @@ export const NON_SELF_CULLING = new Set([
 	'minecraft:jungle_leaves',
 	'minecraft:mangrove_leaves',
 	'minecraft:oak_leaves',
+	'minecraft:orange_poplar_leaves',
 	'minecraft:pale_oak_leaves',
+	'minecraft:red_poplar_leaves',
 	'minecraft:spruce_leaves',
+	'minecraft:yellow_poplar_leaves',
 ])

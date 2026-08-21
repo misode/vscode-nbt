@@ -187,7 +187,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 					<div class="file-info"></div>
 							
 					${isStructure || isRegion ? `
-						<img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="">
+						<img class="texture-atlas" nonce="${nonce}" src="${atlasUrl}" alt="" crossorigin="use-credentials">
 						<script nonce="${nonce}" src="${assetsUrl}"></script>
 						<script nonce="${nonce}" src="${uvmappingUrl}"></script>
 						<script nonce="${nonce}" src="${blocksUrl}"></script>

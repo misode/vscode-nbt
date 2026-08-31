@@ -158,6 +158,55 @@ export function litematicToStructure(root: NbtCompound) {
 	return new MultiStructure([width, height, length], regions)
 }
 
+export function mcstructureToStructure(root: NbtCompound) {
+	const [width, height, length] = root.getList('size', NbtType.Int).map(e => e.getAsNumber())
+
+	const structureCompound = root.getCompound('structure')
+	const paletteCompound = structureCompound.getCompound('palette')
+	const defaultKey = paletteCompound.hasCompound('default') ? 'default' : [...paletteCompound.keys()][0]
+	const defaultPalette = paletteCompound.getCompound(defaultKey)
+
+	const palette: BlockState[] = defaultPalette.getList('block_palette', NbtType.Compound).map(entry => {
+		const name = entry.getString('name')
+		const properties: Record<string, string> = {}
+		entry.getCompound('states').forEach((key, tag) => {
+			if (tag.isByte()) {
+				properties[key] = tag.getAsNumber() === 0 ? 'false' : 'true'
+			} else if (tag.isString()) {
+				properties[key] = tag.getAsString()
+			} else {
+				properties[key] = String(tag.getAsNumber())
+			}
+		})
+		return new BlockState(name, properties)
+	})
+
+	const blockPositionData = defaultPalette.getCompound('block_position_data')
+
+	const indices = structureCompound.getList('block_indices', NbtType.List).getList(0, NbtType.Int).map(e => e.getAsNumber())
+
+	const blocks: { pos: BlockPos, state: number, nbt?: NbtCompound }[] = []
+	for (let x = 0; x < width; x += 1) {
+		for (let y = 0; y < height; y += 1) {
+			for (let z = 0; z < length; z += 1) {
+				const i = (x * height + y) * length + z
+				const state = indices[i]
+				if (state === undefined || state === -1) continue
+				if (state > palette.length - 1) {
+					console.error(`Invalid palette ID ${state}`)
+					continue
+				}
+				const blockData = blockPositionData.hasCompound(String(i)) ? blockPositionData.getCompound(String(i)) : undefined
+				const blockEntityTag = blockData?.hasCompound('block_entity_data') ? blockData.getCompound('block_entity_data') : undefined
+				const nbt = blockEntityTag ? NbtCompound.fromJson(blockEntityTag.toJson()) : undefined
+				blocks.push({ pos: [x, y, z], state, nbt })
+			}
+		}
+	}
+
+	return new Structure([width, height, length], palette, blocks)
+}
+
 export function schematicToStructure(root: NbtCompound) {
 	const width = root.getNumber('Width')
 	const height = root.getNumber('Height')

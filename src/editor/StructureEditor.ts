@@ -6,7 +6,7 @@ import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
-import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
+import { litematicToStructure, mcstructureToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
 
@@ -268,6 +268,9 @@ export class StructureEditor implements EditorPanel {
 		if (this.file.root.get('Blocks')?.isByteArray() && this.file.root.get('Data')?.isByteArray()) {
 			return schematicToStructure(this.file.root)
 		}
+		if (this.file.root.hasCompound('structure') && this.file.root.hasList('size', NbtType.Int, 3)) {
+			return mcstructureToStructure(this.file.root)
+		}
 		return Structure.fromNbt(this.file.root)
 	}
 
@@ -334,7 +337,7 @@ export class StructureEditor implements EditorPanel {
 		this.root.querySelector('.side-panel')?.remove()
 		const block = this.selectedBlock ? this.structure.getBlock(this.selectedBlock) : null
 
-		const readOnly = this.readOnly || !this.file.root.hasList('size', NbtType.Int, 3)
+		const readOnly = this.readOnly || !this.file.root.hasList('size', NbtType.Int, 3) || this.file.root.hasCompound('structure')
 
 		const sidePanel = document.createElement('div')
 		sidePanel.classList.add('side-panel')

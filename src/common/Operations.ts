@@ -1,4 +1,5 @@
-import { NbtByte, NbtChunk, NbtCompound, NbtDouble, NbtEnd, NbtFile, NbtFloat, NbtInt, NbtLong, NbtRegion, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
+import type { NbtCompound, NbtFile} from 'deepslate'
+import { NbtByte, NbtChunk, NbtDouble, NbtEnd, NbtFloat, NbtInt, NbtLong, NbtRegion, NbtShort, NbtString, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from './NbtPath'
 import type { Logger, NbtEdit } from './types'
 

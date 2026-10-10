@@ -1,11 +1,12 @@
 import type { StructureProvider } from 'deepslate'
-import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
+import { BlockPos, NbtFile, NbtInt, NbtType, Structure } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
 import { mapEdit } from '../common/Operations'
-import type { NbtEdit } from '../common/types'
+import type { NbtEdit, ViewMessage } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
+import { ReloadableRenderer } from './ReloadableRenderer'
 import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
@@ -22,8 +23,13 @@ export class StructureEditor implements EditorPanel {
 	private readonly canvas: HTMLCanvasElement
 	private readonly canvas2: HTMLCanvasElement
 	private readonly gl2: WebGLRenderingContext
-	protected readonly renderer: StructureRenderer
-	protected readonly renderer2: StructureRenderer
+	protected readonly renderer: ReloadableRenderer
+	protected readonly renderer2: ReloadableRenderer
+	private modded = true
+	private resourceGeneration = 0
+	private readonly resourceStatus = document.createElement('div')
+	private readonly maxAtlasSize: number
+	private highlighted: BlockPos[] = []
 
 	private renderRequested = false
 
@@ -49,12 +55,14 @@ export class StructureEditor implements EditorPanel {
 		this.canvas.className = 'structure-3d'
 		const gl = this.canvas.getContext('webgl')!
 		this.structure = new Structure([0, 0, 0])
-		this.renderer = new StructureRenderer(gl, this.structure, this.resources)
+		this.maxAtlasSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
+		this.renderer = new ReloadableRenderer(gl, this.structure, this.resources)
 
 		this.canvas2 = document.createElement('canvas')
 		this.canvas2.className = 'structure-3d click-detection'
 		this.gl2 = this.canvas2.getContext('webgl')!
-		this.renderer2 = new StructureRenderer(this.gl2, this.structure, this.resources)
+		this.renderer2 = new ReloadableRenderer(this.gl2, this.structure, this.resources)
+		this.resourceStatus.className = 'resource-status'
 
 		this.warning = document.createElement('div')
 		this.warning.className = 'nbt-warning'
@@ -171,6 +179,7 @@ export class StructureEditor implements EditorPanel {
 			if (this.selectedBlock) {
 				this.renderer.drawOutline(viewMatrix, this.selectedBlock)
 			}
+			for (const pos of this.highlighted) this.renderer.drawOutline(viewMatrix, pos)
 		})
 	}
 
@@ -198,6 +207,7 @@ export class StructureEditor implements EditorPanel {
 		this.root.append(this.warning)
 		this.root.append(this.canvas)
 		this.root.append(this.canvas2)
+		this.root.append(this.resourceStatus)
 		this.showSidePanel()
 		document.addEventListener('keydown', this.onKeyDown)
 		document.addEventListener('keyup', this.onKeyUp)
@@ -223,6 +233,7 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	private readonly onKeyDown = (evt: KeyboardEvent) => {
+		if (evt.target instanceof HTMLInputElement || evt.target instanceof HTMLTextAreaElement || evt.target instanceof HTMLSelectElement) return
 		const index = this.movementKeys.indexOf(evt.code)
 		if (index !== -1) {
 			this.movement[index] = 1
@@ -247,10 +258,12 @@ export class StructureEditor implements EditorPanel {
 
 		if (isLarge) {
 			this.warning.classList.add('active')
+			this.requestResources()
 			return
 		}
 
 		this.buildStructure()
+		this.requestResources()
 	}
 
 	protected isLarge() {
@@ -275,8 +288,44 @@ export class StructureEditor implements EditorPanel {
 		const isLarge = this.isLarge()
 		this.renderer.useInvisibleBlocks = !isLarge
 		this.renderer2.useInvisibleBlocks = !isLarge
-		this.renderer.setStructure(this.structure)
-		this.renderer2.setStructure(this.structure)
+		const bound = this.resources.bind(this.structure)
+		this.renderer.setStructure(bound)
+		this.renderer2.setStructure(bound)
+	}
+
+	private requestResources(): void {
+		if (!this.modded) return
+		const ids = [...new Set(this.structure.getBlocks().map(b => b.state.getName().toString()))]
+		if (ids.length > 8192) { this.resourceStatus.textContent = 'Asset limit exceeded: showing vanilla/fallback models'; return }
+		const dependencies = this.resources.dependencies(ids)
+		this.resourceStatus.textContent = 'Loading instance models and textures…'
+		this.vscode.postMessage({ type: 'getResources', body: { ids, ...dependencies, generation: ++this.resourceGeneration } })
+	}
+
+	onMessage(message: ViewMessage): void {
+		if (message.type === 'resourcesChanged') { if (this.file) this.requestResources(); return }
+		if (message.type !== 'resources' || message.generation !== this.resourceGeneration || !this.modded) return
+		if (message.error || !message.body) { this.resourceStatus.textContent = `Resources: ${message.error ?? 'No response'}`; return }
+		const generation = message.generation
+		void (async () => {
+			try {
+				await this.resources.apply(message.body!, this.maxAtlasSize, () => generation !== this.resourceGeneration || !this.modded)
+				if (generation !== this.resourceGeneration || !this.modded) return
+				this.refreshResources()
+				const diagnostics = [...this.resources.diagnostics]
+				this.resourceStatus.textContent = diagnostics.length ? `${diagnostics.length} resource warnings — Show Resource Diagnostics for details` : 'Instance resources loaded'
+				this.resourceStatus.title = diagnostics.slice(0, 15).join('\n')
+				this.vscode.postMessage({ type: 'resourceDiagnostics', body: diagnostics })
+			} catch (e) { this.resourceStatus.textContent = `Resource error: ${e instanceof Error ? e.message : String(e)}` }
+		})()
+	}
+
+	private refreshResources(): void {
+		this.renderer.refreshAtlas(this.resources.getTextureAtlas())
+		this.renderer2.refreshAtlas(this.resources.getTextureAtlas())
+		if (!this.isLarge() || !this.warning.classList.contains('active')) this.buildStructure()
+		this.showSidePanel()
+		this.render()
 	}
 
 	menu() {
@@ -301,7 +350,31 @@ export class StructureEditor implements EditorPanel {
 			this.render()
 		})
 
-		return [gridToggle, invisibleBlocksToggle]
+		const moddedToggle = document.createElement('div')
+		moddedToggle.className = this.modded ? 'btn active' : 'btn'
+		moddedToggle.textContent = 'Modded assets'
+		moddedToggle.addEventListener('click', () => {
+			this.modded = !this.modded
+			moddedToggle.classList.toggle('active', this.modded)
+			this.resourceGeneration++
+			if (this.modded) this.requestResources()
+			else { this.resources.reset(); this.refreshResources(); this.resourceStatus.textContent = 'Vanilla assets only' }
+		})
+		const reload = document.createElement('div')
+		reload.className = 'btn'
+		reload.textContent = 'Reload assets'
+		reload.addEventListener('click', () => this.requestResources())
+		const search = document.createElement('input')
+		search.className = 'block-search'
+		search.placeholder = 'Highlight namespace or block ID'
+		search.setAttribute('aria-label', search.placeholder)
+		search.addEventListener('input', () => {
+			const query = search.value.trim().toLowerCase()
+			this.highlighted = query ? this.structure.getBlocks().filter(b => b.state.getName().toString().includes(query)).slice(0, 200).map(b => b.pos) : []
+			search.title = this.highlighted.length === 200 ? 'Showing the first 200 matches' : `${this.highlighted.length} matches`
+			this.render()
+		})
+		return [gridToggle, invisibleBlocksToggle, moddedToggle, reload, search]
 	}
 
 	private getViewMatrix() {
@@ -342,17 +415,19 @@ export class StructureEditor implements EditorPanel {
 		if (block) {
 			const properties = block.state.getProperties()
 			sidePanel.innerHTML = `
-				<div class="block-name">${block.state.getName()}</div>
+				<div class="block-name">${escapeHtml(block.state.getName().toString())}</div>
 				<div class="block-pos">${block.pos.join(' ')}</div>
 				${Object.keys(properties).length === 0 ? '' : `
 					<div class="block-props">
 					${Object.entries(properties).map(([k, v]) => `
-						<span class="prop-key">${k}</span>
-						<span class="prop-value">${v}</span>
+						<span class="prop-key">${escapeHtml(k)}</span>
+						<span class="prop-value">${escapeHtml(v)}</span>
 					`).join('')}
 					</div>
 				`}
 			`
+			const warnings = [...this.resources.diagnostics].filter(message => message.includes(block.state.getName().toString()))
+			if (warnings.length) { const warning = document.createElement('div'); warning.className = 'model-warning'; warning.textContent = warnings.join('\n'); sidePanel.append(warning) }
 			if (block.nbt) {
 				const nbtTree = document.createElement('div')
 				sidePanel.append(nbtTree)
@@ -392,3 +467,5 @@ export class StructureEditor implements EditorPanel {
 		}
 	}
 }
+
+function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)) }

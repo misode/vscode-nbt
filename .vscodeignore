@@ -10,3 +10,12 @@ src/**
 **/.eslintrc.json
 **/*.map
 **/*.ts
+tests/**
+test-results/**
+playwright-report/**
+work/**
+docs/IMPLEMENTATION.md
+docs/TESTING.md
+playwright.config.*
+**/tsconfig.assets.json
+.eslintrc.js

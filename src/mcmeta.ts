@@ -1,7 +1,7 @@
 import envPaths from 'env-paths'
 import path from 'path'
 import { Readable, Writable } from 'stream'
-import tar from 'tar'
+import * as tar from 'tar'
 import type { Logger } from './common/types'
 import type { Job } from './Downloader'
 import { Downloader } from './Downloader'
@@ -112,7 +112,7 @@ function readTarGz(buffer: Buffer, filter: (path: string) => boolean = (() => tr
 	return new Promise<TarEntry[]>((res, rej) => {
 		Readable.from(buffer)
 			.on('error', err => rej(err))
-			.pipe(new tar.Parse())
+			.pipe(new tar.Parser())
 			.on('entry', entry => {
 				if (filter(entry.path)) {
 					let data = ''

@@ -664,3 +664,17 @@ span.nbt-value {
 .hidden {
 	display: none !important;
 }
+/* Instance asset status and block highlighting use native webview theme colors. */
+.resource-status {
+	position: absolute;
+	bottom: 28px;
+	left: 12px;
+	max-width: 65%;
+	padding: 5px 8px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	pointer-events: none;
+	font-size: 12px;
+}
+.block-search { max-width: 220px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }
+.model-warning { color: var(--vscode-editorWarning-foreground); white-space: pre-wrap; padding: 8px; }

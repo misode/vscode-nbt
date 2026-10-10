@@ -6,13 +6,15 @@ import { disposeAll } from './dispose'
 import { getAssets, mcmetaRoot } from './mcmeta'
 import { NbtDocument } from './NbtDocument'
 import { WebviewCollection } from './WebviewCollection'
+import type { InstanceManager } from './assets/InstanceManager'
+import { errorText, LIMITS, resourceId } from './assets/Types'
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
-	public static register(context: vscode.ExtensionContext, logger: Logger): vscode.Disposable {
+	public static register(context: vscode.ExtensionContext, logger: Logger, resources: InstanceManager): vscode.Disposable {
 		return vscode.window.registerCustomEditorProvider(
 			'nbtEditor.nbt',
-			new NbtEditorProvider(context, logger),
+			new NbtEditorProvider(context, logger, resources),
 			{
 				webviewOptions: {
 					retainContextWhenHidden: true,
@@ -26,6 +28,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	constructor(
 		private readonly _context: vscode.ExtensionContext,
 		private readonly logger: Logger,
+		private readonly resources: InstanceManager,
 	) { }
 
 	//#region CustomEditorProvider
@@ -70,7 +73,9 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		}
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, assets.version, document.isStructure, document.documentData instanceof NbtRegion)
 
-		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
+		const listener = webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(e, document, webviewPanel))
+		const reload = this.resources.onDidChangeResources(() => this.postMessage(webviewPanel, { type: 'resourcesChanged' }))
+		webviewPanel.onDidDispose(() => { listener.dispose(); reload.dispose(); this.resourceRequests.delete(webviewPanel) })
 	}
 
 	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<NbtDocument>>()
@@ -109,7 +114,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		))
 		const scriptUri = uri('out', 'editor.js')
 		const styleUri = uri('res', 'editor.css')
-		const codiconsUri = uri('node_modules', 'vscode-codicons', 'dist', 'codicon.css')
+		const codiconsUri = uri('res', 'generated', 'codicons', 'codicon.css')
 
 		const mcmetaUri = (id: string) => webview.asWebviewUri(vscode.Uri.file(
 			path.join(mcmetaRoot, `${version}-${id}`)
@@ -208,8 +213,29 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		}
 	}
 
+	private readonly resourceRequests = new Map<vscode.WebviewPanel, number>()
 	private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
 		switch (message.type) {
+			case 'getResources': {
+				const generation = message.body?.generation
+				if (!Number.isSafeInteger(generation)) return
+				this.resourceRequests.set(panel, generation)
+				const cancelled = () => this.resourceRequests.get(panel) !== generation
+				void (async () => {
+					try {
+						const validateIds = (ids: unknown): string[] => {
+							if (!Array.isArray(ids) || ids.length > LIMITS.blocks || ids.some(id => typeof id !== 'string' || id.length > 256)) throw new Error('Invalid asset request')
+							return ids.map(resourceId)
+						}
+						const body = await this.resources.bundle(validateIds(message.body.ids), validateIds(message.body.models), validateIds(message.body.textures), cancelled)
+						if (!cancelled()) this.postMessage(panel, { type: 'resources', body, generation })
+					} catch (e) { if (!cancelled()) { this.logger.warn('Resource loading failed: %s', errorText(e)); this.postMessage(panel, { type: 'resources', generation, error: errorText(e) }) } }
+				})()
+				return
+			}
+			case 'resourceDiagnostics':
+				if (Array.isArray(message.body) && message.body.every(s => typeof s === 'string')) this.resources.recordDiagnostics(message.body)
+				return
 			case 'ready':
 				this.postMessage(panel, {
 					type: 'init',

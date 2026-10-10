@@ -258,6 +258,12 @@ class Editor {
 				}
 				return
 
+			case 'resources':
+			case 'resourcesChanged':
+				// The chunk panel must also receive changes while a region map is visible.
+				this.panels[this.type]?.editor().onMessage?.(m)
+				return
+
 			default:
 				this.panels[this.type].editor().onMessage?.(m)
 		}

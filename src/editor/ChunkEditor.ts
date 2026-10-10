@@ -98,7 +98,7 @@ export class ChunkEditor extends StructureEditor {
 	}
 
 	menu() {
-		return []
+		return super.menu()
 	}
 
 	protected showSidePanel() {

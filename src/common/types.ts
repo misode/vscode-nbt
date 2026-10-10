@@ -1,4 +1,5 @@
 import type { JsonValue } from 'deepslate'
+import type { AssetBundle } from '../assets/Types'
 
 export interface Logger {
 	error(data: any, ...args: any[]): void
@@ -31,6 +32,12 @@ export type NbtEdit = {
 }
 
 export type EditorMessage = { requestId?: number } & ({
+	type: 'getResources',
+	body: { ids: string[], models: string[], textures: string[], generation: number },
+} | {
+	type: 'resourceDiagnostics',
+	body: string[],
+} | {
 	type: 'ready',
 } | {
 	type: 'response',
@@ -51,6 +58,13 @@ export type EditorMessage = { requestId?: number } & ({
 })
 
 export type ViewMessage = { requestId?: number } & ({
+	type: 'resources',
+	body?: AssetBundle,
+	generation: number,
+	error?: string,
+} | {
+	type: 'resourcesChanged',
+} | {
 	type: 'init',
 	body: {
 		type: 'default' | 'structure' | 'map' | 'region',

@@ -31,6 +31,8 @@ The list combines vanilla registry blocks with the selected pack's indexed block
 
 Click the scene to enable movement keys. Movement and dragging stop when focus leaves the canvas, the viewer is hidden, or a pointer gesture is cancelled, so typing in the block search does not move the camera.
 
+Block searches reuse the last filtered result across pages, and recently loaded mod property choices are cached (64 blocks). Changing resources clears the selected brush and cached choices. Identical placements leave the document and undo history untouched. Existing AE2 cable configuration is preserved when recolouring. Picking resolves framebuffer coordinate rounding using the click ray, including high coordinates.
+
 ## Supported assets and limitations
 
 Standard `assets/<namespace>/blockstates/*.json`, `models/**/*.json`, and `textures/**/*.png` are indexed directly from JAR/ZIP archives or directory packs without bulk extraction. Cross-namespace references, parent overrides, variants, weighted choices and multipart models are supported. Static models from mod ecosystems use the same path.
@@ -67,7 +69,7 @@ npm run package
 
 On Windows browser tests default to installed Edge; set `NBT_BROWSER_CHANNEL=chromium` to use Playwright Chromium. `npm run dev` watches the two existing Rollup entry points. Run the extension in a VS Code Extension Development Host using this folder.
 
-Packaging produces `vscode-nbt-0.11.0.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
+Packaging produces `vscode-nbt-0.11.1.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
 
 See [implementation notes](docs/IMPLEMENTATION.md) and [reproducible test fixtures](docs/TESTING.md). The MIT license and upstream attribution are retained.
 

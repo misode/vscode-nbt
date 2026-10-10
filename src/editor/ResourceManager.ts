@@ -56,7 +56,8 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	}
 	getBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.properties ?? null }
 	getDefaultBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.default ?? null }
-	availableBlocks(): string[] { return [...this.blocks.keys()].sort() }
+	private vanillaBlockIds?: string[]
+	availableBlocks(): string[] { return [...(this.vanillaBlockIds ??= [...this.blocks.keys()].sort())] }
 	blockOptions(id: string): BlockOptions | undefined {
 		const block = this.blocks.get(id)
 		return block ? { id, properties: block.properties, defaults: block.default } : undefined

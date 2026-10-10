@@ -7,7 +7,7 @@ import { NbtCompound, NbtFile, NbtInt, NbtString, Structure } from 'deepslate'
 import { applyEdit, reverseEdit } from '../src/common/Operations'
 import { blockOptions } from '../src/assets/BlockOptions'
 import { ResourceIndex } from '../src/assets/ResourceIndex'
-import { canBuildStructure, createBlankStructure, intersectBox, removeStructureBlock, setStructureBlock } from '../src/editor/StructureEditing'
+import { canBuildStructure, createBlankStructure, intersectBox, removeStructureBlock, resolveColorPick, setStructureBlock } from '../src/editor/StructureEditing'
 import { cube, instance, png, zip } from './fixtures'
 
 test('a new blank structure accepts placements, saves gzip NBT, and reverses the whole first placement', () => {
@@ -56,10 +56,13 @@ test('AE2 cable brushes create cable-bus NBT and preserve attachments when recol
 	assert.equal(file.root.getList('palette').getCompound(0).getString('Name'), 'ae2:cable_bus')
 	assert.equal(block.getCompound('nbt').getCompound('cable').getString('id'), 'ae2:fluix_glass_cable')
 	block.getCompound('nbt').set('up', new NbtCompound().set('id', new NbtString('ae2:energy_acceptor')))
+	block.getCompound('nbt').getCompound('cable').set('custom', new NbtString('Preserve cable configuration'))
 	applyEdit(file, setStructureBlock(file, [0, 0, 0], 'ae2:blue_smart_cable', {}))
 	block = file.root.getList('blocks').getCompound(0)
 	assert.equal(block.getCompound('nbt').getCompound('up').getString('id'), 'ae2:energy_acceptor')
 	assert.equal(block.getCompound('nbt').getCompound('cable').getString('id'), 'ae2:blue_smart_cable')
+	assert.equal(block.getCompound('nbt').getCompound('cable').getString('custom'), 'Preserve cable configuration')
+	assert.deepEqual(setStructureBlock(file, [0, 0, 0], 'ae2:blue_smart_cable', {}), { type: 'composite', edits: [] })
 })
 test('unsupported formats, unsafe IDs, invalid properties and out-of-bounds positions cannot change a structure', () => {
 	const file = createBlankStructure(3465, [2, 2, 2])
@@ -95,6 +98,10 @@ test('catalog pagination, namespaces and AE2 brushes use the selected archive an
 		assert.equal(index.catalog('', 'demo', 200).ids.length, 5)
 		assert.equal(index.catalog('', 'demo', 0).total, 205)
 		assert.deepEqual(index.catalog('', '', 0).namespaces, ['ae2', 'demo'])
+		const page = index.catalog('BLOCK_', 'demo', 0)
+		page.ids.length = 0; page.namespaces.push('mutated')
+		assert.equal(index.catalog('block_', 'demo', 100).ids.length, 100)
+		assert.deepEqual(index.catalog('block_', 'demo', 0).namespaces, ['ae2', 'demo'])
 		assert.ok(index.catalog('glass_cable', '', 0).ids.includes('ae2:fluix_glass_cable'))
 		assert.equal((await index.blockOptions('demo:block_001')).defaults.axis, 'x')
 		await assert.rejects(() => index.blockOptions('missing:unknown'))
@@ -108,4 +115,14 @@ test('ray/voxel face intersection returns the correct adjacent direction and mis
 	assert.deepEqual(intersectBox([-4, 0.5, 0.5], [1, 0, 0], [0, 0, 0], [1, 1, 1])?.normal, [-1, 0, 0])
 	assert.deepEqual(intersectBox([0.5, 0.5, 4], [0, 0, -1], [0, 0, 0], [1, 1, 1])?.normal, [0, 0, 1])
 	assert.equal(intersectBox([2, 4, 0.5], [0, -1, 0], [0, 0, 0], [1, 1, 1]), undefined)
+})
+
+test('color picking resolves quantization collisions and coordinates beyond the 8-bit range', () => {
+	const structure = new Structure([300, 2, 2])
+	for (const x of [127, 128, 129, 256, 270]) structure.addBlock([x, 0, 0], 'minecraft:stone')
+	const color = (x: number) => [Math.round(Math.min(1, x / 256) * 255), 0, 0]
+	assert.deepEqual(resolveColorPick(structure, color(127), [127.5, 2, 0.5], [0, -1, 0]), [127, 0, 0])
+	assert.deepEqual(resolveColorPick(structure, color(129), [129.5, 2, 0.5], [0, -1, 0]), [129, 0, 0])
+	assert.deepEqual(resolveColorPick(structure, color(270), [270.5, 2, 0.5], [0, -1, 0]), [270, 0, 0])
+	assert.equal(resolveColorPick(structure, color(128), [128.5, 2, 1.5], [0, -1, 0]), null)
 })

@@ -137,10 +137,16 @@ test('production WebGL viewer renders archive assets, fallback geometry, search 
 })
 function assertCanvas(value: { error: number, width: number, height: number }) { expect(value.error).toBe(0); expect(value.width).toBeGreaterThan(0); expect(value.height).toBeGreaterThan(0) }
 
-async function editableFixture(page: Page, readOnly = false) {
-	const file = createBlankStructure(3465, [6, 4, 6])
+async function editableFixture(page: Page, readOnly = false, size: [number, number, number] = [6, 4, 6], seed?: [number, number, number]) {
+	const file = createBlankStructure(3465, size)
+	if (seed) {
+		const { setStructureBlock } = await import('../../src/editor/StructureEditing')
+		applyEdit(file, setStructureBlock(file, seed, 'demo:casing', {}))
+	}
 	const edits: NbtEdit[] = []
+	const messages: EditorMessage[] = []
 	await page.exposeFunction('fixtureMessage', async (message: EditorMessage) => {
+		messages.push(message)
 		if (message.type === 'ready') await page.evaluate(body => window.postMessage({ type: 'init', body }, '*'), { type: 'structure', readOnly, content: file.toJson() })
 		if (message.type === 'getResources') {
 			const body = await index.bundle(message.body.ids, [1, 1, 1], () => false, message.body.models, message.body.textures)
@@ -164,7 +170,7 @@ async function editableFixture(page: Page, readOnly = false) {
 	await page.addInitScript(() => { (window as unknown as { acquireVsCodeApi: () => unknown }).acquireVsCodeApi = () => ({ postMessage: (message: unknown) => (window as unknown as { fixtureMessage: (m: unknown) => void }).fixtureMessage(message) }) })
 	await page.goto(url)
 	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
-	return { file, edits }
+	return { file, edits, messages }
 }
 function screenPoint(point: [number, number, number], size: [number, number, number]): [number, number] {
 	const center = size.map(n => -n / 2) as [number, number, number]
@@ -257,5 +263,40 @@ test('read-only documents expose the block list but cannot place or remove block
 	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeDisabled()
 	await expect(page.locator('.builder-status')).toContainText('read-only')
 	expect(edits).toHaveLength(0)
+})
+
+test('builder caches properties, skips identical edits and refreshes safely after a pack change while hidden', async ({ page }) => {
+	const { file, edits, messages } = await editableFixture(page)
+	await page.getByRole('button', { name: 'Build', exact: true }).click()
+	await page.getByPlaceholder('Find a block to place').fill('demo:pipe')
+	const pipe = page.locator('[data-block="demo:pipe"]')
+	await pipe.click()
+	await expect(page.getByLabel('Block property axis', { exact: true })).toBeVisible()
+	await pipe.click()
+	expect(messages.filter(m => m.type === 'getBlockOptions')).toHaveLength(1)
+	await page.getByRole('button', { name: 'Set block at coordinates', exact: true }).click()
+	await expect.poll(() => file.root.getList('blocks').length).toBe(1)
+	await expect(page.locator('.builder-status')).toContainText('Block changed')
+	await page.getByRole('button', { name: 'Set block at coordinates', exact: true }).click()
+	await expect(page.locator('.builder-status')).toContainText('No changes needed')
+	expect(edits).toHaveLength(1)
+	await page.getByText('Default', { exact: true }).click()
+	await page.evaluate(() => window.postMessage({ type: 'resourcesChanged' }, '*'))
+	await page.getByText('3D', { exact: true }).click()
+	await expect(pipe).toBeVisible()
+	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeDisabled()
+	await pipe.click()
+	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeEnabled()
+	expect(messages.filter(m => m.type === 'getBlockOptions')).toHaveLength(2)
+})
+
+test('GPU picking erases the actual block at a quantized high coordinate', async ({ page }) => {
+	const size: [number, number, number] = [140, 4, 6]
+	const { file } = await editableFixture(page, false, size, [129, 0, 1])
+	await page.mouse.click(...screenPoint([129.5, 1, 1.5], size))
+	await expect(page.locator('.block-pos')).toHaveText('129 0 1')
+	await page.getByRole('button', { name: 'Build', exact: true }).click()
+	await page.getByRole('button', { name: 'Remove at coordinates', exact: true }).click()
+	await expect.poll(() => file.root.getList('blocks').length).toBe(0)
 })
 

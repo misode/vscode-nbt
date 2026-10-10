@@ -2,6 +2,7 @@ import { BlockPos, NbtCompound, NbtFile, NbtInt, NbtList, NbtString, NbtType } f
 import type { NbtEdit } from '../common/types'
 import { resourceId } from '../assets/Types'
 import { ae2CableItem } from '../assets/Ae2'
+import type { StructureProvider } from 'deepslate'
 
 export function canBuildStructure(file: NbtFile): boolean {
 	const root = file.root
@@ -30,20 +31,29 @@ export function setStructureBlock(file: NbtFile, pos: BlockPos, brushId: string,
 	const palette = file.root.getList('palette', NbtType.Compound)
 	const state = new NbtCompound().set('Name', new NbtString(id))
 	if (Object.keys(properties).length) state.set('Properties', new NbtCompound(new Map(Object.entries(properties).map(([k, v]) => [k, new NbtString(v)]))))
-	let stateIndex = palette.getItems().findIndex(t => t.getString('Name') === id && JSON.stringify(Object.entries(t.getCompound('Properties').toSimplifiedJson()).sort()) === JSON.stringify(Object.entries(properties).sort()))
+	const propertyKey = JSON.stringify(Object.entries(properties).sort())
+	let stateIndex = palette.getItems().findIndex(t => t.getString('Name') === id && JSON.stringify(Object.entries(t.getCompound('Properties').toSimplifiedJson()).sort()) === propertyKey)
 	const edits: NbtEdit[] = []
 	if (stateIndex < 0) {
 		stateIndex = palette.length
 		edits.push(palette.length ? { type: 'add', path: ['palette', stateIndex], value: state.toJsonWithId() } : { type: 'set', path: ['palette'], old: file.root.get('palette')!.toJsonWithId(), new: new NbtList([state]).toJsonWithId() })
 	}
 	const blocks = file.root.getList('blocks', NbtType.Compound)
-	const matches = blocks.getItems().map((t, i) => ({ t, i })).filter(({ t }) => BlockPos.equals(BlockPos.fromNbt(t.getList('pos')), pos))
-	if (matches.length > 1) throw new Error('Duplicate blocks at this position; repair the NBT before editing it')
-	const existing = matches[0]
+	let existing: { t: NbtCompound, i: number } | undefined
+	for (let i = 0; i < blocks.length; i++) {
+		const t = blocks.getCompound(i)
+		if (!BlockPos.equals(BlockPos.fromNbt(t.getList('pos')), pos)) continue
+		if (existing) throw new Error('Duplicate blocks at this position; repair the NBT before editing it')
+		existing = { t, i }
+	}
 	const tag = existing ? NbtCompound.fromJson(existing.t.toJson()) : new NbtCompound()
 	tag.set('pos', new NbtList(pos.map(n => new NbtInt(n)))).set('state', new NbtInt(stateIndex))
 	if (existing && palette.getCompound(existing.t.getNumber('state')).getString('Name') !== id) tag.delete('nbt')
-	if (brush) tag.set('nbt', tag.getCompound('nbt').set('id', new NbtString(id)).set('cable', new NbtCompound().set('id', new NbtString(brushId))))
+	if (brush) {
+		const nbt = tag.getCompound('nbt')
+		tag.set('nbt', nbt.set('id', new NbtString(id)).set('cable', nbt.getCompound('cable').set('id', new NbtString(brushId))))
+	}
+	if (existing && !edits.length && JSON.stringify(existing.t.toJson()) === JSON.stringify(tag.toJson())) return { type: 'composite', edits: [] }
 	edits.push(existing ? { type: 'set', path: ['blocks', existing.i], old: existing.t.toJsonWithId(), new: tag.toJsonWithId() } : blocks.length ? { type: 'add', path: ['blocks', blocks.length], value: tag.toJsonWithId() } : { type: 'set', path: ['blocks'], old: file.root.get('blocks')!.toJsonWithId(), new: new NbtList([tag]).toJsonWithId() })
 	return { type: 'composite', edits }
 }
@@ -55,6 +65,26 @@ export function removeStructureBlock(file: NbtFile, pos: BlockPos): NbtEdit | un
 }
 
 export interface RayHit { distance: number, normal: BlockPos }
+// Deepslate encodes positions as pos / 256 into an 8-bit framebuffer. Recover
+// quantized candidates and use the click ray to distinguish adjacent cells.
+export function resolveColorPick(structure: StructureProvider, color: readonly number[], origin: readonly number[], direction: readonly number[]): BlockPos | null {
+	const encoded = (n: number) => Math.round(Math.min(1, Math.max(0, n / 256)) * 255)
+	let positions: BlockPos[]
+	if (color.some(n => n === 255)) positions = structure.getBlocks().map(b => b.pos).filter(pos => pos.every((n, i) => encoded(n) === color[i]))
+	else {
+		const axes = color.map(n => [...new Set([Math.floor(n * 256 / 255), Math.ceil(n * 256 / 255)])].filter(v => encoded(v) === n))
+		positions = axes[0].flatMap(x => axes[1].flatMap(y => axes[2].map(z => [x, y, z] as BlockPos)))
+	}
+	let nearest = Infinity
+	let picked: BlockPos | null = null
+	for (const pos of positions) {
+		const block = structure.getBlock(pos)
+		if (!block || ['minecraft:air', 'minecraft:cave_air', 'minecraft:void_air'].includes(block.state.getName().toString())) continue
+		const hit = intersectBox(origin, direction, pos, pos.map(n => n + 1))
+		if (hit && hit.distance < nearest) { nearest = hit.distance; picked = pos }
+	}
+	return picked
+}
 export function intersectBox(origin: readonly number[], direction: readonly number[], min: readonly number[], max: readonly number[]): RayHit | undefined {
 	let near = -Infinity; let far = Infinity
 	let normal: BlockPos = [0, 0, 0]

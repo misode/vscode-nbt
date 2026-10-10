@@ -25,6 +25,8 @@ export class ResourceIndex {
 	private archivesRead = 0
 	private archivesReused = 0
 	private blockIds?: string[]
+	private blockNamespaces?: string[]
+	private catalogSearch?: { query: string, namespace: string, matches: string[] }
 	private catalogIds(): string[] {
 		if (this.blockIds) return this.blockIds
 		const ids = [...this.index.keys()].flatMap(name => { const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(name); return match ? [`${match[1]}:${match[2]}`] : [] })
@@ -40,8 +42,13 @@ export class ResourceIndex {
 	}
 	catalog(query: string, namespace: string, offset: number): BlockCatalog {
 		const ids = this.catalogIds()
-		const matches = ids.filter(id => (!namespace || id.startsWith(`${namespace}:`)) && id.includes(query.toLowerCase()))
-		return { ids: matches.slice(offset, offset + 100), total: matches.length, offset, namespaces: [...new Set(ids.map(id => id.split(':')[0]))].sort() }
+		query = query.toLowerCase()
+		if (!this.catalogSearch || this.catalogSearch.query !== query || this.catalogSearch.namespace !== namespace) {
+			this.catalogSearch = { query, namespace, matches: ids.filter(id => (!namespace || id.startsWith(`${namespace}:`)) && id.includes(query)) }
+		}
+		this.blockNamespaces ??= [...new Set(ids.map(id => id.split(':')[0]))].sort()
+		const matches = this.catalogSearch.matches
+		return { ids: matches.slice(offset, offset + 100), total: matches.length, offset, namespaces: [...this.blockNamespaces] }
 	}
 	async blockOptions(id: string): Promise<BlockOptions> {
 		id = resourceId(id)
@@ -52,10 +59,10 @@ export class ResourceIndex {
 		return blockOptions(id, json === undefined ? undefined : validateBlockstate(json))
 	}
 	get stats() { return { resources: this.index.size, namespaces: [...this.namespaces].sort(), cacheEntries: this.cache.size, cacheBytes: this.cacheBytes, hits: this.hits, misses: this.misses, archivesRead: this.archivesRead, archivesReused: this.archivesReused } }
-	clear(): void { this.generation++; this.index.clear(); this.blockIds = undefined; this.namespaces.clear(); this.archiveIndexes.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.archivesRead = 0; this.archivesReused = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
+	clear(): void { this.generation++; this.index.clear(); this.blockIds = undefined; this.blockNamespaces = undefined; this.catalogSearch = undefined; this.namespaces.clear(); this.archiveIndexes.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.archivesRead = 0; this.archivesReused = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
 	private report(message: string): void { if (this.diagnostics.length < 1000 && !this.diagnostics.includes(message)) this.diagnostics.push(message) }
 	async build(instance: MinecraftInstance, extraPacks: string[] = [], progress: (message: string) => void = () => {}, cancelled: () => boolean = () => false): Promise<void> {
-		this.generation++; this.index.clear(); this.blockIds = undefined; this.namespaces.clear(); this.diagnostics.length = 0; this.signatures = []
+		this.generation++; this.index.clear(); this.blockIds = undefined; this.blockNamespaces = undefined; this.catalogSearch = undefined; this.namespaces.clear(); this.diagnostics.length = 0; this.signatures = []
 		const generation = this.generation
 		this.sources = [...instance.clientJars, ...instance.mods, ...instance.resourcePacks, ...extraPacks]
 		for (const source of this.archiveIndexes.keys()) if (!this.sources.includes(source)) this.archiveIndexes.delete(source)

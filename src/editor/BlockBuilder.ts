@@ -21,6 +21,8 @@ export class BlockBuilder {
 	private properties: Record<string, string> = {}
 	private mode: Mode = 'Select'
 	private visible = false
+	private active = false
+	private readonly optionCache = new Map<string, BlockOptions>()
 	private catalogGeneration = 0
 	private optionsGeneration = 0
 	private offset = 0
@@ -98,13 +100,13 @@ export class BlockBuilder {
 		if (this.visible) { this.layout(); this.updateControls(); this.requestCatalog(0) }
 		else this.setMode('Select')
 	}
-	reveal(root: Element): void { root.append(this.panel); this.panel.hidden = !this.visible; this.layout(); this.updateControls() }
+	reveal(root: Element): void { this.active = true; root.append(this.panel); this.panel.hidden = !this.visible; this.layout(); this.updateControls(); if (this.visible) this.requestCatalog(this.offset) }
 	layout(): void {
 		const top = (document.querySelector('.panel-menu')?.getBoundingClientRect().bottom ?? 32) + 10
 		this.panel.style.top = `${top}px`
 		this.panel.style.maxHeight = `calc(100vh - ${top + 12}px)`
 	}
-	hide(): void { this.setMode('Select'); this.catalogGeneration++; if (this.debounce) clearTimeout(this.debounce) }
+	hide(): void { this.active = false; this.setMode('Select'); this.catalogGeneration++; if (this.debounce) clearTimeout(this.debounce) }
 	onUpdate(): void { if (this.pending) this.status.textContent = 'Block changed. Save with Ctrl+S.'; this.pending = false; this.updateControls() }
 	private setMode(mode: Mode): void { this.mode = mode; this.updateControls() }
 	private updateControls(): void {
@@ -134,6 +136,7 @@ export class BlockBuilder {
 		try {
 			const edit = remove ? removeStructureBlock(this.file(), position) : setStructureBlock(this.file(), position, this.brush!, this.properties)
 			if (!edit) { this.status.textContent = 'There is no block at this position.'; return }
+			if (edit.type === 'composite' && edit.edits.length === 0) { this.status.textContent = 'This block already matches. No changes needed.'; return }
 			this.pending = true
 			this.target(position)
 			this.select(remove ? null : position)
@@ -143,7 +146,7 @@ export class BlockBuilder {
 		} catch (error) { this.pending = false; this.status.textContent = error instanceof Error ? error.message : String(error); this.updateControls() }
 	}
 	private requestCatalog(offset: number): void {
-		if (!this.visible) return
+		if (!this.visible || !this.active) return
 		this.offset = offset
 		const query = this.search.value.trim().toLowerCase().slice(0, 128)
 		const namespace = this.namespace.value
@@ -152,7 +155,12 @@ export class BlockBuilder {
 		this.vscode.postMessage({ type: 'getBlockCatalog', body: { query, namespace, offset, generation: ++this.catalogGeneration } })
 	}
 	onMessage(message: ViewMessage): void {
-		if (message.type === 'resourcesChanged') { if (this.visible) this.requestCatalog(0); return }
+		if (message.type === 'resourcesChanged') {
+			this.optionCache.clear(); this.optionsGeneration++; this.brush = undefined; this.properties = {}; this.optionsLoading = false
+			this.label.textContent = 'Choose a block from the current pack'; this.propertyPanel.replaceChildren(); this.setMode('Select')
+			if (this.visible) this.requestCatalog(0)
+			return
+		}
 		if (message.type === 'editError') { this.pending = false; this.status.textContent = message.body; this.updateControls(); return }
 		if (message.type === 'blockCatalog' && message.generation === this.catalogGeneration) {
 			this.hostTotal = message.body?.total ?? 0
@@ -174,7 +182,11 @@ export class BlockBuilder {
 			this.updateControls()
 		}
 		if (message.type === 'blockOptions' && message.generation === this.optionsGeneration) {
-			if (message.body) this.showProperties(message.body)
+			if (message.body && message.body.id === this.brush) {
+				if (this.optionCache.size >= 64) this.optionCache.delete(this.optionCache.keys().next().value!)
+				this.optionCache.set(message.body.id, message.body)
+				this.showProperties(message.body)
+			}
 			else { this.properties = {}; this.propertyPanel.replaceChildren(); this.status.textContent = `Block properties: ${message.error ?? 'Unavailable'}. Choose another block.` }
 		}
 	}
@@ -186,7 +198,7 @@ export class BlockBuilder {
 		this.setMode('Place')
 		this.propertyPanel.replaceChildren()
 		this.optionsGeneration++
-		const local = this.vanillaOptions(id)
+		const local = this.optionCache.get(id) ?? this.vanillaOptions(id)
 		if (local) this.showProperties(local)
 		else this.vscode.postMessage({ type: 'getBlockOptions', body: { id, generation: this.optionsGeneration } })
 	}

@@ -12,7 +12,7 @@ import { litematicToStructure, schematicToStructure, spongeToStructure } from '.
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
 import { BlockBuilder } from './BlockBuilder'
-import { intersectBox } from './StructureEditing'
+import { intersectBox, resolveColorPick } from './StructureEditing'
 
 declare const stringifiedAssets: string
 declare const stringifiedBlocks: string
@@ -448,6 +448,7 @@ export class StructureEditor implements EditorPanel {
 			const origin = vec3.transformMat4(vec3.create(), [nx, ny, -1], inverse)
 			const end = vec3.transformMat4(vec3.create(), [nx, ny, 1], inverse)
 			const direction = vec3.normalize(vec3.create(), vec3.sub(vec3.create(), end, origin))
+			if (color[3] === 255) this.selectedBlock = resolveColorPick(this.structure, [...color].slice(0, 3), [...origin], [...direction])
 			const hit = this.selectedBlock && intersectBox([...origin], [...direction], this.selectedBlock, this.selectedBlock.map(n => n + 1))
 			let ground: BlockPos | undefined
 			if (!this.selectedBlock && Math.abs(direction[1]) > 1e-8) {

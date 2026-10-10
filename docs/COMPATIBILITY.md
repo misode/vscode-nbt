@@ -1,0 +1,30 @@
+# Resource compatibility and adapter boundary
+
+The renderer uses assets, not a Minecraft game runtime. It never runs Java or JavaScript from mods.
+
+| Resource type | Behavior |
+| --- | --- |
+| Standard blockstate variants and multipart | Property selection, logical AND/OR, deterministic weighted selection, block rotations, UV locking for axis-aligned faces |
+| JSON models | Cross-namespace parents, texture aliases, multiple non-cubic elements, element rotations/rescale, UV rectangles/rotation, tint indices, face culling |
+| PNG textures | Lazy selective loading, transparent cutout and alpha blending, first frame of vertically animated sprites |
+| Forge/NeoForge/Fabric/Quilt installations | Loader discovery and static asset loading; assets themselves are loader-independent |
+| Create, Mekanism, Thermal, AE2 | Standard JSON assets follow the same pipeline; this is not a claim that every block in these mods is supported |
+| Custom `loader` models (OBJ, composite, custom baked models) | Diagnosed and rendered with checkerboard fallback unless an adapter is registered |
+| Runtime-generated models, connected textures, block entity renderers | Cannot be reconstructed from static assets; missing static geometry uses a fallback |
+
+`ModelAdapter` in `src/assets/Validation.ts` has `id`, `supports(model)` and `convert(model)` methods. An adapter must return validated standard JSON geometry, and must not execute mod code. `flattenModels` accepts an adapter list. No custom-format adapters are shipped in this version. This is an explicit extension point, not simulated compatibility.
+
+Known renderer limits:
+
+- Face shading is inherited from Deepslate, not full Minecraft ambient occlusion. `ambientocclusion` is inherited but does not enable an AO algorithm.
+- No biome/world-aware colors. Mod tint indices use the configurable RGB fallback; vanilla tints remain built in.
+- Transparent faces blend using the existing chunk renderer; per-face back-to-front sorting is not implemented.
+- Mod solid-face occlusion cannot be inferred reliably from assets; conservative flags prevent adjacent pipes/cables being incorrectly culled.
+- No PBR, shaders, resource-pack format-specific overlays, animated texture timing, or `.mcmeta` frame order. Non-square unanimated sprites currently use the first square region.
+- Texture atlases are bounded at 4096 square or the GPU limit, with overflow diagnosed. 8192 distinct block IDs, 2048 requested texture dependencies, 32 MiB serialized asset budget, 8 MiB individual resource limit, 2 MiB JSON limit, 64 levels of inheritance. PNG decoding is limited to 4 million pixels per image.
+- Resource data uses a 64 MiB LRU cache. Geometry uses a separate bounded cache (2048 entries / 100000 faces). These are cache limits, not a promise of total process memory usage.
+- Huge structures retain upstream's opt-in large-structure warning and synchronous mesh construction. Archive indexing and image decoding are asynchronous, but mesh generation can still pause a webview for a large structure.
+- Portable or relocated launchers may need **Browse for a Minecraft instance** or `nbtViewer.instancePaths`.
+- Fabric/Quilt nested dependency JARs and mod-internal ZIP resource packs are not recursively scanned. Only installed top-level JAR resources are indexed.
+- KubeJS-generated assets need to be exposed as an additional directory resource pack; Java runtime generation is unsupported.
+- Windows discovery and WebGL were exercised here. Linux/macOS discovery is covered by path fixtures, not live installations.

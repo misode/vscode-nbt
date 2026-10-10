@@ -6,6 +6,7 @@ import type { NbtEdit, ViewMessage } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
+import { ae2ModelRequests } from '../assets/Ae2'
 import { ReloadableRenderer } from './ReloadableRenderer'
 import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
@@ -298,6 +299,7 @@ export class StructureEditor implements EditorPanel {
 		const ids = [...new Set(this.structure.getBlocks().map(b => b.state.getName().toString()))]
 		if (ids.length > 8192) { this.resourceStatus.textContent = 'Asset limit exceeded: showing vanilla/fallback models'; return }
 		const dependencies = this.resources.dependencies(ids)
+		dependencies.models = [...new Set([...dependencies.models, ...ae2ModelRequests(this.structure)])]
 		this.resourceStatus.textContent = 'Loading instance models and textures…'
 		this.vscode.postMessage({ type: 'getResources', body: { ids, ...dependencies, generation: ++this.resourceGeneration } })
 	}

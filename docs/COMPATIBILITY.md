@@ -9,10 +9,11 @@ The renderer uses assets, not a Minecraft game runtime. It never runs Java or Ja
 | PNG textures | Lazy selective loading, transparent cutout and alpha blending, first frame of vertically animated sprites |
 | Forge/NeoForge/Fabric/Quilt installations | Loader discovery and static asset loading; assets themselves are loader-independent |
 | Create, Mekanism, Thermal, AE2 | Standard JSON assets follow the same pipeline; this is not a claim that every block in these mods is supported |
+| AE2 cable-bus NBT | Cable types/colors and saved connections; compatible cable neighbour inference when visual data is missing; selected static part attachments. Tested with AE2 Forge 15.4.10 / Minecraft 1.20.1 |
 | Custom `loader` models (OBJ, composite, custom baked models) | Diagnosed and rendered with checkerboard fallback unless an adapter is registered |
 | Runtime-generated models, connected textures, block entity renderers | Cannot be reconstructed from static assets; missing static geometry uses a fallback |
 
-`ModelAdapter` in `src/assets/Validation.ts` has `id`, `supports(model)` and `convert(model)` methods. An adapter must return validated standard JSON geometry, and must not execute mod code. `flattenModels` accepts an adapter list. No custom-format adapters are shipped in this version. This is an explicit extension point, not simulated compatibility.
+`ModelAdapter` in `src/assets/Validation.ts` has `id`, `supports(model)` and `convert(model)` methods. An adapter must return validated standard JSON geometry, and must not execute mod code. `flattenModels` accepts an adapter list. No generic custom-loader adapters are shipped. The separate AE2 NBT adapter in `src/assets/Ae2.ts` reads supported cable/part NBT and instantiates geometry from the selected JAR. It does not run Minecraft or mod code. Smart-channel lighting, facades, accurate machine-specific connection shapes, part spin and unsupported releases/part layouts remain incomplete.
 
 Known renderer limits:
 

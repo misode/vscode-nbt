@@ -7,6 +7,7 @@ import type { ModelAdapter } from '../assets/Validation'
 import { NON_SELF_CULLING, OPAQUE_BLOCKS, TRANSLUCENT_BLOCKS } from './BlockFlags'
 import { ModdedDefinition } from './ModdedDefinition'
 import { CachedModel, GeometryCache } from './CachedModel'
+import { ae2Variants, isAe2Bus } from '../assets/Ae2'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider, TextureAtlasProvider {
 	private blockDefinitions: Record<string, BlockDefinition> = Object.create(null)
@@ -18,6 +19,9 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	private readonly baseUV: Record<string, number[]>
 	private readonly image: HTMLImageElement
 	private position = [0, 0, 0]
+	private currentBlock: ReturnType<StructureProvider['getBlock']> = null
+	private structure?: StructureProvider
+	private modded = false
 	private tint: [number, number, number] = [1, 1, 1]
 	private readonly geometryCache = new GeometryCache()
 	readonly diagnostics = new Set<string>()
@@ -32,6 +36,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	private readonly report = (message: string) => { if (this.diagnostics.size < 1000) this.diagnostics.add(message) }
 	getBlockDefinition(id: Identifier) {
 		const name = id.toString()
+		if (this.modded && isAe2Bus(name) && this.structure) return new ModdedDefinition({}, () => 0, this.tint, this.report, () => ae2Variants(this.currentBlock, this.structure!, this.report))
 		if (!this.blockDefinitions[name] && id.namespace !== 'minecraft') {
 			this.report(`${name}: missing static blockstate; showing checkerboard fallback`)
 			this.blockDefinitions[name] = this.definition({ variants: { '': { model: 'nbtviewer:fallback' } } })
@@ -57,7 +62,8 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		this.geometryCache.clear()
 		this.blockDefinitions = Object.create(null)
 		this.blockModels = Object.create(null)
-		const flattened = flattenModels(models, (id, message) => this.report(`${id}: ${message}`), this.adapters)
+		const used = new Set(Object.values(definitions).flatMap(modelReferences))
+		const flattened = flattenModels(models, (id, message) => { if (used.has(id)) this.report(`${id}: ${message}`) }, this.adapters)
 		flattened['nbtviewer:fallback'] = fallbackModel()
 		for (const [id, model] of Object.entries(flattened)) {
 			// Deepslate resolves every face string through its texture dictionary.
@@ -72,6 +78,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		}
 	}
 	reset(): void {
+		this.modded = false
 		this.diagnostics.clear()
 		this.tint = [1, 1, 1]
 		this.load(this.baseDefinitions, this.baseModels)
@@ -135,10 +142,12 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 			} catch (e) { this.report(`${id}: ${errorText(e)}`) } finally { bitmap?.close() }
 		}
 		if (cancelled()) return
+		this.modded = true
 		const definitions = { ...this.baseDefinitions, ...bundle.blockstates }
 		const models = { ...this.baseModels, ...bundle.models }
 		// Missing textures point explicitly at the checkerboard cell, not the atlas origin.
-		const flat = flattenModels(models, (id, msg) => this.report(`${id}: ${msg}`), this.adapters)
+		const used = new Set([...Object.values(definitions).flatMap(modelReferences), ...Object.keys(bundle.models).filter(id => id.startsWith('nbtviewer:ae2/'))])
+		const flat = flattenModels(models, (id, msg) => { if (used.has(id)) this.report(`${id}: ${msg}`) }, this.adapters)
 		for (const [id, model] of Object.entries(flat)) for (const e of model.elements ?? []) for (const face of Object.values(e.faces ?? {})) {
 			if (!uv[face.texture]) { this.report(`${id}: missing texture ${face.texture}`); uv[face.texture] = uv['nbtviewer:missing'] }
 		}
@@ -147,13 +156,14 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 		for (const id of Object.keys(bundle.blockstates)) this.blockDefinitions[id] = this.definition(bundle.blockstates[id])
 	}
 	bind(structure: StructureProvider): StructureProvider {
+		this.structure = structure
 		const resources = this
 		return {
 			getSize: () => structure.getSize(), getBlock: pos => structure.getBlock(pos),
 			getBlocks: () => {
 				const blocks = structure.getBlocks()
 				const array = blocks.slice()
-				array[Symbol.iterator] = function* () { for (let i = 0; i < blocks.length; i++) { resources.position = blocks[i].pos; yield blocks[i] }; return undefined }
+				array[Symbol.iterator] = function* () { for (let i = 0; i < blocks.length; i++) { resources.position = blocks[i].pos; resources.currentBlock = blocks[i]; yield blocks[i] }; return undefined }
 				return array
 			},
 		}

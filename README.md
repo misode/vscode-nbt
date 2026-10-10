@@ -11,7 +11,7 @@ This fork extends [Misode's NBT Viewer](https://github.com/misode/vscode-nbt) wi
 
 Discovery checks common Official Launcher, CurseForge, Prism Launcher, MultiMC, ATLauncher, Modrinth App and GDLauncher roots on Windows, Linux and macOS. Custom/portable locations can be added to `nbtViewer.instancePaths`. Forge, NeoForge, Fabric and Quilt metadata is detected where available. Ambiguous mod metadata is reported rather than inventing a loader.
 
-The selected directory persists in machine settings. `nbtViewer.selectedVersion` can select an official launcher profile/version when needed. No Minecraft files are written.
+Opening an NBT document asks for its modpack folder by default. Set `nbtViewer.askForInstanceOnOpen` to `whenMissing` to ask only without a selection, or `never` to reuse the selected pack. Cancel keeps the current selection. The selected directory persists in machine settings. `nbtViewer.selectedVersion` can select an official launcher profile/version when needed. No Minecraft files are written.
 
 ## Resource packs and controls
 
@@ -24,6 +24,10 @@ The Explorer **NBT Resources** panel shows selected instance/version/loader, mod
 ## Supported assets and limitations
 
 Standard `assets/<namespace>/blockstates/*.json`, `models/**/*.json`, and `textures/**/*.png` are indexed directly from JAR/ZIP archives or directory packs without bulk extraction. Cross-namespace references, parent overrides, variants, weighted choices and multipart models are supported. Static models from mod ecosystems use the same path.
+
+AE2 cable buses have an NBT-aware adapter for glass, covered, smart and dense cables, including colors and saved connections. Ordinary world saves can omit visual data; the adapter then infers compatible cable neighbours. Supported attachments include import/export/storage buses, interfaces, pattern providers, terminals, cable anchors, quartz fiber and energy acceptors. Facades, exact machine connections, smart-channel overlays and unknown part formats remain incomplete and are diagnosed. Tested against AE2 Forge 15.4.10 on Minecraft 1.20.1; this is not a promise of every AE2 release.
+
+The archive scanner buffers bounded central-directory metadata and reuses unchanged archive indexes and payloads in the current extension session. A local 390-mod pack with 142,728 indexed resources took approximately 1.8 seconds to index and 0.3 seconds to reload unchanged, versus 26–29 seconds in 0.10.0. These are local measurements, not guaranteed timings; rendering and vanilla downloads are separate.
 
 Custom loaders, Java renderers and runtime-generated geometry need adapters and are not universally supported. Unsupported models display a checkerboard cube and diagnostics. See [the compatibility matrix and limits](docs/COMPATIBILITY.md). No modpack files or resources are uploaded; the original vanilla mcmeta downloads remain the only asset-related network behavior.
 
@@ -53,7 +57,7 @@ npm run package
 
 On Windows browser tests default to installed Edge; set `NBT_BROWSER_CHANNEL=chromium` to use Playwright Chromium. `npm run dev` watches the two existing Rollup entry points. Run the extension in a VS Code Extension Development Host using this folder.
 
-Packaging produces `vscode-nbt-0.10.0.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
+Packaging produces `vscode-nbt-0.10.1.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
 
 See [implementation notes](docs/IMPLEMENTATION.md) and [reproducible test fixtures](docs/TESTING.md). The MIT license and upstream attribution are retained.
 

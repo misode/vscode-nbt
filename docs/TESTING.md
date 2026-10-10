@@ -14,7 +14,9 @@ npx playwright install chromium
 npm run test:render
 ```
 
-Linux/macOS use Playwright Chromium by default; run its browser install command first. Browser tests use software WebGL for reproducibility. These synthetic fixtures verify standard asset behavior, not complete compatibility with real versions of Create, Mekanism, Thermal or AE2. Live launcher detection outside Windows and a representative real modpack remain useful additional manual validation.
+Linux/macOS use Playwright Chromium by default; run its browser install command first. Browser tests use software WebGL for reproducibility. Set `NBT_AE2_JAR` to an installed AE2 JAR to add real glass/smart cable geometry and an energy-acceptor attachment to the WebGL regression. This was exercised with AE2 Forge 15.4.10 on Minecraft 1.20.1. Unit fixtures also check saved connections, neighbour inference, colors, dense cable IDs, attachment rotations, and unchanged archive/payload cache reuse. These checks do not establish universal mod/version compatibility. Live launcher detection outside Windows remains additional manual validation.
+
+On a local 390-mod installation, the 0.10.0 scanner took 26.5 seconds initially and 29.0 seconds on reload. The updated scanner indexed the same 142,728 resources in 1.8 seconds and reloaded unchanged in 0.3 seconds. Measurements cover resource indexing, not vanilla downloads or rendering, and benefit from the operating system's file cache.
 
 Manual extension check after installing the VSIX:
 

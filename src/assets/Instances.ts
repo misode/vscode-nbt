@@ -51,7 +51,7 @@ async function modLoader(jar: string): Promise<string[]> {
 		archive.on('entry', (entry: yauzl.Entry) => {
 			if (++count > 250000) { archive.close(); resolve([...loaders]); return }
 			const loader = ({ 'fabric.mod.json': 'fabric', 'quilt.mod.json': 'quilt', 'META-INF/mods.toml': 'forge', 'META-INF/neoforge.mods.toml': 'neoforge' } as Record<string, string>)[entry.fileName]
-			if (loader) loaders.add(loader)
+			if (loader) { loaders.add(loader); archive.close(); resolve([...loaders]); return }
 			archive.readEntry()
 		})
 		archive.readEntry()
@@ -69,7 +69,7 @@ export async function inspectInstance(directory: string, launcher = 'Custom', re
 	const manifest = await json(path.join(original, 'manifest.json'), report)
 	const gd = await json(path.join(original, 'instance.json'), report)
 	const components = Array.isArray(pack.components) ? pack.components as Record<string, unknown>[] : []
-	const metadata = JSON.stringify({ components, curse, profile, manifest, gd }).toLowerCase()
+	const metadata = JSON.stringify({ components, loader: curse.baseModLoader, profile: profile.loader, manifest: (manifest.minecraft as Record<string, unknown> | undefined)?.modLoaders, gd: gd.loader }).toLowerCase()
 	let loader = ['neoforge', 'quilt', 'fabric', 'forge'].find(l => metadata.includes(l)) ?? 'Vanilla / unknown'
 	const mc = components.find(c => c.uid === 'net.minecraft')
 	const minecraft = manifest.minecraft as Record<string, unknown> | undefined
@@ -91,7 +91,7 @@ export async function inspectInstance(directory: string, launcher = 'Custom', re
 	}
 	if (loader === 'Vanilla / unknown' && mods.length) {
 		const found = new Set<string>()
-		for (const jar of mods) { for (const value of await modLoader(jar)) found.add(value); if (found.size > 1) break }
+		for (const jar of mods) { for (const value of await modLoader(jar)) found.add(value); if (found.size) break }
 		loader = found.size === 1 ? [...found][0] : found.size > 1 ? `Unknown (mod metadata: ${[...found].join(', ')})` : loader
 	}
 	let resourcePacks: string[] = []

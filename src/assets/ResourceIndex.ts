@@ -1,30 +1,36 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import * as yauzl from 'yauzl'
+import type * as yauzl from 'yauzl'
 import type { AssetBundle, MinecraftInstance, ModelJson } from './Types'
 import { errorText, LIMITS, resourceId, safeAssetPath, textureReference } from './Types'
 import { modelReferences, validateBlockstate, validateModel } from './Validation'
+import { ae2Template } from './Ae2'
+import { openArchive } from './Zip'
 
 interface Location { source: string, entry?: yauzl.Entry, fingerprint: string }
-function open(file: string): Promise<yauzl.ZipFile> { return new Promise((resolve, reject) => yauzl.open(file, { lazyEntries: true, autoClose: false, validateEntrySizes: true }, (e, zip) => e || !zip ? reject(e ?? new Error('Cannot open ZIP')) : resolve(zip))) }
 async function fingerprint(file: string): Promise<string> { const s = await fs.stat(file); return `${s.size}:${s.mtimeMs}:${s.ctimeMs}` }
 export class ResourceIndex {
 	private readonly index = new Map<string, Location>()
+	private readonly namespaces = new Set<string>()
 	private readonly cache = new Map<string, Buffer>()
 	private cacheBytes = 0
 	private generation = 0
 	private sources: string[] = []
 	private signatures: string[] = []
+	private readonly archiveIndexes = new Map<string, { signature: string, entries: [string, Location][], diagnostics: string[] }>()
 	readonly diagnostics: string[] = []
 	private hits = 0
 	private misses = 0
-	get stats() { return { resources: this.index.size, namespaces: [...new Set([...this.index.keys()].map(k => k.split('/')[1]))].sort(), cacheEntries: this.cache.size, cacheBytes: this.cacheBytes, hits: this.hits, misses: this.misses } }
-	clear(): void { this.generation++; this.index.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
+	private archivesRead = 0
+	private archivesReused = 0
+	get stats() { return { resources: this.index.size, namespaces: [...this.namespaces].sort(), cacheEntries: this.cache.size, cacheBytes: this.cacheBytes, hits: this.hits, misses: this.misses, archivesRead: this.archivesRead, archivesReused: this.archivesReused } }
+	clear(): void { this.generation++; this.index.clear(); this.namespaces.clear(); this.archiveIndexes.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.archivesRead = 0; this.archivesReused = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
 	private report(message: string): void { if (this.diagnostics.length < 1000 && !this.diagnostics.includes(message)) this.diagnostics.push(message) }
 	async build(instance: MinecraftInstance, extraPacks: string[] = [], progress: (message: string) => void = () => {}, cancelled: () => boolean = () => false): Promise<void> {
-		this.clear()
+		this.generation++; this.index.clear(); this.namespaces.clear(); this.diagnostics.length = 0; this.signatures = []
 		const generation = this.generation
 		this.sources = [...instance.clientJars, ...instance.mods, ...instance.resourcePacks, ...extraPacks]
+		for (const source of this.archiveIndexes.keys()) if (!this.sources.includes(source)) this.archiveIndexes.delete(source)
 		for (const [sourceIndex, source] of this.sources.entries()) {
 			if (cancelled() || generation !== this.generation) throw new Error('Asset indexing cancelled')
 			progress(`Indexing ${path.basename(source)}`)
@@ -32,7 +38,16 @@ export class ResourceIndex {
 				const signature = await fingerprint(source)
 				this.signatures[sourceIndex] = signature
 				if ((await fs.stat(source)).isDirectory()) await this.walk(source, source, 0, generation)
-				else await this.archive(source, signature, generation, cancelled)
+				else {
+					const saved = this.archiveIndexes.get(source)
+					if (saved?.signature === signature) { this.archivesReused++; saved.diagnostics.forEach(s => this.report(s)); for (const [name, location] of saved.entries) this.add(name, location, generation) }
+					else {
+						this.archivesRead++
+						const diagnosticStart = this.diagnostics.length
+						const entries = await this.archive(source, signature, generation, cancelled)
+						this.archiveIndexes.set(source, { signature, entries, diagnostics: this.diagnostics.slice(diagnosticStart) })
+					}
+				}
 			} catch (e) { if (generation !== this.generation || cancelled()) throw e; this.report(`${source}: ${errorText(e)}`) }
 		}
 	}
@@ -41,6 +56,7 @@ export class ResourceIndex {
 		if (!safeAssetPath(name)) return
 		if (this.index.size >= LIMITS.resources && !this.index.has(name)) throw new Error('Resource index limit reached')
 		this.index.set(name, location)
+		this.namespaces.add(name.split('/')[1])
 	}
 	private async walk(root: string, directory: string, depth: number, generation: number): Promise<void> {
 		if (depth >= LIMITS.depth) throw new Error('Resource directory depth limit')
@@ -52,8 +68,9 @@ export class ResourceIndex {
 			else if (entry.isFile() && safeAssetPath(relative)) { const real = await fs.realpath(file); if (!path.relative(root, real).startsWith('..')) this.add(relative, { source: file, fingerprint: await fingerprint(file) }, generation) }
 		}
 	}
-	private async archive(source: string, signature: string, generation: number, cancelled: () => boolean): Promise<void> {
-		const zip = await open(source)
+	private async archive(source: string, signature: string, generation: number, cancelled: () => boolean): Promise<[string, Location][]> {
+		const entries: [string, Location][] = []
+		const zip = await openArchive(source)
 		try { await new Promise<void>((resolve, reject) => {
 			let count = 0
 			zip.on('error', reject)
@@ -61,13 +78,17 @@ export class ResourceIndex {
 			zip.on('entry', (entry: yauzl.Entry) => {
 				try {
 					if (cancelled() || ++count > LIMITS.entries) throw new Error('Archive cancelled or entry count exceeded')
-					if (safeAssetPath(entry.fileName) && entry.uncompressedSize <= LIMITS.resourceBytes && !(entry.generalPurposeBitFlag & 1)) this.add(entry.fileName, { source, entry, fingerprint: signature }, generation)
-					else if (entry.fileName.startsWith('assets/') && !entry.fileName.endsWith('/')) this.report(`Skipped unsafe/oversized/unsupported entry ${entry.fileName}`)
+					if (safeAssetPath(entry.fileName) && entry.uncompressedSize <= LIMITS.resourceBytes && !(entry.generalPurposeBitFlag & 1)) {
+						const location = { source, entry, fingerprint: signature }
+						this.add(entry.fileName, location, generation); entries.push([entry.fileName, location])
+					}
+					else if (/^assets\/[^/]+\/(models|blockstates|textures)\/.*\.(json|png)$/.test(entry.fileName)) this.report(`Skipped unsafe/oversized/unsupported entry ${entry.fileName}`)
 					zip.readEntry()
 				} catch (e) { reject(e) }
 			})
 			zip.readEntry()
 		}) } finally { zip.close() }
+		return entries
 	}
 	async changed(): Promise<boolean> {
 		for (let i = 0; i < this.sources.length; i++) { try { if (await fingerprint(this.sources[i]) !== this.signatures[i]) return true } catch { return true } }
@@ -85,7 +106,7 @@ export class ResourceIndex {
 		let data: Buffer
 		if (!location.entry) { if ((await fs.stat(location.source)).size > LIMITS.resourceBytes) throw new Error('Resource size limit'); data = await fs.readFile(location.source) }
 		else {
-			const zip = await open(location.source)
+			const zip = await openArchive(location.source, false)
 			try { data = await new Promise<Buffer>((resolve, reject) => zip.openReadStream(location.entry!, (e, stream) => {
 				if (e || !stream) { reject(e ?? new Error('No archive stream')); return }
 				const chunks: Buffer[] = []; let size = 0
@@ -118,10 +139,11 @@ export class ResourceIndex {
 			if (attempted.has(id)) return
 			attempted.add(id)
 			try {
-				const [ns, p] = resourceId(id).split(':')
+				const template = ae2Template(id)
+				const [ns, p] = resourceId(template?.source ?? id).split(':')
 				const value = await this.json(`assets/${ns}/models/${p}.json`)
 				if (value === undefined) return // vanilla parents can come from the existing atlas assets
-				const parsed: ModelJson = validateModel(value)
+				const parsed: ModelJson = validateModel(template ? template.convert(validateModel(value)) : value)
 				bundle.models[id] = parsed; bytes += JSON.stringify(parsed).length
 				for (const value of Object.values(parsed.textures ?? {})) { const ref = textureReference(value); if (!ref.startsWith('#')) textures.add(resourceId(ref)) }
 				for (const e of parsed.elements ?? []) for (const face of Object.values(e.faces ?? {})) if (!face.texture.startsWith('#')) textures.add(resourceId(face.texture))

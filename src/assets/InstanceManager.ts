@@ -19,12 +19,19 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 	private status = 'No instance selected'
 	private readonly browserDiagnostics = new Set<string>()
 	private reloadTimer?: ReturnType<typeof setTimeout>
+	private prompting?: Promise<void>
+	async promptForDocument(): Promise<void> {
+		const mode = this.config().get<string>('askForInstanceOnOpen', 'always')
+		if (mode === 'never' || mode === 'whenMissing' && this.config().get<string>('selectedInstance', '')) return
+		if (!this.prompting) this.prompting = this.select(true).catch(error => { void vscode.window.showErrorMessage(`NBT resources: ${errorText(error)}`) }).finally(() => { this.prompting = undefined })
+		await this.prompting
+	}
 	private readonly output = vscode.window.createOutputChannel('NBT Resource Diagnostics')
 	constructor(context: vscode.ExtensionContext) {
 		context.subscriptions.push(this, this.output, vscode.window.registerTreeDataProvider('nbtResources', this))
 		const command = (id: string, action: () => Promise<unknown> | void) => context.subscriptions.push(vscode.commands.registerCommand(`nbtViewer.${id}`, async () => { try { await action() } catch (e) { this.output.appendLine(errorText(e)); vscode.window.showErrorMessage(`NBT resources: ${errorText(e)}`) } }))
 		command('selectInstance', () => this.select())
-		command('scanMods', async () => { await this.scan(); await this.reload() })
+		command('scanMods', () => this.reload())
 		command('reloadResources', () => this.reload())
 		command('clearCache', async () => { this.index.clear(); this.invalidate(); await this.reload() })
 		command('showDiagnostics', () => this.showDiagnostics())
@@ -45,7 +52,15 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 			return instances
 		})
 	}
-	private async select(): Promise<void> {
+	private async select(direct = false): Promise<void> {
+		if (direct) {
+			const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'Choose the modpack folder for this NBT (the folder containing mods)', openLabel: 'Use this modpack', defaultUri: this.config().get<string>('selectedInstance', '') ? vscode.Uri.file(this.config().get<string>('selectedInstance', '')) : undefined })
+			if (!uris?.length) return
+			await this.config().update('selectedVersion', '', vscode.ConfigurationTarget.Global)
+			await this.config().update('selectedInstance', uris[0].fsPath, vscode.ConfigurationTarget.Global)
+			await this.reload()
+			return
+		}
 		const instances = await this.scan()
 		const manual = { label: 'Browse for a Minecraft instance…', description: 'Select an instance or .minecraft directory', instance: undefined as MinecraftInstance | undefined }
 		const chosen = await vscode.window.showQuickPick([...instances.map(instance => ({ label: instance.name, description: `${instance.launcher} • ${instance.version ?? 'unknown version'} • ${instance.loader}`, detail: instance.directory, instance })), manual], { placeHolder: 'Select the instance that supplies rendering assets' })
@@ -65,7 +80,7 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 		}
 		const selected = this.config().get<string>('selectedInstance', '')
 		if (!selected) { this.index.clear(); this.instance = undefined; this.status = 'Select a Minecraft instance to enable modded assets'; this.dirty = false; this.treeChanged.fire(undefined); return }
-		if (!this.dirty && !await this.index.changed()) return
+		if (!this.dirty) return
 		const epoch = this.epoch
 		this.loading = vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Indexing Minecraft resources', cancellable: true }, async (progress, token) => {
 			this.instance = await inspectInstance(selected, 'Selected', s => this.output.appendLine(s), this.config().get<string>('selectedVersion', ''))

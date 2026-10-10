@@ -1,14 +1,14 @@
 import type { BlockModelProvider, TextureAtlasProvider } from 'deepslate'
 import { BlockColors, BlockDefinition, Cull, Identifier, Mesh } from 'deepslate'
 import { mat4, vec3 } from 'gl-matrix'
-import type { BlockstateJson } from '../assets/Types'
+import type { BlockstateJson, ModelVariant } from '../assets/Types'
 import { chooseVariants } from '../assets/Validation'
 
 // Deepslate's provider API omits positions. ResourceManager supplies the current
 // block while ChunkBuilder iterates, keeping visible and picking choices identical.
 export class ModdedDefinition extends BlockDefinition {
-	constructor(private readonly json: BlockstateJson, private readonly seed: () => number, private readonly tint: [number, number, number], private readonly report: (message: string) => void) { super(undefined, undefined) }
-	getModelVariants(props: Record<string, string>) { return chooseVariants(this.json, props, this.seed()) }
+	constructor(private readonly json: BlockstateJson, private readonly seed: () => number, private readonly tint: [number, number, number], private readonly report: (message: string) => void, private readonly dynamic?: () => ModelVariant[] | undefined) { super(undefined, undefined) }
+	getModelVariants(props: Record<string, string>) { return this.dynamic?.() ?? chooseVariants(this.json, props, this.seed()) }
 	getMesh(name: Identifier | undefined, props: Record<string, string>, atlas: TextureAtlasProvider, models: BlockModelProvider, cull: Cull): Mesh {
 		const mesh = new Mesh()
 		const variants = this.getModelVariants(props)

@@ -37,7 +37,13 @@ test.beforeAll(async () => {
 		'assets/demo/models/block/custom.json': JSON.stringify({ loader: 'forge:obj' }),
 		'assets/demo/blockstates/multipart.json': JSON.stringify({ multipart: [{ apply: { model: 'demo:block/pipe' } }, { when: { connected: 'true' }, apply: { model: 'demo:block/pipe', x: 90 } }] }),
 	})
-	await index.build(instance(root, [jar]))
+	if (process.env.NBT_AE2_JAR) {
+		const cable = new NbtCompound().set('cable', new NbtCompound().set('id', new NbtString('ae2:fluix_glass_cable')).set('visual', new NbtCompound().set('connections', new NbtList([new NbtString('south')]))))
+		const cable2 = new NbtCompound().set('cable', new NbtCompound().set('id', new NbtString('ae2:blue_smart_cable')).set('visual', new NbtCompound().set('connections', new NbtList([new NbtString('north')])))).set('up', new NbtCompound().set('id', new NbtString('ae2:energy_acceptor')))
+		structure.addBlock([4, 0, 0], 'ae2:cable_bus', {}, cable)
+		structure.addBlock([4, 0, 1], 'ae2:cable_bus', {}, cable2)
+	}
+	await index.build(instance(root, [jar, ...(process.env.NBT_AE2_JAR ? [process.env.NBT_AE2_JAR] : [])]))
 	const editor = await fs.readFile(path.resolve('out/editor.js'))
 	const css = await fs.readFile(path.resolve('res/editor.css'))
 	server = createServer((req, res) => {
@@ -56,18 +62,24 @@ test.afterAll(async () => { await new Promise<void>(resolve => server.close(() =
 function structureFile() {
 	// Use the actual Deepslate NBT classes, retaining properties in the palette.
 	const palette = structure.getBlocks().map(b => new NbtCompound(new Map([['Name', new NbtString(b.state.getName().toString())], ['Properties', new NbtCompound(new Map(Object.entries(b.state.getProperties()).map(([k, v]) => [k, new NbtString(v)])))]])))
-	const blocks = structure.getBlocks().map((b, i) => new NbtCompound(new Map([['pos', new NbtList(b.pos.map(n => new NbtInt(n)))], ['state', new NbtInt(i)]])))
+	const blocks = structure.getBlocks().map((b, i) => {
+		const tag = new NbtCompound(new Map([['pos', new NbtList(b.pos.map(n => new NbtInt(n)))], ['state', new NbtInt(i)]]))
+		if (b.nbt) tag.set('nbt', b.nbt)
+		return tag
+	})
 	return new NbtFile('', new NbtCompound(new Map([['size', new NbtList([5, 2, 3].map(n => new NbtInt(n)))], ['palette', new NbtList(palette)], ['blocks', new NbtList(blocks)]])), 'none', false, undefined).toJson()
 }
 
 test('production WebGL viewer renders archive assets, fallback geometry, search and reload', async ({ page }, testInfo) => {
 	const errors: string[] = []
+	const ae2Loaded = new Set<string>()
 	page.on('pageerror', error => errors.push(error.message))
 	const content = structureFile()
 	await page.exposeFunction('fixtureMessage', async (message: { type: string, body: { ids: string[], models: string[], textures: string[], generation: number } }) => {
 		if (message.type === 'ready') await page.evaluate(content => window.postMessage({ type: 'init', body: { type: 'structure', readOnly: true, content } }, '*'), content)
 		if (message.type === 'getResources') {
 			const body = await index.bundle(message.body.ids, [1, 1, 1], () => false, message.body.models, message.body.textures)
+			for (const id of Object.keys(body.models)) if (id.startsWith('nbtviewer:ae2/') || id === 'ae2:part/energy_acceptor') ae2Loaded.add(id)
 			await page.evaluate(({ body, generation }) => window.postMessage({ type: 'resources', body, generation }, '*'), { body, generation: message.body.generation })
 		}
 	})
@@ -91,6 +103,13 @@ test('production WebGL viewer renders archive assets, fallback geometry, search 
 		if (pixels[i] > 100 && pixels[i + 2] > 100 && pixels[i + 1] < 20) magenta++
 	}
 	expect(green).toBeGreaterThan(100)
+	if (process.env.NBT_AE2_JAR) {
+		expect(ae2Loaded.has('nbtviewer:ae2/ae2/glass/transparent/center')).toBe(true)
+		expect(ae2Loaded.has('nbtviewer:ae2/ae2/smart/blue/connection')).toBe(true)
+		expect(ae2Loaded.has('ae2:part/energy_acceptor')).toBe(true)
+		await page.getByPlaceholder('Highlight namespace or block ID').fill('ae2:cable_bus')
+		await expect(page.getByPlaceholder('Highlight namespace or block ID')).toHaveAttribute('title', '2 matches')
+	}
 	expect(magenta).toBeGreaterThan(100)
 	await page.mouse.click(545, 285)
 	await expect(page.locator('.block-name')).toContainText('demo:missing')

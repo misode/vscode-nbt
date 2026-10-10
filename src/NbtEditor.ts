@@ -39,6 +39,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		_token: vscode.CancellationToken
 	): Promise<NbtDocument> {
 		const document: NbtDocument = await NbtDocument.create(uri, openContext.backupId, this.logger)
+		await this.resources.promptForDocument()
 
 		const listeners: vscode.Disposable[] = []
 

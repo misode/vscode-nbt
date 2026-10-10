@@ -3,18 +3,21 @@ import * as path from 'path'
 import * as vscode from 'vscode'
 import type { EditorMessage, Logger, ViewMessage } from './common/types'
 import { disposeAll } from './dispose'
-import { getAssets, mcmetaRoot } from './mcmeta'
+import { getAssets, getMinecraftDataVersion, mcmetaRoot } from './mcmeta'
 import { NbtDocument } from './NbtDocument'
 import { WebviewCollection } from './WebviewCollection'
 import type { InstanceManager } from './assets/InstanceManager'
 import { errorText, LIMITS, resourceId } from './assets/Types'
+import { createBlankStructure } from './editor/StructureEditing'
 
 export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocument> {
 
 	public static register(context: vscode.ExtensionContext, logger: Logger, resources: InstanceManager): vscode.Disposable {
+		const provider = new NbtEditorProvider(context, logger, resources)
+		context.subscriptions.push(vscode.commands.registerCommand('nbtViewer.newStructure', () => provider.createStructure()))
 		return vscode.window.registerCustomEditorProvider(
 			'nbtEditor.nbt',
-			new NbtEditorProvider(context, logger, resources),
+			provider,
 			{
 				webviewOptions: {
 					retainContextWhenHidden: true,
@@ -30,6 +33,19 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 		private readonly logger: Logger,
 		private readonly resources: InstanceManager,
 	) { }
+	private async createStructure(dataVersion?: number): Promise<void> {
+		try {
+			if (!dataVersion || !Number.isSafeInteger(dataVersion) || dataVersion < 1 || dataVersion > 10000000) {
+				const version = await vscode.window.showInputBox({ title: 'Minecraft version for the new structure', value: await this.resources.minecraftVersion() ?? '1.20.1', prompt: 'Use the Minecraft version of your selected modpack.' })
+				if (!version) return
+				dataVersion = await getMinecraftDataVersion(version.trim(), this.logger)
+			}
+			const uri = await vscode.window.showSaveDialog({ title: 'Create NBT structure', saveLabel: 'Create structure', filters: { 'Minecraft NBT structure': ['nbt'] } })
+			if (!uri) return
+			await vscode.workspace.fs.writeFile(uri, createBlankStructure(dataVersion).write())
+			await vscode.commands.executeCommand('vscode.openWith', uri, 'nbtEditor.nbt')
+		} catch (error) { void vscode.window.showErrorMessage(`Create structure: ${errorText(error)}`) }
+	}
 
 	//#region CustomEditorProvider
 
@@ -217,6 +233,21 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	private readonly resourceRequests = new Map<vscode.WebviewPanel, number>()
 	private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
 		switch (message.type) {
+			case 'newStructure':
+				void this.createStructure(message.body?.dataVersion)
+				return
+			case 'getBlockCatalog': {
+				const { query, namespace, offset, generation } = message.body ?? {}
+				if (typeof query !== 'string' || query.length > 128 || typeof namespace !== 'string' || !/^[a-z0-9_.-]{0,64}$/.test(namespace) || !Number.isSafeInteger(offset) || offset < 0 || offset > LIMITS.resources || !Number.isSafeInteger(generation)) return
+				void this.resources.catalog(query, namespace, offset).then(body => this.postMessage(panel, { type: 'blockCatalog', body, generation }), error => this.postMessage(panel, { type: 'blockCatalog', generation, error: errorText(error) }))
+				return
+			}
+			case 'getBlockOptions': {
+				const { id, generation } = message.body ?? {}
+				if (typeof id !== 'string' || id.length > 256 || !Number.isSafeInteger(generation)) return
+				void this.resources.blockOptions(id).then(body => this.postMessage(panel, { type: 'blockOptions', body, generation }), error => this.postMessage(panel, { type: 'blockOptions', generation, error: errorText(error) }))
+				return
+			}
 			case 'getResources': {
 				const generation = message.body?.generation
 				if (!Number.isSafeInteger(generation)) return
@@ -253,6 +284,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 				try {
 					document.makeEdit(message.body)
 				} catch (e) {
+					this.postMessage(panel, { type: 'editError', body: errorText(e) })
 					vscode.window.showErrorMessage(`Failed to apply edit: ${e.message}`)
 				}
 				return

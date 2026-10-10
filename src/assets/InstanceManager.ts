@@ -111,6 +111,9 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 		this.treeChanged.fire(undefined)
 		return result
 	}
+	async catalog(query: string, namespace: string, offset: number) { await this.ensure(); return this.index.catalog(query, namespace, offset) }
+	async blockOptions(id: string) { await this.ensure(); return this.index.blockOptions(id) }
+	async minecraftVersion() { await this.ensure(); return this.instance?.version }
 	recordDiagnostics(messages: string[]): void {
 		for (const s of messages.slice(0, 1000)) {
 			const message = s.slice(0, 2048)

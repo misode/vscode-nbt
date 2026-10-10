@@ -1,5 +1,5 @@
 import type { JsonValue } from 'deepslate'
-import type { AssetBundle } from '../assets/Types'
+import type { AssetBundle, BlockCatalog, BlockOptions } from '../assets/Types'
 
 export interface Logger {
 	error(data: any, ...args: any[]): void
@@ -32,6 +32,15 @@ export type NbtEdit = {
 }
 
 export type EditorMessage = { requestId?: number } & ({
+	type: 'getBlockCatalog',
+	body: { query: string, namespace: string, offset: number, generation: number },
+} | {
+	type: 'getBlockOptions',
+	body: { id: string, generation: number },
+} | {
+	type: 'newStructure',
+	body: { dataVersion: number },
+} | {
 	type: 'getResources',
 	body: { ids: string[], models: string[], textures: string[], generation: number },
 } | {
@@ -58,6 +67,19 @@ export type EditorMessage = { requestId?: number } & ({
 })
 
 export type ViewMessage = { requestId?: number } & ({
+	type: 'editError',
+	body: string,
+} | {
+	type: 'blockCatalog',
+	body?: BlockCatalog,
+	generation: number,
+	error?: string,
+} | {
+	type: 'blockOptions',
+	body?: BlockOptions,
+	generation: number,
+	error?: string,
+} | {
 	type: 'resources',
 	body?: AssetBundle,
 	generation: number,

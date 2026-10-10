@@ -6,13 +6,16 @@ const offsets = [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0
 const rotations = [{ x: 90 }, { x: 270 }, {}, { y: 180 }, { y: 270 }, { y: 90 }]
 type Block = ReturnType<StructureProvider['getBlock']>
 export function isAe2Bus(id: string): boolean { return id === 'ae2:cable_bus' || id === 'appliedenergistics2:cable_bus' }
-function cable(nbt?: NbtCompound) {
-	const tag = nbt?.getCompound('cable')
-	const id = tag?.getString('id') ?? ''
+export function ae2CableItem(id: string) {
 	const match = /^(ae2|appliedenergistics2):(fluix|transparent|white|orange|magenta|light_blue|yellow|lime|pink|gray|light_gray|cyan|purple|blue|brown|green|red|black)_(glass|covered|smart|covered_dense|smart_dense|dense_covered|dense_smart)_cable$/.exec(id)
 	if (!match) return undefined
 	const type = match[3].replace('covered_dense', 'dense_covered').replace('smart_dense', 'dense_smart')
-	return { tag: tag!, namespace: match[1], color: match[2] === 'fluix' ? 'transparent' : match[2], type }
+	return { namespace: match[1], color: match[2] === 'fluix' ? 'transparent' : match[2], type }
+}
+function cable(nbt?: NbtCompound) {
+	const tag = nbt?.getCompound('cable')
+	const value = ae2CableItem(tag?.getString('id') ?? '')
+	return value ? { ...value, tag: tag! } : undefined
 }
 function parts(nbt: NbtCompound | undefined, report: (message: string) => void): ModelVariant[] {
 	const result: ModelVariant[] = []

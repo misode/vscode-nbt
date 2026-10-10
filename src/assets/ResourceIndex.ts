@@ -1,10 +1,11 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import type * as yauzl from 'yauzl'
-import type { AssetBundle, MinecraftInstance, ModelJson } from './Types'
+import type { AssetBundle, BlockCatalog, BlockOptions, MinecraftInstance, ModelJson } from './Types'
 import { errorText, LIMITS, resourceId, safeAssetPath, textureReference } from './Types'
 import { modelReferences, validateBlockstate, validateModel } from './Validation'
-import { ae2Template } from './Ae2'
+import { ae2CableItem, ae2Template } from './Ae2'
+import { blockOptions } from './BlockOptions'
 import { openArchive } from './Zip'
 
 interface Location { source: string, entry?: yauzl.Entry, fingerprint: string }
@@ -23,11 +24,38 @@ export class ResourceIndex {
 	private misses = 0
 	private archivesRead = 0
 	private archivesReused = 0
+	private blockIds?: string[]
+	private catalogIds(): string[] {
+		if (this.blockIds) return this.blockIds
+		const ids = [...this.index.keys()].flatMap(name => { const match = /^assets\/([^/]+)\/blockstates\/(.+)\.json$/.exec(name); return match ? [`${match[1]}:${match[2]}`] : [] })
+		for (const namespace of ['ae2', 'appliedenergistics2']) if (ids.includes(`${namespace}:cable_bus`)) {
+			for (const type of ['glass', 'covered', 'smart', 'dense_covered', 'dense_smart']) {
+				if (!this.index.has(`assets/${namespace}/models/part/cable/${type}/center.json`)) continue
+				for (const color of ['transparent', 'white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink', 'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black']) {
+					if (this.index.has(`assets/${namespace}/textures/part/cable/${type}/${color}.png`)) ids.push(`${namespace}:${color === 'transparent' ? 'fluix' : color}_${type.replace('dense_covered', 'covered_dense').replace('dense_smart', 'smart_dense')}_cable`)
+				}
+			}
+		}
+		return this.blockIds = [...new Set(ids)].sort()
+	}
+	catalog(query: string, namespace: string, offset: number): BlockCatalog {
+		const ids = this.catalogIds()
+		const matches = ids.filter(id => (!namespace || id.startsWith(`${namespace}:`)) && id.includes(query.toLowerCase()))
+		return { ids: matches.slice(offset, offset + 100), total: matches.length, offset, namespaces: [...new Set(ids.map(id => id.split(':')[0]))].sort() }
+	}
+	async blockOptions(id: string): Promise<BlockOptions> {
+		id = resourceId(id)
+		if (!this.catalogIds().includes(id)) throw new Error('Block is not present in the selected instance assets')
+		if (ae2CableItem(id)) return blockOptions(id)
+		const [namespace, name] = id.split(':')
+		const json = await this.json(`assets/${namespace}/blockstates/${name}.json`)
+		return blockOptions(id, json === undefined ? undefined : validateBlockstate(json))
+	}
 	get stats() { return { resources: this.index.size, namespaces: [...this.namespaces].sort(), cacheEntries: this.cache.size, cacheBytes: this.cacheBytes, hits: this.hits, misses: this.misses, archivesRead: this.archivesRead, archivesReused: this.archivesReused } }
-	clear(): void { this.generation++; this.index.clear(); this.namespaces.clear(); this.archiveIndexes.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.archivesRead = 0; this.archivesReused = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
+	clear(): void { this.generation++; this.index.clear(); this.blockIds = undefined; this.namespaces.clear(); this.archiveIndexes.clear(); this.cache.clear(); this.cacheBytes = 0; this.hits = 0; this.misses = 0; this.archivesRead = 0; this.archivesReused = 0; this.diagnostics.length = 0; this.sources = []; this.signatures = [] }
 	private report(message: string): void { if (this.diagnostics.length < 1000 && !this.diagnostics.includes(message)) this.diagnostics.push(message) }
 	async build(instance: MinecraftInstance, extraPacks: string[] = [], progress: (message: string) => void = () => {}, cancelled: () => boolean = () => false): Promise<void> {
-		this.generation++; this.index.clear(); this.namespaces.clear(); this.diagnostics.length = 0; this.signatures = []
+		this.generation++; this.index.clear(); this.blockIds = undefined; this.namespaces.clear(); this.diagnostics.length = 0; this.signatures = []
 		const generation = this.generation
 		this.sources = [...instance.clientJars, ...instance.mods, ...instance.resourcePacks, ...extraPacks]
 		for (const source of this.archiveIndexes.keys()) if (!this.sources.includes(source)) this.archiveIndexes.delete(source)

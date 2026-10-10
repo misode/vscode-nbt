@@ -21,6 +21,16 @@ Use **Modded assets** to toggle vanilla-only rendering, **Reload assets** to ref
 
 The Explorer **NBT Resources** panel shows selected instance/version/loader, mod count, namespaces, packs, indexing status, cache counters and host resource errors. Browser model/texture failures are included in **NBT Viewer: Show Resource Diagnostics** and the structure status. Commands also include **Scan Installed Mods**, **Reload Modded Resources**, and **Clear Asset Cache**. File watchers invalidate changed archives and packs; manual reload rescans metadata and sources.
 
+## Build an NBT structure
+
+Run **NBT Viewer: New NBT Structure** from the Command Palette, choose the Minecraft version and save the new file. The **New NBT structure** button in an existing 3D view reuses that file's data version. New structures start at 16 × 16 × 16; edit **Size** in the viewer to change the bounds.
+
+Open **Build** in the 3D view. Search the selected instance's block IDs or filter by namespace, choose a block and set its available properties. **Place** adds a block against the face you click, or on the floor of an empty structure. **Replace** changes the clicked block and **Erase** removes it. Coordinates also let you set or remove a specific position. **Select** returns to inspection. Save with **Ctrl+S**, undo with **Ctrl+Z**, and redo through VS Code's usual command.
+
+The list combines vanilla registry blocks with the selected pack's indexed blockstates, including AE2 cable brushes with initialized cable-bus NBT. Mod property choices come from static blockstate assets and may omit properties used only by game logic. Other block entities do not receive automatically generated inventories or machine configuration. Build tools edit Java structure NBT with one palette; schematic, region and multiple-palette files retain their existing viewers and editors.
+
+Click the scene to enable movement keys. Movement and dragging stop when focus leaves the canvas, the viewer is hidden, or a pointer gesture is cancelled, so typing in the block search does not move the camera.
+
 ## Supported assets and limitations
 
 Standard `assets/<namespace>/blockstates/*.json`, `models/**/*.json`, and `textures/**/*.png` are indexed directly from JAR/ZIP archives or directory packs without bulk extraction. Cross-namespace references, parent overrides, variants, weighted choices and multipart models are supported. Static models from mod ecosystems use the same path.
@@ -57,7 +67,7 @@ npm run package
 
 On Windows browser tests default to installed Edge; set `NBT_BROWSER_CHANNEL=chromium` to use Playwright Chromium. `npm run dev` watches the two existing Rollup entry points. Run the extension in a VS Code Extension Development Host using this folder.
 
-Packaging produces `vscode-nbt-0.10.1.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
+Packaging produces `vscode-nbt-0.11.0.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
 
 See [implementation notes](docs/IMPLEMENTATION.md) and [reproducible test fixtures](docs/TESTING.md). The MIT license and upstream attribution are retained.
 

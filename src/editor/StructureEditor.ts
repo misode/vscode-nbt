@@ -11,6 +11,8 @@ import { ReloadableRenderer } from './ReloadableRenderer'
 import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
+import { BlockBuilder } from './BlockBuilder'
+import { intersectBox } from './StructureEditing'
 
 declare const stringifiedAssets: string
 declare const stringifiedBlocks: string
@@ -31,6 +33,8 @@ export class StructureEditor implements EditorPanel {
 	private readonly resourceStatus = document.createElement('div')
 	private readonly maxAtlasSize: number
 	private highlighted: BlockPos[] = []
+	private readonly builder: BlockBuilder
+	private readonly cancelDrag = () => {}
 
 	private renderRequested = false
 
@@ -51,9 +55,12 @@ export class StructureEditor implements EditorPanel {
 		const blocks = JSON.parse(stringifiedBlocks)
 		const img = (document.querySelector('.texture-atlas') as HTMLImageElement)
 		this.resources = new ResourceManager(blocks, { ...assets, textures: uvMapping }, img)
+		this.builder = new BlockBuilder(this.vscode, () => this.file, this.editHandler, readOnly, () => this.resources.availableBlocks(), id => this.resources.blockOptions(id), pos => { this.selectedBlock = pos; this.showSidePanel(); this.render() })
 
 		this.canvas = document.createElement('canvas')
 		this.canvas.className = 'structure-3d'
+		this.canvas.tabIndex = 0
+		this.canvas.setAttribute('aria-label', 'Structure scene. Drag to rotate; right drag to pan. Click here before using W A S D, Space and Shift.')
 		const gl = this.canvas.getContext('webgl')!
 		this.structure = new Structure([0, 0, 0])
 		this.maxAtlasSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
@@ -92,16 +99,26 @@ export class StructureEditor implements EditorPanel {
 		this.invisibleBlocksActive = false
 		this.selectedBlock = null
 
-		let dragTime: number
 		let dragPos: [number, number] | null = null
+		let dragStart: [number, number] | null = null
+		let dragged = false
 		let dragButton: number
-		this.canvas.addEventListener('mousedown', evt => {
-			dragTime = Date.now()
+		this.cancelDrag = () => { dragPos = null; dragStart = null }
+		this.canvas.addEventListener('contextmenu', evt => evt.preventDefault())
+		this.canvas.addEventListener('pointerdown', evt => {
+			if (![0, 1, 2].includes(evt.button)) return
+			this.canvas.focus({ preventScroll: true })
+			this.canvas.setPointerCapture(evt.pointerId)
 			dragPos = [evt.clientX, evt.clientY]
+			dragStart = [...dragPos]
+			dragged = false
 			dragButton = evt.button
+			evt.preventDefault()
 		})
-		this.canvas.addEventListener('mousemove', evt => {
+		this.canvas.addEventListener('pointermove', evt => {
+			if (!evt.buttons) { this.cancelDrag(); return }
 			if (dragPos) {
+				if (dragStart && Math.hypot(evt.clientX - dragStart[0], evt.clientY - dragStart[1]) > 4) dragged = true
 				const dx = (evt.clientX - dragPos[0]) / 100
 				const dy = (evt.clientY - dragPos[1]) / 100
 				if (dragButton === 0) {
@@ -124,14 +141,18 @@ export class StructureEditor implements EditorPanel {
 				this.render()
 			}
 		})
-		this.canvas.addEventListener('mouseup', evt => {
-			dragPos = null
-			if (Date.now() - dragTime < 200) {
-				if (dragButton === 0) {
-					this.selectBlock(evt.clientX, evt.clientY)
-				}
-			}
+		this.canvas.addEventListener('pointerup', evt => {
+			const rect = this.canvas.getBoundingClientRect()
+			const click = dragPos && !dragged && dragButton === 0 && evt.clientX >= rect.left && evt.clientX < rect.right && evt.clientY >= rect.top && evt.clientY < rect.bottom
+			this.cancelDrag()
+			if (this.canvas.hasPointerCapture(evt.pointerId)) this.canvas.releasePointerCapture(evt.pointerId)
+			if (click) this.selectBlock(evt.clientX, evt.clientY)
 		})
+		this.canvas.addEventListener('pointercancel', this.resetInput)
+		this.canvas.addEventListener('lostpointercapture', () => this.cancelDrag())
+		this.canvas.addEventListener('blur', this.resetInput)
+		window.addEventListener('blur', this.resetInput)
+		document.addEventListener('visibilitychange', this.resetInput)
 		this.canvas.addEventListener('wheel', evt => {
 			this.cDist += evt.deltaY / 100
 			this.cDist = Math.max(1, Math.min(100, this.cDist))
@@ -139,6 +160,9 @@ export class StructureEditor implements EditorPanel {
 		})
 
 		window.addEventListener('resize', () => {
+			if (!this.file || !this.canvas.isConnected) return
+			this.builder.layout()
+			this.showSidePanel()
 			if (this.resize()) this.render()
 		})
 
@@ -152,7 +176,7 @@ export class StructureEditor implements EditorPanel {
 		const requestTime = performance.now()
 		this.renderRequested = true
 		requestAnimationFrame((time) => {
-			const delta = Math.max(0, time - requestTime)
+			const delta = Math.min(50, Math.max(0, time - requestTime))
 			this.renderRequested = false
 			this.resize()
 
@@ -209,12 +233,15 @@ export class StructureEditor implements EditorPanel {
 		this.root.append(this.canvas)
 		this.root.append(this.canvas2)
 		this.root.append(this.resourceStatus)
+		this.builder.reveal(this.root)
 		this.showSidePanel()
 		document.addEventListener('keydown', this.onKeyDown)
 		document.addEventListener('keyup', this.onKeyUp)
 	}
 
 	hide() {
+		this.resetInput()
+		this.builder.hide()
 		document.removeEventListener('keydown', this.onKeyDown)
 		document.removeEventListener('keyup', this.onKeyUp)
 	}
@@ -230,17 +257,20 @@ export class StructureEditor implements EditorPanel {
 	onUpdate(file: NbtFile, edit: NbtEdit) {
 		this.updateStructure(file)
 		this.showSidePanel()
+		this.builder.onUpdate()
 		this.render()
 	}
 
 	private readonly onKeyDown = (evt: KeyboardEvent) => {
-		if (evt.target instanceof HTMLInputElement || evt.target instanceof HTMLTextAreaElement || evt.target instanceof HTMLSelectElement) return
+		if (evt.target !== this.canvas || evt.ctrlKey || evt.metaKey || evt.altKey) return
 		const index = this.movementKeys.indexOf(evt.code)
 		if (index !== -1) {
 			this.movement[index] = 1
+			evt.preventDefault()
 			this.render()
 		}
 	}
+	private readonly resetInput = () => { this.movement.fill(0); this.cancelDrag() }
 
 	private readonly onKeyUp = (evt: KeyboardEvent) => {
 		const index = this.movementKeys.indexOf(evt.code)
@@ -305,6 +335,7 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	onMessage(message: ViewMessage): void {
+		this.builder.onMessage(message)
 		if (message.type === 'resourcesChanged') { if (this.file) this.requestResources(); return }
 		if (message.type !== 'resources' || message.generation !== this.resourceGeneration || !this.modded) return
 		if (message.error || !message.body) { this.resourceStatus.textContent = `Resources: ${message.error ?? 'No response'}`; return }
@@ -376,7 +407,15 @@ export class StructureEditor implements EditorPanel {
 			search.title = this.highlighted.length === 200 ? 'Showing the first 200 matches' : `${this.highlighted.length} matches`
 			this.render()
 		})
-		return [gridToggle, invisibleBlocksToggle, moddedToggle, reload, search]
+		const build = document.createElement('button')
+		build.className = 'btn'
+		build.textContent = 'Build'
+		build.addEventListener('click', () => this.builder.toggle())
+		const create = document.createElement('button')
+		create.className = 'btn'
+		create.textContent = 'New NBT structure'
+		create.addEventListener('click', () => this.vscode.postMessage({ type: 'newStructure', body: { dataVersion: this.file.root.getNumber('DataVersion') } }))
+		return [gridToggle, invisibleBlocksToggle, moddedToggle, reload, build, create, search]
 	}
 
 	private getViewMatrix() {
@@ -389,15 +428,33 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	private selectBlock(x: number, y: number) {
+		this.resize()
+		const rect = this.canvas.getBoundingClientRect()
 		const viewMatrix = this.getViewMatrix()
 		this.renderer2.drawColoredStructure(viewMatrix)
 		const color = new Uint8Array(4)
-		this.gl2.readPixels(x, this.canvas2.height - y, 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
+		this.gl2.readPixels(Math.floor((x - rect.left) / rect.width * this.canvas2.width), this.canvas2.height - 1 - Math.floor((y - rect.top) / rect.height * this.canvas2.height), 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
 		const oldSelectedBlock = this.selectedBlock ? [...this.selectedBlock] : null
 		if (color[3] === 255) {
 			this.selectedBlock = [color[0], color[1], color[2]]
 		} else {
 			this.selectedBlock = null
+		}
+		const projection = mat4.perspective(mat4.create(), 70 * Math.PI / 180, rect.width / rect.height, 0.1, 500)
+		const inverse = mat4.invert(mat4.create(), mat4.multiply(mat4.create(), projection, viewMatrix))
+		if (inverse) {
+			const nx = (x - rect.left) / rect.width * 2 - 1
+			const ny = 1 - (y - rect.top) / rect.height * 2
+			const origin = vec3.transformMat4(vec3.create(), [nx, ny, -1], inverse)
+			const end = vec3.transformMat4(vec3.create(), [nx, ny, 1], inverse)
+			const direction = vec3.normalize(vec3.create(), vec3.sub(vec3.create(), end, origin))
+			const hit = this.selectedBlock && intersectBox([...origin], [...direction], this.selectedBlock, this.selectedBlock.map(n => n + 1))
+			let ground: BlockPos | undefined
+			if (!this.selectedBlock && Math.abs(direction[1]) > 1e-8) {
+				const distance = -origin[1] / direction[1]
+				if (distance >= 0) ground = [Math.floor(origin[0] + direction[0] * distance), 0, Math.floor(origin[2] + direction[2] * distance)]
+			}
+			this.builder.click(this.selectedBlock, hit?.normal, ground)
 		}
 		if (JSON.stringify(oldSelectedBlock) !== JSON.stringify(this.selectedBlock)) {
 			this.showSidePanel()
@@ -413,6 +470,8 @@ export class StructureEditor implements EditorPanel {
 
 		const sidePanel = document.createElement('div')
 		sidePanel.classList.add('side-panel')
+		const menu = document.querySelector('.panel-menu')?.getBoundingClientRect()
+		if (menu) sidePanel.style.top = `${menu.bottom + 8}px`
 		this.root.append(sidePanel)
 		if (block) {
 			const properties = block.state.getProperties()

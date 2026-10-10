@@ -26,6 +26,13 @@ interface McmetaVersion {
 	release_time: string,
 	sha1: string
 }
+export async function getMinecraftDataVersion(version: string, logger: Logger): Promise<number> {
+	const downloader = new Downloader(mcmetaRoot, logger)
+	const versions = await downloader.download<McmetaVersion[]>({ id: 'versions', uri: `${MCMETA}/summary/versions/data.min.json`, transformer: data => JSON.parse(data.toString('utf8')), cache: cacheOptions() })
+	const match = versions?.find(v => v.id === version)
+	if (!match) throw new Error(`Minecraft version ${version} was not found. Check the version or cached version list.`)
+	return match.data_version
+}
 
 export async function getAssets(dataVersion: number | undefined, logger: Logger) {
 	const downloader = new Downloader(mcmetaRoot, logger)

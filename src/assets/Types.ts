@@ -33,6 +33,8 @@ export interface MinecraftInstance {
 	resourcePacks: string[]
 	clientJars: string[]
 }
+export interface BlockCatalog { ids: string[], total: number, offset: number, namespaces: string[] }
+export interface BlockOptions { id: string, properties: Record<string, string[]>, defaults: Record<string, string> }
 export const LIMITS = { resourceBytes: 8 * 1024 * 1024, entries: 250000, resources: 500000, jsonBytes: 2 * 1024 * 1024, bundleBytes: 32 * 1024 * 1024, depth: 64, blocks: 8192, textures: 2048, textureDimension: 1024, cacheBytes: 64 * 1024 * 1024 }
 
 export function resourceId(value: string): string {

@@ -8,6 +8,7 @@ import { NON_SELF_CULLING, OPAQUE_BLOCKS, TRANSLUCENT_BLOCKS } from './BlockFlag
 import { ModdedDefinition } from './ModdedDefinition'
 import { CachedModel, GeometryCache } from './CachedModel'
 import { ae2Variants, isAe2Bus } from '../assets/Ae2'
+import type { BlockOptions } from '../assets/Types'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider, TextureAtlasProvider {
 	private blockDefinitions: Record<string, BlockDefinition> = Object.create(null)
@@ -55,6 +56,11 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	}
 	getBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.properties ?? null }
 	getDefaultBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.default ?? null }
+	availableBlocks(): string[] { return [...this.blocks.keys()].sort() }
+	blockOptions(id: string): BlockOptions | undefined {
+		const block = this.blocks.get(id)
+		return block ? { id, properties: block.properties, defaults: block.default } : undefined
+	}
 	private definition(value: BlockstateJson): BlockDefinition {
 		return new ModdedDefinition(value, () => Math.imul(this.position[0], 73428767) ^ Math.imul(this.position[1], 912931) ^ Math.imul(this.position[2], 438289), this.tint, this.report)
 	}

@@ -17,6 +17,8 @@ The renderer uses assets, not a Minecraft game runtime. It never runs Java or Ja
 
 Known renderer limits:
 
+Build tools currently write single-palette Java structure NBT. The block list is based on static assets and vanilla registries, not a running game's complete block registry. Properties inferred from mod blockstates can omit game-only values. AE2 cable brushes initialize cable-bus data; other machine block entities require their own NBT configuration through the existing editor. Schematic, region and multiple-palette files retain their existing viewing/editing support.
+
 - Face shading is inherited from Deepslate, not full Minecraft ambient occlusion. `ambientocclusion` is inherited but does not enable an AO algorithm.
 - No biome/world-aware colors. Mod tint indices use the configurable RGB fallback; vanilla tints remain built in.
 - Transparent faces blend using the existing chunk renderer; per-face back-to-front sorting is not implemented.

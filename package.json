@@ -2,7 +2,7 @@
 	"name": "vscode-nbt",
 	"displayName": "NBT Viewer — Modded Resources",
 	"description": "View Minecraft NBT and 3D structures with local mod and resource pack assets",
-	"version": "0.10.1",
+	"version": "0.11.0",
 	"preview": true,
 	"publisher": "hi4444",
 	"repository": {
@@ -18,6 +18,7 @@
 	"activationEvents": [
 		"onCustomEditor:nbtEditor.nbt",
 		"onCommand:nbtViewer.selectInstance",
+		"onCommand:nbtViewer.newStructure",
 		"onCommand:nbtViewer.scanMods",
 		"onCommand:nbtViewer.reloadResources",
 		"onCommand:nbtViewer.clearCache",
@@ -32,6 +33,10 @@
 	},
 	"contributes": {
 		"commands": [
+			{
+				"command": "nbtViewer.newStructure",
+				"title": "NBT Viewer: New NBT Structure"
+			},
 			{
 				"command": "nbtViewer.selectInstance",
 				"title": "NBT Viewer: Select Minecraft Instance"

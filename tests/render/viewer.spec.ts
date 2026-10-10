@@ -6,6 +6,11 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { PNG } from 'pngjs'
 import { NbtCompound, NbtFile, NbtInt, NbtList, NbtString, Structure } from 'deepslate'
+import { mat4, vec3 } from 'gl-matrix'
+import type { Page } from '@playwright/test'
+import type { EditorMessage, NbtEdit } from '../../src/common/types'
+import { applyEdit, reverseEdit } from '../../src/common/Operations'
+import { createBlankStructure } from '../../src/editor/StructureEditing'
 import { ResourceIndex } from '../../src/assets/ResourceIndex'
 import { cube, instance, makePng, resources, zip } from '../fixtures'
 
@@ -131,4 +136,126 @@ test('production WebGL viewer renders archive assets, fallback geometry, search 
 	expect(errors).toEqual([])
 })
 function assertCanvas(value: { error: number, width: number, height: number }) { expect(value.error).toBe(0); expect(value.width).toBeGreaterThan(0); expect(value.height).toBeGreaterThan(0) }
+
+async function editableFixture(page: Page, readOnly = false) {
+	const file = createBlankStructure(3465, [6, 4, 6])
+	const edits: NbtEdit[] = []
+	await page.exposeFunction('fixtureMessage', async (message: EditorMessage) => {
+		if (message.type === 'ready') await page.evaluate(body => window.postMessage({ type: 'init', body }, '*'), { type: 'structure', readOnly, content: file.toJson() })
+		if (message.type === 'getResources') {
+			const body = await index.bundle(message.body.ids, [1, 1, 1], () => false, message.body.models, message.body.textures)
+			await page.evaluate(({ body, generation }) => window.postMessage({ type: 'resources', body, generation }, '*'), { body, generation: message.body.generation })
+		}
+		if (message.type === 'getBlockCatalog') {
+			const { query, namespace, offset, generation } = message.body
+			const body = index.catalog(query, namespace, offset)
+			await page.evaluate(({ body, generation }) => window.postMessage({ type: 'blockCatalog', body, generation }, '*'), { body, generation })
+		}
+		if (message.type === 'getBlockOptions') {
+			const body = await index.blockOptions(message.body.id)
+			await page.evaluate(({ body, generation }) => window.postMessage({ type: 'blockOptions', body, generation }, '*'), { body, generation: message.body.generation })
+		}
+		if (message.type === 'edit') {
+			edits.push(message.body)
+			applyEdit(file, message.body)
+			await page.evaluate(body => window.postMessage({ type: 'update', body }, '*'), message.body)
+		}
+	})
+	await page.addInitScript(() => { (window as unknown as { acquireVsCodeApi: () => unknown }).acquireVsCodeApi = () => ({ postMessage: (message: unknown) => (window as unknown as { fixtureMessage: (m: unknown) => void }).fixtureMessage(message) }) })
+	await page.goto(url)
+	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
+	return { file, edits }
+}
+function screenPoint(point: [number, number, number], size: [number, number, number]): [number, number] {
+	const center = size.map(n => -n / 2) as [number, number, number]
+	const distance = Math.hypot(...center) * 1.5
+	const view = mat4.create()
+	mat4.translate(view, view, [0, 0, -distance]); mat4.rotateX(view, view, 0.6); mat4.rotateY(view, view, 0.4); mat4.translate(view, view, center)
+	const clip = vec3.transformMat4(vec3.create(), point, mat4.multiply(mat4.create(), mat4.perspective(mat4.create(), 70 * Math.PI / 180, 1000 / 700, 0.1, 500), view))
+	return [(clip[0] + 1) * 500, (1 - clip[1]) * 350]
+}
+
+test('build tools place from the mod list, edit properties, save/reopen, undo and erase', async ({ page }, testInfo) => {
+	const { file, edits } = await editableFixture(page)
+	await page.getByRole('button', { name: 'Build', exact: true }).click()
+	await expect(page.locator('.block-builder')).toBeVisible()
+	await page.getByPlaceholder('Find a block to place').fill('demo:pipe')
+	await page.locator('[data-block="demo:pipe"]').click()
+	await page.getByLabel('Block property axis', { exact: true }).selectOption('x')
+	await page.getByLabel('Build X', { exact: true }).fill('2')
+	await page.getByLabel('Build Z', { exact: true }).fill('1')
+	await page.getByRole('button', { name: 'Set block at coordinates', exact: true }).click()
+	await expect.poll(() => file.root.getList('blocks').length).toBe(1)
+	await expect(page.locator('.builder-status')).toContainText('Block changed')
+	const reopened = NbtFile.read(file.write())
+	expect(Structure.fromNbt(reopened.root).getBlock([2, 0, 1])?.state.toString()).toContain('axis=x')
+	const undo = reverseEdit(edits[0]); applyEdit(file, undo)
+	await page.evaluate(body => window.postMessage({ type: 'update', body }, '*'), undo)
+	await expect.poll(() => file.root.getList('blocks').length).toBe(0)
+	applyEdit(file, edits[0]); await page.evaluate(body => window.postMessage({ type: 'update', body }, '*'), edits[0])
+	await expect(page.locator('.block-name')).toHaveText('demo:pipe')
+	await page.getByRole('button', { name: 'Remove at coordinates', exact: true }).click()
+	await expect.poll(() => file.root.getList('blocks').length).toBe(0)
+	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeEnabled()
+	await page.getByLabel('Build X', { exact: true }).fill('6')
+	await page.getByRole('button', { name: 'Set block at coordinates', exact: true }).click()
+	await expect(page.locator('.builder-status')).toContainText('outside the structure')
+	expect(file.root.getList('blocks').length).toBe(0)
+	await page.getByPlaceholder('Find a block to place').fill('demo:casing')
+	await page.locator('[data-block="demo:casing"]').click()
+	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeEnabled()
+	await page.mouse.click(...screenPoint([1.5, 0, 1.5], [6, 4, 6]))
+	await expect.poll(() => Structure.fromNbt(file.root).getBlock([1, 0, 1])?.state.getName().toString()).toBe('demo:casing')
+	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
+	await page.mouse.click(...screenPoint([1.5, 1, 1.5], [6, 4, 6]))
+	await expect.poll(() => Structure.fromNbt(file.root).getBlock([1, 1, 1])?.state.getName().toString()).toBe('demo:casing')
+	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
+	await page.screenshot({ path: testInfo.outputPath('build-tools.png') })
+	await page.getByRole('button', { name: 'Erase', exact: true }).click()
+	await page.mouse.click(...screenPoint([1.5, 2, 1.5], [6, 4, 6]))
+	await expect.poll(() => file.root.getList('blocks').length).toBe(1)
+})
+
+test('camera movement and dragging stop on focus loss, cancellation and leaving the 3D panel', async ({ page }) => {
+	await editableFixture(page)
+	const canvas = page.locator('canvas.structure-3d').first()
+	await canvas.focus()
+	await page.keyboard.down('w')
+	await page.waitForTimeout(80)
+	await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+	await page.waitForTimeout(80)
+	const before = await page.screenshot()
+	await page.waitForTimeout(160)
+	expect(PNG.sync.read(await page.screenshot()).data.equals(PNG.sync.read(before).data)).toBe(true)
+	await page.keyboard.up('w')
+	await canvas.focus(); await page.keyboard.down('w')
+	await page.getByPlaceholder('Highlight namespace or block ID').focus()
+	await page.waitForTimeout(80)
+	const input = await page.screenshot()
+	await page.waitForTimeout(160)
+	expect(PNG.sync.read(await page.screenshot()).data.equals(PNG.sync.read(input).data)).toBe(true)
+	await page.keyboard.up('w')
+	await page.mouse.move(450, 300); await page.mouse.down(); await page.mouse.move(480, 320)
+	await page.evaluate(() => document.querySelector('canvas.structure-3d')!.dispatchEvent(new PointerEvent('pointercancel')))
+	await page.waitForTimeout(80)
+	const cancelled = await page.screenshot()
+	await page.mouse.move(550, 360); await page.waitForTimeout(80)
+	expect(PNG.sync.read(await page.screenshot()).data.equals(PNG.sync.read(cancelled).data)).toBe(true)
+	await page.mouse.up()
+	await canvas.focus(); await page.keyboard.down('w')
+	await page.getByText('Default', { exact: true }).click(); await page.keyboard.up('w')
+	await page.getByText('3D', { exact: true }).click()
+	await page.waitForTimeout(80)
+	const returned = await page.screenshot(); await page.waitForTimeout(160)
+	expect(PNG.sync.read(await page.screenshot()).data.equals(PNG.sync.read(returned).data)).toBe(true)
+})
+
+test('read-only documents expose the block list but cannot place or remove blocks', async ({ page }) => {
+	const { edits } = await editableFixture(page, true)
+	await page.getByRole('button', { name: 'Build', exact: true }).click()
+	await expect(page.getByRole('button', { name: 'Place', exact: true })).toBeDisabled()
+	await expect(page.getByRole('button', { name: 'Set block at coordinates', exact: true })).toBeDisabled()
+	await expect(page.locator('.builder-status')).toContainText('read-only')
+	expect(edits).toHaveLength(0)
+})
 

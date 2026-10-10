@@ -26,4 +26,8 @@ Manual extension check after installing the VSIX:
 4. Switch instances and inspect the NBT Resources tree and diagnostic output.
 5. Verify runtime-only blocks are clearly labeled as fallback geometry.
 
+Structure building has seven additional unit tests covering blank gzip files, palette reuse, reversible placement/replacement/removal, block-entity preservation, AE2 cable initialization, input validation, property inference, catalog paging/invalidation and ray intersection. Three additional browser tests exercise the production Build panel: choose a mod block and properties, place by coordinates and floor/face clicks, save/reopen, undo/redo, erase and reject out-of-bounds positions; stop camera movement/dragging after focus loss or cancellation; prevent writes in read-only documents.
+
+For a manual build check, run **NBT Viewer: New NBT Structure**, select the Minecraft version and save it. Select the modpack, open **3D → Build**, search a block, and place it on the floor or at coordinates. Add a neighbour by clicking a face, replace/erase it, save and reopen, then undo/redo. Hold a movement key and click a control or switch applications: the camera should stop. Also verify editing is disabled for read-only and unsupported build formats.
+
 Development uses Node 22+ and the checked-in lockfile. The runtime's tar parser and tooling were updated because the upstream lockfile had known vulnerabilities. No archive extraction is used for mod assets. No Marketplace publication is part of the workflow.

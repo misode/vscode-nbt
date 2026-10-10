@@ -20,6 +20,8 @@ On a local 390-mod installation, the 0.10.0 scanner took 26.5 seconds initially 
 
 Manual extension check after installing the VSIX:
 
+The instance-selection regression runs the production InstanceManager against a mocked VS Code host. It checks repeated opens, persistence across extension sessions, independent workspaces, explicit workspace settings and switching, cancellation, all three prompt modes, legacy user settings and standalone-file fallback. Asset scanning is bypassed in this test so it focuses on selection persistence.
+
 1. Select a Minecraft instance or a test folder containing a `mods/` directory.
 2. Open vanilla and modded `.nbt` / schematic structures. Confirm camera controls, block selection, properties and tree/SNBT editing.
 3. Edit a resource pack texture, reload assets, and confirm the model changes without closing the structure.

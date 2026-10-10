@@ -21,13 +21,13 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 	private reloadTimer?: ReturnType<typeof setTimeout>
 	private prompting?: Promise<void>
 	async promptForDocument(): Promise<void> {
-		const mode = this.config().get<string>('askForInstanceOnOpen', 'always')
-		if (mode === 'never' || mode === 'whenMissing' && this.config().get<string>('selectedInstance', '')) return
+		const mode = this.config().get<string>('askForInstanceOnOpen', 'whenMissing')
+		if (mode === 'never' || mode === 'whenMissing' && this.selection().directory) return
 		if (!this.prompting) this.prompting = this.select(true).catch(error => { void vscode.window.showErrorMessage(`NBT resources: ${errorText(error)}`) }).finally(() => { this.prompting = undefined })
 		await this.prompting
 	}
 	private readonly output = vscode.window.createOutputChannel('NBT Resource Diagnostics')
-	constructor(context: vscode.ExtensionContext) {
+	constructor(private readonly context: vscode.ExtensionContext) {
 		context.subscriptions.push(this, this.output, vscode.window.registerTreeDataProvider('nbtResources', this))
 		const command = (id: string, action: () => Promise<unknown> | void) => context.subscriptions.push(vscode.commands.registerCommand(`nbtViewer.${id}`, async () => { try { await action() } catch (e) { this.output.appendLine(errorText(e)); vscode.window.showErrorMessage(`NBT resources: ${errorText(e)}`) } }))
 		command('selectInstance', () => this.select())
@@ -38,6 +38,30 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('nbtViewer')) { this.disposeWatchers(); this.instance = undefined; this.invalidate() } }))
 	}
 	private config() { return vscode.workspace.getConfiguration('nbtViewer') }
+	private selection(): { directory: string, version: string } {
+		const config = this.config()
+		const configured = config.inspect<string>('selectedInstance')
+		const directory = configured?.workspaceValue ?? configured?.workspaceFolderValue
+		if (directory !== undefined) return { directory, version: config.get<string>('selectedVersion', '') }
+		const saved = vscode.workspace.workspaceFolders?.length ? this.context.workspaceState.get<{ directory: string, version: string }>('nbtViewer.instance') : undefined
+		if (saved) return { directory: saved.directory, version: config.inspect<string>('selectedVersion')?.workspaceValue ?? saved.version }
+		return { directory: config.get<string>('selectedInstance', ''), version: config.get<string>('selectedVersion', '') }
+	}
+	private async saveSelection(directory: string, version: string): Promise<void> {
+		if (vscode.workspace.workspaceFolders?.length) {
+			await this.context.workspaceState.update('nbtViewer.instance', { directory, version })
+			// A manually configured workspace selection must follow an explicit switch.
+			if (this.config().inspect<string>('selectedInstance')?.workspaceValue !== undefined) {
+				await this.config().update('selectedVersion', version, vscode.ConfigurationTarget.Workspace)
+				await this.config().update('selectedInstance', directory, vscode.ConfigurationTarget.Workspace)
+			}
+		} else {
+			await this.config().update('selectedVersion', version, vscode.ConfigurationTarget.Global)
+			await this.config().update('selectedInstance', directory, vscode.ConfigurationTarget.Global)
+		}
+		this.disposeWatchers(); this.instance = undefined
+		await this.reload()
+	}
 	private invalidate(): void {
 		this.epoch++; this.dirty = true
 		if (this.reloadTimer) clearTimeout(this.reloadTimer)
@@ -54,11 +78,10 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 	}
 	private async select(direct = false): Promise<void> {
 		if (direct) {
-			const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'Choose the modpack folder for this NBT (the folder containing mods)', openLabel: 'Use this modpack', defaultUri: this.config().get<string>('selectedInstance', '') ? vscode.Uri.file(this.config().get<string>('selectedInstance', '')) : undefined })
+			const selected = this.selection().directory
+			const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, title: 'Choose the modpack folder for this workspace (the folder containing mods)', openLabel: 'Use this modpack', defaultUri: selected ? vscode.Uri.file(selected) : undefined })
 			if (!uris?.length) return
-			await this.config().update('selectedVersion', '', vscode.ConfigurationTarget.Global)
-			await this.config().update('selectedInstance', uris[0].fsPath, vscode.ConfigurationTarget.Global)
-			await this.reload()
+			await this.saveSelection(uris[0].fsPath, '')
 			return
 		}
 		const instances = await this.scan()
@@ -68,9 +91,7 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 		let directory = chosen.instance?.id
 		if (!directory) { const uris = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, openLabel: 'Select Minecraft instance' }); directory = uris?.[0].fsPath }
 		if (!directory) return
-		await this.config().update('selectedVersion', chosen.instance?.version ?? '', vscode.ConfigurationTarget.Global)
-		await this.config().update('selectedInstance', directory, vscode.ConfigurationTarget.Global)
-		await this.reload()
+		await this.saveSelection(directory, chosen.instance?.version ?? '')
 	}
 	async reload(): Promise<void> { this.invalidate(); await this.ensure(); this.changed.fire() }
 	private async ensure(): Promise<void> {
@@ -78,12 +99,12 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 			try { await this.loading } catch (error) { if (!this.dirty) throw error }
 			if (!this.dirty) return
 		}
-		const selected = this.config().get<string>('selectedInstance', '')
+		const { directory: selected, version } = this.selection()
 		if (!selected) { this.index.clear(); this.instance = undefined; this.status = 'Select a Minecraft instance to enable modded assets'; this.dirty = false; this.treeChanged.fire(undefined); return }
 		if (!this.dirty) return
 		const epoch = this.epoch
 		this.loading = vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Indexing Minecraft resources', cancellable: true }, async (progress, token) => {
-			this.instance = await inspectInstance(selected, 'Selected', s => this.output.appendLine(s), this.config().get<string>('selectedVersion', ''))
+			this.instance = await inspectInstance(selected, 'Selected', s => this.output.appendLine(s), version)
 			if (!this.instance) throw new Error('Selected Minecraft directory does not exist')
 			this.status = 'Indexing…'; this.treeChanged.fire(undefined)
 			await this.index.build(this.instance, this.config().get<string[]>('resourcePacks', []), message => { progress.report({ message }); this.status = message; this.treeChanged.fire(undefined) }, () => token.isCancellationRequested || epoch !== this.epoch)
@@ -127,6 +148,6 @@ export class InstanceManager implements vscode.Disposable, vscode.TreeDataProvid
 	getTreeItem(item: vscode.TreeItem): vscode.TreeItem { return item }
 	getChildren(): vscode.TreeItem[] {
 		const item = (label: string) => new vscode.TreeItem(label)
-		return [item(this.status), item(`Instance: ${this.instance?.name ?? this.config().get('selectedInstance', 'None')}`), item(`Minecraft: ${this.instance?.version ?? 'unknown'}`), item(`Loader: ${this.instance?.loader ?? 'unknown'}`), item(`Mods: ${this.instance?.mods.length ?? 0}`), item(`Namespaces: ${this.index.stats.namespaces.join(', ') || 'none'}`), ...(this.instance?.resourcePacks ?? []).map(p => item(`Pack: ${path.basename(p)}`)), ...this.config().get<string[]>('resourcePacks', []).map(p => item(`Override pack: ${path.basename(p)}`)), item(`Cache: ${this.index.stats.cacheEntries} entries, ${(this.index.stats.cacheBytes / 1048576).toFixed(1)} MiB`), item(`Cache hits/misses: ${this.index.stats.hits}/${this.index.stats.misses}`), ...[...this.index.diagnostics, ...this.browserDiagnostics].slice(0, 100).map(item)]
+		return [item(this.status), item(`Instance: ${this.instance?.name ?? (this.selection().directory || 'None')}`), item(`Minecraft: ${this.instance?.version ?? 'unknown'}`), item(`Loader: ${this.instance?.loader ?? 'unknown'}`), item(`Mods: ${this.instance?.mods.length ?? 0}`), item(`Namespaces: ${this.index.stats.namespaces.join(', ') || 'none'}`), ...(this.instance?.resourcePacks ?? []).map(p => item(`Pack: ${path.basename(p)}`)), ...this.config().get<string[]>('resourcePacks', []).map(p => item(`Override pack: ${path.basename(p)}`)), item(`Cache: ${this.index.stats.cacheEntries} entries, ${(this.index.stats.cacheBytes / 1048576).toFixed(1)} MiB`), item(`Cache hits/misses: ${this.index.stats.hits}/${this.index.stats.misses}`), ...[...this.index.diagnostics, ...this.browserDiagnostics].slice(0, 100).map(item)]
 	}
 }

@@ -2,7 +2,7 @@
 	"name": "vscode-nbt",
 	"displayName": "NBT Viewer — Modded Resources",
 	"description": "View Minecraft NBT and 3D structures with local mod and resource pack assets",
-	"version": "0.11.1",
+	"version": "0.11.2",
 	"preview": true,
 	"publisher": "hi4444",
 	"repository": {
@@ -72,20 +72,20 @@
 				"nbtViewer.askForInstanceOnOpen": {
 					"type": "string",
 					"enum": ["always", "whenMissing", "never"],
-					"default": "always",
+					"default": "whenMissing",
 					"enumDescriptions": ["Ask for the modpack folder whenever an NBT document opens.", "Ask only when no instance is selected.", "Use the selected instance without asking."],
-					"description": "When to ask for the modpack folder used to render NBT files. Cancel keeps the current selection."
+					"description": "When to ask for the modpack folder used to render NBT files. By default, reuse the current workspace's selected pack. Cancel keeps the current selection."
 				},
 				"nbtViewer.selectedInstance": {
 					"type": "string",
 					"default": "",
-					"scope": "machine",
-					"description": "Selected local Minecraft instance directory."
+					"scope": "machine-overridable",
+					"description": "Local Minecraft instance directory. Workspace settings override the remembered workspace selection; user settings supply a fallback."
 				},
 				"nbtViewer.selectedVersion": {
 					"type": "string",
 					"default": "",
-					"scope": "machine",
+					"scope": "machine-overridable",
 					"description": "Version of the selected launcher profile; leave empty for automatic detection."
 				},
 				"nbtViewer.instancePaths": {

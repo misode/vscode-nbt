@@ -11,7 +11,7 @@ This fork extends [Misode's NBT Viewer](https://github.com/misode/vscode-nbt) wi
 
 Discovery checks common Official Launcher, CurseForge, Prism Launcher, MultiMC, ATLauncher, Modrinth App and GDLauncher roots on Windows, Linux and macOS. Custom/portable locations can be added to `nbtViewer.instancePaths`. Forge, NeoForge, Fabric and Quilt metadata is detected where available. Ambiguous mod metadata is reported rather than inventing a loader.
 
-Opening an NBT document asks for its modpack folder by default. Set `nbtViewer.askForInstanceOnOpen` to `whenMissing` to ask only without a selection, or `never` to reuse the selected pack. Cancel keeps the current selection. The selected directory persists in machine settings. `nbtViewer.selectedVersion` can select an official launcher profile/version when needed. No Minecraft files are written.
+Opening an NBT document asks for a modpack only when no pack is selected (`nbtViewer.askForInstanceOnOpen: whenMissing`, the default). Selections are remembered privately for the current workspace and survive VS Code restarts. Other workspaces can use different packs. Use **Select Minecraft Instance** to switch the current workspace's pack. Set the prompt option to `always` to ask on every open, or `never` to skip prompting. An existing explicit `always` setting remains honored; change it to `whenMissing` to reuse your selection. Cancel keeps the selected pack. Workspace settings for `nbtViewer.selectedInstance` / `selectedVersion` override the remembered selection; existing user settings remain a fallback. Without an open workspace, selections are saved in user settings. No Minecraft files are written.
 
 ## Resource packs and controls
 
@@ -69,7 +69,7 @@ npm run package
 
 On Windows browser tests default to installed Edge; set `NBT_BROWSER_CHANNEL=chromium` to use Playwright Chromium. `npm run dev` watches the two existing Rollup entry points. Run the extension in a VS Code Extension Development Host using this folder.
 
-Packaging produces `vscode-nbt-0.11.1.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
+Packaging produces `vscode-nbt-0.11.2.vsix`. In VS Code run **Extensions: Install from VSIX…**, choose the file, reload VS Code, then select an instance. Disable the upstream NBT Viewer while testing this fork because the editor ID is intentionally preserved. Packaging does not publish to the Marketplace. This fork is not an official upstream release.
 
 See [implementation notes](docs/IMPLEMENTATION.md) and [reproducible test fixtures](docs/TESTING.md). The MIT license and upstream attribution are retained.
 

@@ -12,6 +12,7 @@ import type { BlockOptions } from '../assets/Types'
 import { blockOptions } from '../assets/BlockOptions'
 import { connectTextures } from './ConnectedTextures'
 import type { ConnectedSprite } from './ConnectedTextures'
+import { isSelfCullingCube } from './SelfCulling'
 
 export class ResourceManager implements BlockDefinitionProvider, BlockModelProvider, BlockFlagsProvider, BlockPropertiesProvider, TextureAtlasProvider {
 	private blockDefinitions: Record<string, BlockDefinition> = Object.create(null)
@@ -30,6 +31,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	private readonly connectedSprites = new Map<string, ConnectedSprite>()
 	private tint: [number, number, number] = [1, 1, 1]
 	private readonly geometryCache = new GeometryCache()
+	private readonly selfCullingCubes = new Set<string>()
 	readonly diagnostics = new Set<string>()
 	constructor(blocks: Record<string, [Record<string, string[]>, Record<string, string>]>, assets: { blockstates: Record<string, BlockstateJson>, models: Record<string, ModelJson>, textures: Record<string, number[]> }, image: HTMLImageElement, private readonly adapters: readonly ModelAdapter[] = []) {
 		this.blocks = new Map(Object.entries(blocks).map(([k, v]) => [resourceId(k), { properties: v[0], default: v[1] }]))
@@ -55,9 +57,9 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	getPixelSize() { return this.textureAtlas.getPixelSize() }
 	getBlockFlags(id: Identifier) {
 		const name = id.toString()
-		// Static assets do not define solid-face occlusion. Conservative flags avoid
-		// incorrectly removing adjacent pipe/cable faces. Alpha blends in the existing renderer.
-		return { opaque: id.namespace === 'minecraft' && OPAQUE_BLOCKS.has(name), semi_transparent: TRANSLUCENT_BLOCKS.has(name) || id.namespace !== 'minecraft', self_culling: id.namespace === 'minecraft' && !NON_SELF_CULLING.has(name) }
+		// A proven full cube may hide its shared faces against the same ID. Keep
+		// partial/dynamic mod geometry conservative; glass never occludes other IDs.
+		return { opaque: id.namespace === 'minecraft' && OPAQUE_BLOCKS.has(name), semi_transparent: TRANSLUCENT_BLOCKS.has(name) || id.namespace !== 'minecraft', self_culling: id.namespace === 'minecraft' ? !NON_SELF_CULLING.has(name) : this.selfCullingCubes.has(name) }
 	}
 	getBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.properties ?? null }
 	getDefaultBlockProperties(id: Identifier) { return this.blocks.get(id.toString())?.default ?? null }
@@ -74,6 +76,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 	}
 	private load(definitions: Record<string, BlockstateJson>, models: Record<string, ModelJson>): void {
 		this.geometryCache.clear()
+		this.selfCullingCubes.clear()
 		this.blockDefinitions = Object.create(null)
 		this.blockModels = Object.create(null)
 		const used = new Set(Object.values(definitions).flatMap(modelReferences))
@@ -87,6 +90,7 @@ export class ResourceManager implements BlockDefinitionProvider, BlockModelProvi
 			this.blockModels[id] = new CachedModel(id, textures, elements as ConstructorParameters<typeof CachedModel>[2], this.geometryCache)
 		}
 		for (const [id, state] of Object.entries(definitions)) {
+			if (!isAe2Bus(id) && isSelfCullingCube(state, flattened)) this.selfCullingCubes.add(id)
 			// Keep vanilla empty models and built-in special renderers unchanged.
 			this.blockDefinitions[id] = id.startsWith('minecraft:') ? BlockDefinition.fromJson(state) : this.definition(state)
 		}

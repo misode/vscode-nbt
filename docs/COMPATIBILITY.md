@@ -23,7 +23,7 @@ Build tools currently write single-palette Java structure NBT. The block list is
 - Face shading is inherited from Deepslate, not full Minecraft ambient occlusion. `ambientocclusion` is inherited but does not enable an AO algorithm.
 - No biome/world-aware colors. Mod tint indices use the configurable RGB fallback; vanilla tints remain built in.
 - Opaque faces draw first. Transparent faces are sorted by camera-space center depth with depth writes disabled. Intersecting translucent polygons can still need splitting for perfect ordering.
-- Mod solid-face occlusion cannot be inferred reliably from assets; conservative flags prevent adjacent pipes/cables being incorrectly culled.
+- Identical mod blocks hide shared faces only when every static variant resolves to one unrotated complete cube with six matching cull faces. This removes internal glass faces without giving glass opaque occlusion. Partial, multipart, dynamic and mixed shapes retain conservative flags, protecting pipes/cables.
 - No PBR, shaders, resource-pack format-specific overlays, animated texture timing, or `.mcmeta` frame order. Non-square unanimated sprites currently use the first square region.
 - Texture atlases are bounded at 4096 square or the GPU limit, with overflow diagnosed. 8192 distinct block IDs, 2048 requested texture dependencies, 32 MiB serialized asset budget, 8 MiB individual resource limit, 2 MiB JSON limit, 64 levels of inheritance. PNG decoding is limited to 4 million pixels per image.
 - Resource data uses a 64 MiB LRU cache. Geometry uses a separate bounded cache (2048 entries / 100000 faces). These are cache limits, not a promise of total process memory usage.

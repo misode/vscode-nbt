@@ -11,7 +11,7 @@ import type { Page } from '@playwright/test'
 import type { EditorMessage, NbtEdit } from '../../src/common/types'
 import { applyEdit, reverseEdit } from '../../src/common/Operations'
 import { createBlankStructure } from '../../src/editor/StructureEditing'
-import { setStructureBlock } from '../../src/editor/StructureEditing'
+import { setStructureBlock, removeStructureBlock } from '../../src/editor/StructureEditing'
 import { ResourceIndex } from '../../src/assets/ResourceIndex'
 import { cube, instance, makePng, resources, zip } from '../fixtures'
 
@@ -44,6 +44,8 @@ test.beforeAll(async () => {
 		'assets/demo/blockstates/glass.json': JSON.stringify({ variants: { '': { model: 'demo:block/glass' } } }),
 		'assets/demo/models/block/glass.json': JSON.stringify({ ...cube, textures: { all: 'demo:block/glass' } }),
 		'assets/demo/textures/block/glass.png': makePng([64, 64, 200, 100]),
+		'assets/demo/blockstates/tall_glass.json': JSON.stringify({ variants: { '': { model: 'demo:block/tall_glass' } } }),
+		'assets/demo/models/block/tall_glass.json': JSON.stringify({ ...cube, textures: { all: 'demo:block/glass' }, elements: [{ ...cube.elements![0], to: [16, 32, 16], faces: Object.fromEntries(Object.entries(cube.elements![0].faces!).map(([direction, face]) => [direction, { ...face, uv: [0, 0, 16, 16] }])) }] }),
 		'assets/demo/blockstates/connected.json': JSON.stringify({ variants: { '': { model: 'demo:block/connected' } } }),
 		'assets/demo/models/block/connected.json': JSON.stringify({ ...cube, textures: { all: 'demo:block/connected' } }),
 		'assets/demo/textures/block/connected.png': makePng([200, 32, 32, 255]),
@@ -256,6 +258,24 @@ test('glass cannot hide rods behind it and rendering is independent of NBT block
 	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
 	const reversed = PNG.sync.read(await canvas.screenshot())
 	expect(reversed.data.equals(first.data)).toBe(true)
+})
+
+test('adjacent mod glass hides shared faces while retaining exterior faces', async ({ page }, testInfo) => {
+	const file = createBlankStructure(3465, [4, 3, 4])
+	applyEdit(file, setStructureBlock(file, [1, 0, 1], 'demo:glass', {}))
+	applyEdit(file, setStructureBlock(file, [1, 1, 1], 'demo:glass', {}))
+	await editableFixture(page, true, [4, 3, 4], undefined, file)
+	const canvas = page.locator('canvas.structure-3d').first()
+	const joined = PNG.sync.read(await canvas.screenshot({ path: testInfo.outputPath('joined-glass.png') }))
+	// An equivalent single prism has no internal plane: compare real rendered pixels.
+	applyEdit(file, removeStructureBlock(file, [1, 1, 1])!)
+	applyEdit(file, setStructureBlock(file, [1, 0, 1], 'demo:tall_glass', {}))
+	await page.reload()
+	await expect(page.locator('.resource-status')).toHaveText('Instance resources loaded')
+	const prism = PNG.sync.read(await canvas.screenshot({ path: testInfo.outputPath('glass-prism.png') }))
+	let difference = 0
+	for (let i = 0; i < joined.data.length; i++) difference += Math.abs(joined.data[i] - prism.data[i])
+	expect(difference).toBeLessThan(1000)
 })
 
 test('propertyless vanilla blocks appear in Build and can be placed and saved without a client JAR', async ({ page }) => {

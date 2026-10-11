@@ -62,3 +62,7 @@ The check selects ten block IDs, places them in one structure using the actual B
 This demonstrates static asset loading across six mods and CTM induction connections. It does not establish support for every block in those mods. For example, Mekanism's energy_cube custom loader still reports a fallback; it is not passed off as a successful model. The older AE2 15.4.10 cable check remains separately reproducible with NBT_AE2_JAR.
 
 The GitHub Actions workflow runs typechecks, lint, unit tests, production build, the default browser suite and VSIX packaging on Node 22. Local validation also ran the optional six-mod browser check.
+# Shared glass faces
+
+The adjacent-glass browser regression compares two stacked mod glass cubes with an equivalent single prism. Shared internal planes must disappear while exterior planes remain. The previous editor bundle fails this check. Unit tests reject self-culling for partial, mixed, multipart, rotated-element, custom-loader and missing models.
+

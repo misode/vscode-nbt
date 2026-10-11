@@ -258,6 +258,15 @@ class Editor {
 				}
 				return
 
+			case 'resources':
+			case 'resourcesChanged':
+			case 'blockCatalog':
+			case 'blockOptions':
+			case 'editError':
+				// The chunk panel must also receive changes while a region map is visible.
+				this.panels[this.type]?.editor().onMessage?.(m)
+				return
+
 			default:
 				this.panels[this.type].editor().onMessage?.(m)
 		}

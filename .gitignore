@@ -3,3 +3,6 @@ node_modules/
 .vscode-test/
 *.vsix
 /res/generated/
+work/
+test-results/
+playwright-report/

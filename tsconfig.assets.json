@@ -1,0 +1,5 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": { "strict": true, "noEmit": true },
+	"include": ["src/assets/**/*.ts", "src/editor/ResourceManager.ts", "src/editor/ModdedDefinition.ts", "src/editor/ReloadableRenderer.ts", "src/editor/CachedModel.ts"]
+}

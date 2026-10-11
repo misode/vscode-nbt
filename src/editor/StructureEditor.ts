@@ -1,14 +1,18 @@
 import type { StructureProvider } from 'deepslate'
-import { BlockPos, NbtFile, NbtInt, NbtType, Structure, StructureRenderer } from 'deepslate'
+import { BlockPos, NbtFile, NbtInt, NbtType, Structure } from 'deepslate'
 import { mat4, vec2, vec3 } from 'gl-matrix'
 import { mapEdit } from '../common/Operations'
-import type { NbtEdit } from '../common/types'
+import type { NbtEdit, ViewMessage } from '../common/types'
 import type { EditHandler, EditorPanel, VSCode } from './Editor'
 import { locale } from './Locale'
 import { ResourceManager } from './ResourceManager'
+import { ae2ModelRequests } from '../assets/Ae2'
+import { ReloadableRenderer } from './ReloadableRenderer'
 import { litematicToStructure, schematicToStructure, spongeToStructure } from './Schematics'
 import { TreeEditor } from './TreeEditor'
 import { clamp, clampVec3, negVec3 } from './Util'
+import { BlockBuilder } from './BlockBuilder'
+import { intersectBox, resolveColorPick } from './StructureEditing'
 
 declare const stringifiedAssets: string
 declare const stringifiedBlocks: string
@@ -22,8 +26,15 @@ export class StructureEditor implements EditorPanel {
 	private readonly canvas: HTMLCanvasElement
 	private readonly canvas2: HTMLCanvasElement
 	private readonly gl2: WebGLRenderingContext
-	protected readonly renderer: StructureRenderer
-	protected readonly renderer2: StructureRenderer
+	protected readonly renderer: ReloadableRenderer
+	protected readonly renderer2: ReloadableRenderer
+	private modded = true
+	private resourceGeneration = 0
+	private readonly resourceStatus = document.createElement('div')
+	private readonly maxAtlasSize: number
+	private highlighted: BlockPos[] = []
+	private readonly builder: BlockBuilder
+	private readonly cancelDrag = () => {}
 
 	private renderRequested = false
 
@@ -44,17 +55,22 @@ export class StructureEditor implements EditorPanel {
 		const blocks = JSON.parse(stringifiedBlocks)
 		const img = (document.querySelector('.texture-atlas') as HTMLImageElement)
 		this.resources = new ResourceManager(blocks, { ...assets, textures: uvMapping }, img)
+		this.builder = new BlockBuilder(this.vscode, () => this.file, this.editHandler, readOnly, () => this.resources.availableBlocks(), id => this.resources.blockOptions(id), pos => { this.selectedBlock = pos; this.showSidePanel(); this.render() })
 
 		this.canvas = document.createElement('canvas')
 		this.canvas.className = 'structure-3d'
+		this.canvas.tabIndex = 0
+		this.canvas.setAttribute('aria-label', 'Structure scene. Drag to rotate; right drag to pan. Click here before using W A S D, Space and Shift.')
 		const gl = this.canvas.getContext('webgl')!
 		this.structure = new Structure([0, 0, 0])
-		this.renderer = new StructureRenderer(gl, this.structure, this.resources)
+		this.maxAtlasSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
+		this.renderer = new ReloadableRenderer(gl, this.structure, this.resources)
 
 		this.canvas2 = document.createElement('canvas')
 		this.canvas2.className = 'structure-3d click-detection'
 		this.gl2 = this.canvas2.getContext('webgl')!
-		this.renderer2 = new StructureRenderer(this.gl2, this.structure, this.resources)
+		this.renderer2 = new ReloadableRenderer(this.gl2, this.structure, this.resources)
+		this.resourceStatus.className = 'resource-status'
 
 		this.warning = document.createElement('div')
 		this.warning.className = 'nbt-warning'
@@ -83,16 +99,26 @@ export class StructureEditor implements EditorPanel {
 		this.invisibleBlocksActive = false
 		this.selectedBlock = null
 
-		let dragTime: number
 		let dragPos: [number, number] | null = null
+		let dragStart: [number, number] | null = null
+		let dragged = false
 		let dragButton: number
-		this.canvas.addEventListener('mousedown', evt => {
-			dragTime = Date.now()
+		this.cancelDrag = () => { dragPos = null; dragStart = null }
+		this.canvas.addEventListener('contextmenu', evt => evt.preventDefault())
+		this.canvas.addEventListener('pointerdown', evt => {
+			if (![0, 1, 2].includes(evt.button)) return
+			this.canvas.focus({ preventScroll: true })
+			this.canvas.setPointerCapture(evt.pointerId)
 			dragPos = [evt.clientX, evt.clientY]
+			dragStart = [...dragPos]
+			dragged = false
 			dragButton = evt.button
+			evt.preventDefault()
 		})
-		this.canvas.addEventListener('mousemove', evt => {
+		this.canvas.addEventListener('pointermove', evt => {
+			if (!evt.buttons) { this.cancelDrag(); return }
 			if (dragPos) {
+				if (dragStart && Math.hypot(evt.clientX - dragStart[0], evt.clientY - dragStart[1]) > 4) dragged = true
 				const dx = (evt.clientX - dragPos[0]) / 100
 				const dy = (evt.clientY - dragPos[1]) / 100
 				if (dragButton === 0) {
@@ -115,14 +141,18 @@ export class StructureEditor implements EditorPanel {
 				this.render()
 			}
 		})
-		this.canvas.addEventListener('mouseup', evt => {
-			dragPos = null
-			if (Date.now() - dragTime < 200) {
-				if (dragButton === 0) {
-					this.selectBlock(evt.clientX, evt.clientY)
-				}
-			}
+		this.canvas.addEventListener('pointerup', evt => {
+			const rect = this.canvas.getBoundingClientRect()
+			const click = dragPos && !dragged && dragButton === 0 && evt.clientX >= rect.left && evt.clientX < rect.right && evt.clientY >= rect.top && evt.clientY < rect.bottom
+			this.cancelDrag()
+			if (this.canvas.hasPointerCapture(evt.pointerId)) this.canvas.releasePointerCapture(evt.pointerId)
+			if (click) this.selectBlock(evt.clientX, evt.clientY)
 		})
+		this.canvas.addEventListener('pointercancel', this.resetInput)
+		this.canvas.addEventListener('lostpointercapture', () => this.cancelDrag())
+		this.canvas.addEventListener('blur', this.resetInput)
+		window.addEventListener('blur', this.resetInput)
+		document.addEventListener('visibilitychange', this.resetInput)
 		this.canvas.addEventListener('wheel', evt => {
 			this.cDist += evt.deltaY / 100
 			this.cDist = Math.max(1, Math.min(100, this.cDist))
@@ -130,6 +160,9 @@ export class StructureEditor implements EditorPanel {
 		})
 
 		window.addEventListener('resize', () => {
+			if (!this.file || !this.canvas.isConnected) return
+			this.builder.layout()
+			this.showSidePanel()
 			if (this.resize()) this.render()
 		})
 
@@ -143,7 +176,7 @@ export class StructureEditor implements EditorPanel {
 		const requestTime = performance.now()
 		this.renderRequested = true
 		requestAnimationFrame((time) => {
-			const delta = Math.max(0, time - requestTime)
+			const delta = Math.min(50, Math.max(0, time - requestTime))
 			this.renderRequested = false
 			this.resize()
 
@@ -171,6 +204,7 @@ export class StructureEditor implements EditorPanel {
 			if (this.selectedBlock) {
 				this.renderer.drawOutline(viewMatrix, this.selectedBlock)
 			}
+			for (const pos of this.highlighted) this.renderer.drawOutline(viewMatrix, pos)
 		})
 	}
 
@@ -198,12 +232,16 @@ export class StructureEditor implements EditorPanel {
 		this.root.append(this.warning)
 		this.root.append(this.canvas)
 		this.root.append(this.canvas2)
+		this.root.append(this.resourceStatus)
+		this.builder.reveal(this.root)
 		this.showSidePanel()
 		document.addEventListener('keydown', this.onKeyDown)
 		document.addEventListener('keyup', this.onKeyUp)
 	}
 
 	hide() {
+		this.resetInput()
+		this.builder.hide()
 		document.removeEventListener('keydown', this.onKeyDown)
 		document.removeEventListener('keyup', this.onKeyUp)
 	}
@@ -219,16 +257,20 @@ export class StructureEditor implements EditorPanel {
 	onUpdate(file: NbtFile, edit: NbtEdit) {
 		this.updateStructure(file)
 		this.showSidePanel()
+		this.builder.onUpdate()
 		this.render()
 	}
 
 	private readonly onKeyDown = (evt: KeyboardEvent) => {
+		if (evt.target !== this.canvas || evt.ctrlKey || evt.metaKey || evt.altKey) return
 		const index = this.movementKeys.indexOf(evt.code)
 		if (index !== -1) {
 			this.movement[index] = 1
+			evt.preventDefault()
 			this.render()
 		}
 	}
+	private readonly resetInput = () => { this.movement.fill(0); this.cancelDrag() }
 
 	private readonly onKeyUp = (evt: KeyboardEvent) => {
 		const index = this.movementKeys.indexOf(evt.code)
@@ -247,10 +289,12 @@ export class StructureEditor implements EditorPanel {
 
 		if (isLarge) {
 			this.warning.classList.add('active')
+			this.requestResources()
 			return
 		}
 
 		this.buildStructure()
+		this.requestResources()
 	}
 
 	protected isLarge() {
@@ -275,8 +319,46 @@ export class StructureEditor implements EditorPanel {
 		const isLarge = this.isLarge()
 		this.renderer.useInvisibleBlocks = !isLarge
 		this.renderer2.useInvisibleBlocks = !isLarge
-		this.renderer.setStructure(this.structure)
-		this.renderer2.setStructure(this.structure)
+		const bound = this.resources.bind(this.structure)
+		this.renderer.setStructure(bound)
+		this.renderer2.setStructure(bound)
+	}
+
+	private requestResources(): void {
+		if (!this.modded) return
+		const ids = [...new Set(this.structure.getBlocks().map(b => b.state.getName().toString()))]
+		if (ids.length > 8192) { this.resourceStatus.textContent = 'Asset limit exceeded: showing vanilla/fallback models'; return }
+		const dependencies = this.resources.dependencies(ids)
+		dependencies.models = [...new Set([...dependencies.models, ...ae2ModelRequests(this.structure)])]
+		this.resourceStatus.textContent = 'Loading instance models and textures…'
+		this.vscode.postMessage({ type: 'getResources', body: { ids, ...dependencies, generation: ++this.resourceGeneration } })
+	}
+
+	onMessage(message: ViewMessage): void {
+		this.builder.onMessage(message)
+		if (message.type === 'resourcesChanged') { if (this.file) this.requestResources(); return }
+		if (message.type !== 'resources' || message.generation !== this.resourceGeneration || !this.modded) return
+		if (message.error || !message.body) { this.resourceStatus.textContent = `Resources: ${message.error ?? 'No response'}`; return }
+		const generation = message.generation
+		void (async () => {
+			try {
+				await this.resources.apply(message.body!, this.maxAtlasSize, () => generation !== this.resourceGeneration || !this.modded)
+				if (generation !== this.resourceGeneration || !this.modded) return
+				this.refreshResources()
+				const diagnostics = [...this.resources.diagnostics]
+				this.resourceStatus.textContent = diagnostics.length ? `${diagnostics.length} resource warnings — Show Resource Diagnostics for details` : 'Instance resources loaded'
+				this.resourceStatus.title = diagnostics.slice(0, 15).join('\n')
+				this.vscode.postMessage({ type: 'resourceDiagnostics', body: diagnostics })
+			} catch (e) { this.resourceStatus.textContent = `Resource error: ${e instanceof Error ? e.message : String(e)}` }
+		})()
+	}
+
+	private refreshResources(): void {
+		this.renderer.refreshAtlas(this.resources.getTextureAtlas())
+		this.renderer2.refreshAtlas(this.resources.getTextureAtlas())
+		if (!this.isLarge() || !this.warning.classList.contains('active')) this.buildStructure()
+		this.showSidePanel()
+		this.render()
 	}
 
 	menu() {
@@ -301,7 +383,50 @@ export class StructureEditor implements EditorPanel {
 			this.render()
 		})
 
-		return [gridToggle, invisibleBlocksToggle]
+		const moddedToggle = document.createElement('div')
+		moddedToggle.className = this.modded ? 'btn active' : 'btn'
+		moddedToggle.textContent = 'Modded assets'
+		moddedToggle.addEventListener('click', () => {
+			this.modded = !this.modded
+			moddedToggle.classList.toggle('active', this.modded)
+			this.resourceGeneration++
+			if (this.modded) this.requestResources()
+			else { this.resources.reset(); this.refreshResources(); this.resourceStatus.textContent = 'Vanilla assets only' }
+		})
+		const reload = document.createElement('div')
+		reload.className = 'btn'
+		reload.textContent = 'Reload assets'
+		reload.addEventListener('click', () => this.requestResources())
+		const search = document.createElement('input')
+		search.className = 'block-search'
+		search.placeholder = 'Highlight namespace or block ID'
+		search.setAttribute('aria-label', search.placeholder)
+		search.addEventListener('input', () => {
+			const query = search.value.trim().toLowerCase()
+			this.highlighted = query ? this.structure.getBlocks().filter(b => b.state.getName().toString().includes(query)).slice(0, 200).map(b => b.pos) : []
+			search.title = this.highlighted.length === 200 ? 'Showing the first 200 matches' : `${this.highlighted.length} matches`
+			this.render()
+		})
+		const build = document.createElement('button')
+		build.className = 'btn'
+		build.textContent = 'Build'
+		build.addEventListener('click', () => this.builder.toggle())
+		const create = document.createElement('button')
+		create.className = 'btn'
+		create.textContent = 'New NBT structure'
+		create.addEventListener('click', () => this.vscode.postMessage({ type: 'newStructure', body: { dataVersion: this.file.root.getNumber('DataVersion') } }))
+		const connected = document.createElement('button')
+		connected.className = this.resources.connectedTextures ? 'btn active' : 'btn'
+		connected.textContent = 'Connected textures'
+		connected.title = 'Join neighboring faces using supported CTM v1 texture metadata'
+		connected.setAttribute('aria-pressed', String(this.resources.connectedTextures))
+		connected.addEventListener('click', () => {
+			this.resources.connectedTextures = !this.resources.connectedTextures
+			connected.classList.toggle('active', this.resources.connectedTextures)
+			connected.setAttribute('aria-pressed', String(this.resources.connectedTextures))
+			this.buildStructure(); this.render()
+		})
+		return [gridToggle, invisibleBlocksToggle, moddedToggle, connected, reload, build, create, search]
 	}
 
 	private getViewMatrix() {
@@ -314,15 +439,34 @@ export class StructureEditor implements EditorPanel {
 	}
 
 	private selectBlock(x: number, y: number) {
+		this.resize()
+		const rect = this.canvas.getBoundingClientRect()
 		const viewMatrix = this.getViewMatrix()
 		this.renderer2.drawColoredStructure(viewMatrix)
 		const color = new Uint8Array(4)
-		this.gl2.readPixels(x, this.canvas2.height - y, 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
+		this.gl2.readPixels(Math.floor((x - rect.left) / rect.width * this.canvas2.width), this.canvas2.height - 1 - Math.floor((y - rect.top) / rect.height * this.canvas2.height), 1, 1, this.gl2.RGBA, this.gl2.UNSIGNED_BYTE, color)
 		const oldSelectedBlock = this.selectedBlock ? [...this.selectedBlock] : null
 		if (color[3] === 255) {
 			this.selectedBlock = [color[0], color[1], color[2]]
 		} else {
 			this.selectedBlock = null
+		}
+		const projection = mat4.perspective(mat4.create(), 70 * Math.PI / 180, rect.width / rect.height, 0.1, 500)
+		const inverse = mat4.invert(mat4.create(), mat4.multiply(mat4.create(), projection, viewMatrix))
+		if (inverse) {
+			const nx = (x - rect.left) / rect.width * 2 - 1
+			const ny = 1 - (y - rect.top) / rect.height * 2
+			const origin = vec3.transformMat4(vec3.create(), [nx, ny, -1], inverse)
+			const end = vec3.transformMat4(vec3.create(), [nx, ny, 1], inverse)
+			const direction = vec3.normalize(vec3.create(), vec3.sub(vec3.create(), end, origin))
+			if (color[3] === 255) this.selectedBlock = resolveColorPick(this.structure, [...color].slice(0, 3), [...origin], [...direction])
+			const hit = this.selectedBlock && intersectBox([...origin], [...direction], this.selectedBlock, this.selectedBlock.map(n => n + 1))
+			let ground: BlockPos | undefined
+			if (!this.selectedBlock && Math.abs(direction[1]) > 1e-8) {
+				const distance = -origin[1] / direction[1]
+				if (distance >= 0) ground = [Math.floor(origin[0] + direction[0] * distance), 0, Math.floor(origin[2] + direction[2] * distance)]
+			}
+			this.builder.click(this.selectedBlock, hit?.normal, ground)
 		}
 		if (JSON.stringify(oldSelectedBlock) !== JSON.stringify(this.selectedBlock)) {
 			this.showSidePanel()
@@ -338,21 +482,25 @@ export class StructureEditor implements EditorPanel {
 
 		const sidePanel = document.createElement('div')
 		sidePanel.classList.add('side-panel')
+		const menu = document.querySelector('.panel-menu')?.getBoundingClientRect()
+		if (menu) sidePanel.style.top = `${menu.bottom + 8}px`
 		this.root.append(sidePanel)
 		if (block) {
 			const properties = block.state.getProperties()
 			sidePanel.innerHTML = `
-				<div class="block-name">${block.state.getName()}</div>
+				<div class="block-name">${escapeHtml(block.state.getName().toString())}</div>
 				<div class="block-pos">${block.pos.join(' ')}</div>
 				${Object.keys(properties).length === 0 ? '' : `
 					<div class="block-props">
 					${Object.entries(properties).map(([k, v]) => `
-						<span class="prop-key">${k}</span>
-						<span class="prop-value">${v}</span>
+						<span class="prop-key">${escapeHtml(k)}</span>
+						<span class="prop-value">${escapeHtml(v)}</span>
 					`).join('')}
 					</div>
 				`}
 			`
+			const warnings = [...this.resources.diagnostics].filter(message => message.includes(block.state.getName().toString()))
+			if (warnings.length) { const warning = document.createElement('div'); warning.className = 'model-warning'; warning.textContent = warnings.join('\n'); sidePanel.append(warning) }
 			if (block.nbt) {
 				const nbtTree = document.createElement('div')
 				sidePanel.append(nbtTree)
@@ -392,3 +540,5 @@ export class StructureEditor implements EditorPanel {
 		}
 	}
 }
+
+function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)) }

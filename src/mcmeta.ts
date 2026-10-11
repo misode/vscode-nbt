@@ -1,7 +1,7 @@
 import envPaths from 'env-paths'
 import path from 'path'
 import { Readable, Writable } from 'stream'
-import tar from 'tar'
+import * as tar from 'tar'
 import type { Logger } from './common/types'
 import type { Job } from './Downloader'
 import { Downloader } from './Downloader'
@@ -25,6 +25,13 @@ interface McmetaVersion {
 	build_time: string,
 	release_time: string,
 	sha1: string
+}
+export async function getMinecraftDataVersion(version: string, logger: Logger): Promise<number> {
+	const downloader = new Downloader(mcmetaRoot, logger)
+	const versions = await downloader.download<McmetaVersion[]>({ id: 'versions', uri: `${MCMETA}/summary/versions/data.min.json`, transformer: data => JSON.parse(data.toString('utf8')), cache: cacheOptions() })
+	const match = versions?.find(v => v.id === version)
+	if (!match) throw new Error(`Minecraft version ${version} was not found. Check the version or cached version list.`)
+	return match.data_version
 }
 
 export async function getAssets(dataVersion: number | undefined, logger: Logger) {
@@ -112,7 +119,7 @@ function readTarGz(buffer: Buffer, filter: (path: string) => boolean = (() => tr
 	return new Promise<TarEntry[]>((res, rej) => {
 		Readable.from(buffer)
 			.on('error', err => rej(err))
-			.pipe(new tar.Parse())
+			.pipe(new tar.Parser())
 			.on('entry', entry => {
 				if (filter(entry.path)) {
 					let data = ''

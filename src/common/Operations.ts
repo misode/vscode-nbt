@@ -255,8 +255,17 @@ export function parsePrimitive(id: number, value: string) {
 		case NbtType.Short: return new NbtShort(parseInt(value))
 		case NbtType.Int: return new NbtInt(parseInt(value))
 		case NbtType.Long: return new NbtLong(BigInt(value))
-		case NbtType.Float: return new NbtFloat(parseFloat(value))
-		case NbtType.Double: return new NbtDouble(parseFloat(value))
+		case NbtType.Float: return new NbtFloat(parseFiniteFloat(value))
+		case NbtType.Double: return new NbtDouble(parseFiniteFloat(value))
 		default: return NbtEnd.INSTANCE
 	}
+}
+
+function parseFiniteFloat(value: string) {
+	const trimmed = value.trim()
+	if (trimmed === 'NaN') return Number.NaN
+	if (trimmed === 'Infinity' || trimmed === '+Infinity') return Number.POSITIVE_INFINITY
+	if (trimmed === '-Infinity') return Number.NEGATIVE_INFINITY
+	const parsed = parseFloat(trimmed)
+	return Number.isFinite(parsed) ? parsed : 0
 }

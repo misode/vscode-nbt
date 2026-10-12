@@ -3,6 +3,7 @@ import { NbtFile, NbtTag, NbtType } from 'deepslate'
 import { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { getNode, parsePrimitive, replaceNode, searchNodes, serializePrimitive } from '../common/Operations'
+import { encodeSpecialNumbers } from '../common/specialNumbers'
 import type { NbtEdit } from '../common/types'
 import type { EditHandler, EditorPanel, SearchResult, VSCode } from './Editor'
 import { TYPES } from './Editor'
@@ -432,7 +433,7 @@ export class TreeEditor implements EditorPanel {
 		const makeEdit = () => {
 			const newTag = parsePrimitive(tag.getId(), valueEl.value).toJsonWithId()
 			const oldTag = tag.toJsonWithId()
-			if (JSON.stringify(oldTag) !== JSON.stringify(newTag)) {
+			if (JSON.stringify(encodeSpecialNumbers(oldTag)) !== JSON.stringify(encodeSpecialNumbers(newTag))) {
 				this.editHandler({ type: 'set', path: path.arr, old: oldTag, new: newTag })
 			}
 		}

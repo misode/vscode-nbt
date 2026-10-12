@@ -1,6 +1,7 @@
 import { NbtRegion } from 'deepslate'
 import * as path from 'path'
 import * as vscode from 'vscode'
+import { decodeSpecialNumbers, encodeSpecialNumbers } from './common/specialNumbers'
 import type { EditorMessage, Logger, ViewMessage } from './common/types'
 import { disposeAll } from './dispose'
 import { getAssets, mcmetaRoot } from './mcmeta'
@@ -199,7 +200,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	}
 
 	private postMessage(panel: vscode.WebviewPanel, message: ViewMessage): void {
-		panel.webview.postMessage(message)
+		panel.webview.postMessage(encodeSpecialNumbers(message))
 	}
 
 	private broadcastMessage(document: NbtDocument, message: ViewMessage): void {
@@ -209,6 +210,7 @@ export class NbtEditorProvider implements vscode.CustomEditorProvider<NbtDocumen
 	}
 
 	private onMessage(message: EditorMessage, document: NbtDocument, panel: vscode.WebviewPanel) {
+		message = decodeSpecialNumbers(message)
 		switch (message.type) {
 			case 'ready':
 				this.postMessage(panel, {

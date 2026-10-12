@@ -3,6 +3,7 @@ import { NbtFile, NbtRegion, NbtType } from 'deepslate'
 import type { NbtPath } from '../common/NbtPath'
 import type { SearchQuery } from '../common/Operations'
 import { applyEdit, getEditedFile } from '../common/Operations'
+import { decodeSpecialNumbers, encodeSpecialNumbers } from '../common/specialNumbers'
 import type { EditorMessage, NbtEdit, ViewMessage } from '../common/types'
 import { ChunkEditor } from './ChunkEditor'
 import { FileInfoEditor } from './FileInfoEditor'
@@ -214,6 +215,7 @@ class Editor {
 	}
 
 	private onMessage(m: ViewMessage) {
+		m = decodeSpecialNumbers(m)
 		switch (m.type) {
 			case 'init':
 				console.log(m.body)
@@ -268,7 +270,7 @@ class Editor {
 		const promise = new Promise((res, rej) => {
 			this.messageCallbacks.set(requestId, { res, rej })
 		})
-		vscode.postMessage({ ...message, requestId })
+		vscode.postMessage(encodeSpecialNumbers({ ...message, requestId }))
 		return promise
 	}
 
@@ -498,7 +500,7 @@ class Editor {
 			edit = { type: 'chunk', ...this.selectedChunk, edit }
 		}
 		console.warn('Edit', edit)
-		vscode.postMessage({ type: 'edit', body: edit })
+		vscode.postMessage(encodeSpecialNumbers({ type: 'edit', body: edit }))
 	}
 }
 

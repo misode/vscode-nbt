@@ -257,7 +257,12 @@ export class TreeEditor implements EditorPanel {
 			this.clearEditing()
 			this.select({path, tag, el: head })
 		})
-		head.addEventListener('dblclick', () => {
+		head.addEventListener('dblclick', (evt) => {
+			// Double-click opens the editor. A later double-click inside that input is word selection.
+			const target = evt.target
+			if (target instanceof Element && target.closest('input, textarea, select, button')) {
+				return
+			}
 			this.clickTag(path, tag, head)
 		})
 		el.append(head)

@@ -70,7 +70,7 @@
 		"env-paths": "^2.2.1",
 		"follow-redirects": "^1.14.8",
 		"gl-matrix": "^3.4.3",
-		"tar": "^6.1.11",
+		"tar": "^7.5.21",
 		"vscode-codicons": "^0.0.14"
 	},
 	"devDependencies": {

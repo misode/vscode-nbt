@@ -99,6 +99,10 @@ export class NbtDocument extends Disposable implements vscode.CustomDocument {
 			// TODO: handle {Materials:"Pocket"} differently
 			return 1952
 		} else {
+			// for .litematic files
+			if (this.uri.fsPath.endsWith('.litematic')) {
+				return file.root.getNumber('MinecraftDataVersion')
+			}
 			return file.root.getNumber('DataVersion') ?? 0
 		}
 	}

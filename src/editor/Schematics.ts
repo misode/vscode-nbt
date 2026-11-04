@@ -63,7 +63,7 @@ export function litematicToStructure(root: NbtCompound) {
 		const size = getTriple(region.getCompound('Size'))
 		for (let i = 0; i < 3; i += 1) {
 			if (size[i] < 0) {
-				pos[i] += size[i]
+				pos[i] += size[i] + 1
 				size[i] = -size[i]
 			}
 		}
